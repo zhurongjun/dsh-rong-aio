@@ -1,0 +1,83 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "import", "unicorn", "oxc"],
+  "categories": {
+    "correctness": "error"
+  },
+  "env": {
+    "builtin": true,
+    "browser": false,
+    "node": false
+  },
+  "rules": {
+    "no-unused-vars": "error",
+    "no-debugger": "error",
+    "no-undef": "error",
+    "eqeqeq": "error",
+    "typescript/no-require-imports": "error"
+  },
+  "ignorePatterns": [
+    "node_modules/**",
+    ".pnpm-store/**",
+    ".cache/**",
+    ".local/**",
+    ".dsh-dev/**",
+    "coverage/**",
+    "lib/**",
+    "dist/**"
+  ],
+  "overrides": [
+    {
+      "files": ["src/host/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
+      "env": { "node": true },
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)client(/|$)",
+                "message": "Host 不得导入 Client；共享类型和协议应放入 src/shared。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/client/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
+      "env": { "browser": true },
+      "rules": {
+        "import/no-nodejs-modules": "error",
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)host(/|$)",
+                "message": "Client 不得导入 Host；共享类型和协议应放入 src/shared。"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/shared/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
+      "rules": {
+        "import/no-nodejs-modules": "error",
+        "no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "regex": "(^|/)(host|client)(/|$)",
+                "message": "Shared 必须与运行侧无关，不得导入 Host 或 Client。"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

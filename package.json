@@ -1,0 +1,41 @@
+{
+  "name": "dsh-rong-aio",
+  "version": "0.1.0",
+  "description": "自用的 DeepSeek Harness All-In-One 插件；当前为空功能骨架。",
+  "private": true,
+  "type": "module",
+  "license": "GPL-3.0-only",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zhurongjun/dsh-rong-aio.git"
+  },
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0",
+    "dsh": "0.2.1-rc.5"
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "files": [
+    "cordis.patch.yml",
+    "docs/installation.md"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "scripts": {
+    "format": "prettier . --write",
+    "format:check": "prettier . --check",
+    "lint": "oxlint --no-error-on-unmatched-pattern --max-warnings 0 .",
+    "lint:fix": "oxlint --fix --no-error-on-unmatched-pattern --max-warnings 0 .",
+    "check": "pnpm format:check && pnpm lint"
+  },
+  "devDependencies": {
+    "oxlint": "1.81.0",
+    "prettier": "3.9.10"
+  }
+}

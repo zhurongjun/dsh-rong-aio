@@ -1,0 +1,21 @@
+# 依赖、产物与本地数据
+node_modules/
+.pnpm-store/
+.cache/
+.local/
+.dsh-dev/
+lib/
+dist/
+coverage/
+*.tgz
+*.log
+
+# 由包管理器维护；许可证保留原文
+pnpm-lock.yaml
+LICENSE
+
+# 真实环境配置不参与格式化
+.env
+.env.*
+!.env.example
+!.env.*.example
