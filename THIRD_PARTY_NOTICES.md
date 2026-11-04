@@ -2,7 +2,7 @@
 
 ## dsh-codex-effort-slider
 
-`src/shared/slider-motion.ts`、`src/shared/particle-motion.ts` 和粒子 CSS 改编自 [Microqian2th/dsh-codex-effort-slider](https://github.com/Microqian2th/dsh-codex-effort-slider/blob/fc5a994e34d3329bef748135e2c2ed219b9e30ce/lib/client.js)。固定提交：`fc5a994e34d3329bef748135e2c2ed219b9e30ce`。保留其 MIT 许可如下。
+`src/components/model-selector/shared/slider-motion.ts`、`src/components/model-selector/shared/particle-motion.ts` 和粒子 CSS 改编自 [Microqian2th/dsh-codex-effort-slider](https://github.com/Microqian2th/dsh-codex-effort-slider/blob/fc5a994e34d3329bef748135e2c2ed219b9e30ce/lib/client.js)。固定提交：`fc5a994e34d3329bef748135e2c2ed219b9e30ce`。保留其 MIT 许可如下。
 
 ```text
 MIT License

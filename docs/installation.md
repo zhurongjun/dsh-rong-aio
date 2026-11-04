@@ -16,7 +16,7 @@ github:zhurongjun/dsh-rong-aio#<完整提交 SHA>
 git+https://github.com/zhurongjun/dsh-rong-aio.git#<完整提交 SHA>
 ```
 
-Git 安装下载源码，由 pnpm 在临时目录安装开发依赖并运行 `prepare`，生成 `lib/index.js`、`lib/index.d.ts`、`lib/client.js`，再按文件白名单安装。无需手动 clone 或 build；源码不依赖工作区外文件，`lib/` 不提交。初次安装需要联网获取源码和构建依赖；开发依赖不进入最终插件运行包。
+Git 安装下载源码，由 pnpm 在临时目录安装开发依赖并运行 `prepare`，生成 `lib/` 下的组件入口、内部清单、locale、宿主代码及客户端工厂，再按文件白名单安装。无需手动 clone 或 build；源码不依赖工作区外文件，`lib/` 不提交。初次安装需要联网获取源码和构建依赖；开发依赖不进入最终插件运行包。
 
 Git 构建的宿主环境需能直接执行 Git、Node.js `^22.19.0 || >=24.0.0` 和 pnpm `11.25.0`。DSH 内置的包管理器并不保证它启动的子进程也能在 PATH 找到 `pnpm`。已有 Node.js 时可安装固定版本：
 
@@ -61,7 +61,7 @@ dsh --profile web --dump-config
 dsh --profile web
 ```
 
-配置应包含 `id: rong-aio-model-selector`、`name: dsh-rong-aio`。已有实例需要重新加载或重启。Git 安装发生在 DSH 宿主机器，宿主需要访问 GitHub 和依赖注册表；切换 npm 镜像不能修复 GitHub 连接问题。
+配置应包含 `id: rong-aio-model-selector`、`name: dsh-rong-aio/model-selector`。已有实例需要重新加载或重启。Git 安装发生在 DSH 宿主机器，宿主需要访问 GitHub 和依赖注册表；切换 npm 镜像不能修复 GitHub 连接问题。
 
 ## 本地源码开发
 
@@ -101,7 +101,9 @@ Desktop 可在“添加插件”中填写本地包绝对路径。安装包只包
 
 ## 启停、卸载、更新和回退
 
-- **停用与重新启用**：在插件页面切换 `dsh-rong-aio` 开关；停用后原选择器恢复，重新启用后恢复本插件。官方模型目录插件须保持启用。
+- **整个插件启停**：在插件页面切换 `dsh-rong-aio` 总开关，控制全部功能组件。
+- **单个功能启停**：进入详情的“包含的组件”，切换“模型选择器”。这会同时停用或启用选择器、effort、Fast UI 和请求适配；停用后官方选择器恢复。官方模型目录插件须保持启用。
+- **状态沿用**：新组件默认开启；已有组件通过稳定 ID 保留当前 profile 的关闭覆盖，重启或总包重新启用不应重置。Desktop 与 Web 分别管理。
 - **Desktop 卸载**：进入本插件详情并选择“卸载”，按提示重载或重启，已安装列表中应不再出现本插件。
 - **Web 卸载**：`dsh plugin --profile web remove dsh-rong-aio`，然后重启已有实例。
 - **Git 更新、重新安装或回退**：记录当前安装的提交及启用状态，卸载后安装目标提交的 spec，再启用。已安装副本不会随远程 push 或开发目录改动自动更新。
@@ -110,13 +112,26 @@ Desktop 可在“添加插件”中填写本地包绝对路径。安装包只包
 
 插件卸载不应作为清除会话或速度设置的方法。Fast 状态保存在当前 profile 的 storageDomain 中，停用即停止请求参数注入；重新安装并启用后沿用持久化设置。
 
+## 从单功能入口升级
+
+安装单位仍为 `dsh-rong-aio`，不需要分别安装内部组件。模型选择器配置 ID 仍是 `rong-aio-model-selector`，模块名称改为 `dsh-rong-aio/model-selector`；旧宿主入口 `dsh-rong-aio` 仍兼容转发。Fast 接口 `/api/rong-aio.speed` 与存储域 `rong_aio_speed` 的名称和版本保持不变。
+
+通过原生开关写入的覆盖项通常只有 ID，可直接沿用。如果手写覆盖项同时绑定旧名称，请只将该条目的 `name` 更新为 `dsh-rong-aio/model-selector`，或者移除 `name` 仅按稳定 ID 匹配；保留 `disabled` 及其他设置。例如：
+
+```yaml
+- id: rong-aio-model-selector
+  disabled: true
+```
+
+不要另外新增 `name: dsh-rong-aio` 的插件实例；这会与组合包内的同一组件重复。安装器不自动改写用户覆盖文件。更新包后按宿主提示重启，确认“包含的组件”显示中文名称，且既有关闭状态仍然保留。
+
 ## 排查
 
 | 现象                                       | 检查                                                                                         |
 | ------------------------------------------ | -------------------------------------------------------------------------------------------- |
 | 构建脚本被拦截                             | 核对错误中的包键，仅在目标 profile 允许对应 Git 构建后重试                                   |
 | `pnpm: command not found` / `spawn ENOENT` | 在 DSH 宿主安装固定 pnpm 并确保登录 shell 的 PATH 可见，再重启 DSH；此时还未进入插件 prepare |
-| 找不到 `lib/index.js` / `lib/client.js`    | 检查 prepare 是否成功、是否禁止脚本；本地链接先执行 `pnpm build`                             |
+| 找不到 `lib/` 中的入口或组件产物           | 检查 prepare 是否成功、是否禁止脚本；本地链接先执行 `pnpm build`                             |
 | Git 安装失败                               | 提交须已推送；宿主能访问 GitHub 和注册表，且 Node/pnpm 版本兼容                              |
 | 同名插件已安装                             | 先卸载当前来源，再安装新的 Git spec、路径或安装包                                            |
 | 仍显示原生双层菜单                         | 确认当前 profile 已启用并重新加载；检查模型插槽是否被其他插件占用                            |
@@ -126,7 +141,7 @@ Desktop 可在“添加插件”中填写本地包绝对路径。安装包只包
 | 模型目录加载失败                           | 点击“重新加载”，检查 DSH 提供商设置                                                          |
 | 版本不兼容                                 | 当前只验证 rc.5，不启用兼容豁免                                                              |
 
-宿主入口提供速度设置持久化与请求参数适配；浏览器代码通过 DSH `__ModuleLoader__` 模块工厂加载，React 与 UI primitives 由 DSH 提供。修改宿主代码、包清单或配置层后需重启 DSH，仅刷新 Web 页面不会重新载入宿主模块。Zod 随宿主产物打包。
+宿主入口提供速度设置持久化与请求参数适配；浏览器代码通过 DSH `__ModuleLoader__` 模块工厂加载，每个内部组件使用自己的模块身份；React、UI primitives、Cordis 与 Loader 由 DSH 提供。修改宿主代码、包清单或配置层后需重启 DSH，仅刷新 Web 页面不会重新载入宿主模块。Zod 随宿主产物打包。
 
 ## 官方依据
 

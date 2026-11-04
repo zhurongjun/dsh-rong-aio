@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { advanceMotion, detentAt } from '../src/shared/slider-motion.ts'
+import { advanceMotion, detentAt } from '../src/components/model-selector/shared/slider-motion.ts'
 
 test('离散迟滞在档位边缘不会反复跳动，端点始终有效', () => {
   assert.equal(detentAt(0.32, 0, 2), 0)

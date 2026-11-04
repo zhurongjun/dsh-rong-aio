@@ -7,7 +7,7 @@ import {
   effortsOf,
   filterModels,
   selectionFor,
-} from '../src/shared/model-selection.ts'
+} from '../src/components/model-selector/shared/model-selection.ts'
 
 const model = {
   id: 'model/opaque',

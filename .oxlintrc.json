@@ -29,7 +29,7 @@
   ],
   "overrides": [
     {
-      "files": ["src/host/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
+      "files": ["src/**/host/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
       "env": {
         "node": true
       },
@@ -40,7 +40,7 @@
             "patterns": [
               {
                 "regex": "(^|/)client(/|$)",
-                "message": "Host 不得导入 Client；共享类型和协议应放入 src/shared。"
+                "message": "Host 不得导入 Client；共享类型和协议应放入所属组件的 shared。"
               }
             ]
           }
@@ -48,7 +48,7 @@
       }
     },
     {
-      "files": ["src/client/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
+      "files": ["src/**/client/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
       "env": {
         "browser": true
       },
@@ -60,7 +60,7 @@
             "patterns": [
               {
                 "regex": "(^|/)host(/|$)",
-                "message": "Client 不得导入 Host；共享类型和协议应放入 src/shared。"
+                "message": "Client 不得导入 Host；共享类型和协议应放入所属组件的 shared。"
               }
             ]
           }
@@ -68,7 +68,7 @@
       }
     },
     {
-      "files": ["src/shared/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
+      "files": ["src/**/shared/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
       "rules": {
         "import/no-nodejs-modules": "error",
         "no-restricted-imports": [

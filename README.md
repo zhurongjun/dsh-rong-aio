@@ -1,6 +1,6 @@
 # dsh-rong-aio
 
-自用、单包的 DeepSeek Harness 插件，验证基线为 **DSH `0.2.1-rc.5`**，支持 Desktop 与 Web。
+自用、一个安装入口包含多个功能组件的 DeepSeek Harness 插件，验证基线为 **DSH `0.2.1-rc.5`**，支持 Desktop 与 Web。
 
 首个功能是 **Codex 风格的模型与推理强度选择器**：打开即显示强度滑块，点击标题切换模型；按 Codex 参考图调整比例、字号和图标，接入 DSH 的主题与会话状态。只提供目录实际声明的明确 effort，不显示 Default。左上角闪电按人工维护的 OpenAI / Anthropic 型号规则启用，菜单提供该型号支持的标准、快速或超快；宿主向实际 API 请求传递速度参数。
 
@@ -34,18 +34,20 @@ github:zhurongjun/dsh-rong-aio#<完整提交 SHA>
 
 ```text
 src/
-├── host/index.ts                  # 速度设置持久化与请求参数适配
-├── client/model-selector/         # 组件、交互和样式
-└── shared/                        # 模型选择规则和运动计算
-scripts/build.mjs                  # DSH 模块工厂构建
-tests/                            # 规则、运动及组件交互测试
+├── components/model-selector/    # 完整功能：host、client、shared、locale 和内部清单
+├── runtime/host/                 # 组件装配与生命周期
+└── shared/                       # 实际需要的跨组件公共契约
+scripts/build.mjs                 # 统一生成组件入口与 DSH 模块工厂
+tests/                            # 规则、装配生命周期、运动及交互测试
 ```
 
-Host 不导入 Client；Client 不导入 Host 或 Node；Shared 不依赖任一侧实现或 DOM。项目内部使用相对 ESM 导入。
+用户只安装 `dsh-rong-aio`，在 DSH 原生“包含的组件”中分别启停完整功能；总开关控制全部组件。新功能默认开启，已关闭组件沿用当前 profile 的覆盖状态。内部清单随根包分发，不单独安装。
+
+Host 不导入 Client；Client 不导入 Host 或 Node；Shared 不依赖任一侧实现或 DOM。组件不相互导入内部实现，公共服务契约放在根 Shared。项目内部使用相对 ESM 导入；新增组件步骤见[组件架构](docs/components.md)。
 
 界面直接消费 DSH 的语义 token 与公开控件；中性色、菜单材质和字体跟随宿主，保留选择器的布局与特色交互。新增界面遵守 [UI 消费契约](docs/ui-contract.md)，使用 `pnpm check:ui` 检查颜色、token 与局部例外。
 
-开发环境：Node.js `^22.19.0 || >=24.0.0`、pnpm `11.25.0`。依赖固定版本，锁文件随源码提交。`pnpm-workspace.yaml` 配置 esbuild 的开发安装脚本许可及本地依赖缓存位置，仍是单包项目。
+开发环境：Node.js `^22.19.0 || >=24.0.0`、pnpm `11.25.0`。依赖固定版本，锁文件随源码提交。`pnpm-workspace.yaml` 配置 esbuild 的开发安装脚本许可及本地依赖缓存位置，只有根包参与依赖安装。
 
 | 命令                                               | 用途                                                |
 | -------------------------------------------------- | --------------------------------------------------- |

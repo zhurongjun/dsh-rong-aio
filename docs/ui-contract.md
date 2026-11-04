@@ -50,7 +50,7 @@ Fast/Reset 使用现有 SVG，标准模式闪电空心、快速模式实心，ho
 
 ## 检查与维护
 
-`pnpm check:ui` 扫描 `src/client` 的 CSS 和 JS/TS/JSX/TSX，且已纳入 `pnpm check`。CSS 通过 AST 检查：颜色字面量（含 fallback 与嵌套函数）、未知宿主变量、明暗分支、宿主变量重定义及精确例外。源码 AST 检查静态样式对象、SVG paint 属性、DOM style 赋值和 `setProperty`；颜色条件表达式逐个分支检查。动态颜色应通过 CSS 类表达，禁止 `cssText` 或 style 字符串注入。
+`pnpm check:ui` 扫描 `src/` 中所有 `client/` 目录 的 CSS 和 JS/TS/JSX/TSX，且已纳入 `pnpm check`。CSS 通过 AST 检查：颜色字面量（含 fallback 与嵌套函数）、未知宿主变量、明暗分支、宿主变量重定义及精确例外。源码 AST 检查静态样式对象、SVG paint 属性、DOM style 赋值和 `setProperty`；颜色条件表达式逐个分支检查。动态颜色应通过 CSS 类表达，禁止 `cssText` 或 style 字符串注入。
 
 这不是通用 CSS 类型检查或跨模块数据流分析器，不能证明任意运行时字符串拼接安全；代码审查仍需检查外部样式、动态注入和视觉语义。布局数值不作一刀切限制，实际材质和交互仍需在 DSH 中确认。
 

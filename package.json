@@ -1,7 +1,7 @@
 {
   "name": "dsh-rong-aio",
   "version": "0.1.0",
-  "description": "自用 DSH 插件：Codex 风格的模型与推理强度选择器。",
+  "description": "自用 DSH 功能组合包：统一安装，按功能独立启停。",
   "private": true,
   "type": "module",
   "license": "GPL-3.0-only",
@@ -19,9 +19,13 @@
       "types": "./lib/index.d.ts",
       "default": "./lib/index.js"
     },
-    "./client": "./lib/client.js",
     "./package.json": "./package.json",
-    "./cordis.patch.yml": "./cordis.patch.yml"
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./model-selector": {
+      "types": "./lib/model-selector.d.ts",
+      "default": "./lib/model-selector.js"
+    },
+    "./model-selector/locale/*.json": "./lib/components/model-selector/locale/*.json"
   },
   "files": [
     "lib/",
@@ -30,38 +34,34 @@
     "docs/model-selector.md",
     "docs/ui-contract.md",
     "scripts/ui-contract.json",
-    "THIRD_PARTY_NOTICES.md"
+    "THIRD_PARTY_NOTICES.md",
+    "docs/components.md"
   ],
   "dsh": {
     "bundle": {
       "patch": "./cordis.patch.yml"
-    },
-    "client": {
-      "platform": "web",
-      "inject": [
-        "@deepseek-ai/dsh-client-ui-model-selection",
-        "@deepseek-ai/dsh-client-ui-renderer",
-        "@deepseek-ai/dsh-client-ui-session"
-      ]
     }
   },
   "scripts": {
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "lint": "oxlint --no-error-on-unmatched-pattern --max-warnings 0 .",
-    "lint:fix": "oxlint --fix --no-error-on-unmatched-pattern --max-warnings 0 .",
+    "lint": "oxlint --no-error-on-unmatched-pattern --max-warnings 0 . && pnpm check:boundaries",
+    "lint:fix": "oxlint --fix --no-error-on-unmatched-pattern --max-warnings 0 . && pnpm check:boundaries",
     "check": "pnpm format:check && pnpm lint && pnpm check:ui && pnpm typecheck && pnpm test",
     "build": "node scripts/build.mjs",
     "prepare": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --experimental-strip-types --test tests/*.test.ts tests/*.test.mjs",
-    "check:ui": "node scripts/check-ui-contract.mjs"
+    "check:ui": "node scripts/check-ui-contract.mjs",
+    "check:boundaries": "node scripts/check-boundaries.mjs"
   },
   "devDependencies": {
     "@babel/parser": "7.29.12",
     "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.6",
     "@deepseek-ai/dsh-api-session-controller": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-locale": "0.2.1-rc.5",
+    "@deepseek-ai/dsh-client-modules": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-store": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-conversation": "0.2.1-rc.5",
     "@deepseek-ai/dsh-client-ui-model-selection": "0.2.1-rc.5",
@@ -88,5 +88,17 @@
     "zustand": "5.0.16"
   },
   "main": "lib/index.js",
-  "types": "lib/index.d.ts"
+  "types": "lib/index.d.ts",
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "4.0.5",
+    "@deepseek-ai/cordis-plugin-loader": "1.0.6"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/cordis": {
+      "optional": true
+    },
+    "@deepseek-ai/cordis-plugin-loader": {
+      "optional": true
+    }
+  }
 }

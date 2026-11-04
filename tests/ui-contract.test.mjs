@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { checkCss, checkSource, contract } from '../scripts/check-ui-contract.mjs'
 
-const file = 'src/client/model-selector/styles.css'
+const file = 'src/components/model-selector/client/model-selector/styles.css'
 const valid = (source) => assert.deepEqual(checkCss(source, file), [])
 const invalid = (source, pattern) => assert.match(checkCss(source, file).join('\n'), pattern)
 
@@ -46,7 +46,7 @@ test('UI 契约：合法局部重绑与装饰只能在登记的精确范围生�
     assert.ok(entry.reason)
     const source = `${entry.selector} { ${entry.property}: ${entry.value} }`
     valid(source)
-    assert.ok(checkCss(source, 'src/client/elsewhere.css').length)
+    assert.ok(checkCss(source, 'src/components/model-selector/client/elsewhere.css').length)
     invalid(`.elsewhere { ${entry.property}: ${entry.value} }`, /硬编码颜色|不允许重定义/)
     invalid(`@media (min-width: 1px) { ${source} }`, /硬编码颜色|不允许重定义/)
   }
@@ -63,7 +63,7 @@ test('UI 契约：TSX/SVG 与 DOM 样式同样受约束，运动数字不误报'
     style={{color: 'var(--dsw-alias-label-primary)', '--rong-position': position,
       border: 0, borderRadius: 8, borderWidth: size, backgroundPosition: position}} />;
     node.style.setProperty('--rong-position', String(position)); node.style.top = y + '%';`,
-      'src/client/test.tsx',
+      'src/components/model-selector/client/test.tsx',
     ),
     [],
   )
@@ -81,12 +81,14 @@ test('UI 契约：TSX/SVG 与 DOM 样式同样受约束，运动数字不误报'
     'const view = <div style={{ colorScheme: "light" }} />',
     'window.matchMedia("(prefers-color-scheme: dark)")',
   ])
-    assert.ok(checkSource(source, 'src/client/test.tsx').length, source)
+    assert.ok(checkSource(source, 'src/components/model-selector/client/test.tsx').length, source)
 })
 
 test('UI 契约：解析错误直接失败，消费清单与固定官方来源绑定', () => {
   invalid('.test { color: rgb( }', /无法解析/)
-  assert.ok(checkSource('const broken = <div', 'src/client/test.tsx').length)
+  assert.ok(
+    checkSource('const broken = <div', 'src/components/model-selector/client/test.tsx').length,
+  )
   assert.match(contract.baseline.commit, /^[0-9a-f]{40}$/)
   assert.ok(contract.baseline.sourceBase.includes(contract.baseline.commit))
   for (const [name, entry] of Object.entries(contract.tokens)) {

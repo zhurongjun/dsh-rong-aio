@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { Context } from '@deepseek-ai/cordis'
-import { apply } from '../src/host/index.ts'
+import { apply } from '../src/components/model-selector/host/index.ts'
 
 test('宿主接口：验证型号与协议、按会话隔离、持久化后回应、失败保留原值、释放资源', async () => {
   const records = new Map<string, string>()

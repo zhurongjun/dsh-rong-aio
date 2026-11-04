@@ -36,7 +36,7 @@ const { createRoot } = await import('react-dom/client')
 await mkdir('agent_temp/tests', { recursive: true })
 // 只替换 DSH 的视觉原子；被测组件、状态逻辑、React 与事件处理均使用实际实现。
 await build({
-  entryPoints: ['src/client/model-selector/ModelSelector.tsx'],
+  entryPoints: ['src/components/model-selector/client/model-selector/ModelSelector.tsx'],
   outfile: 'agent_temp/tests/selector.mjs',
   bundle: true,
   format: 'esm',
@@ -396,8 +396,9 @@ test('输入框 Fast 提示：不打开弹层也读取持久化状态，切换�
 })
 
 test('动画帧直接绘制且不触发 React 提交；目录订阅稳定、卸载取消动画', async (t) => {
-  const { advanceMotion } = await import('../src/shared/slider-motion.ts')
-  const { particlesFor, energyFor } = await import('../src/shared/particle-motion.ts')
+  const { advanceMotion } = await import('../src/components/model-selector/shared/slider-motion.ts')
+  const { particlesFor, energyFor } =
+    await import('../src/components/model-selector/shared/particle-motion.ts')
   let time = 0
   let sequence = 0
   let commits = 0

@@ -242,7 +242,9 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
   const files =
     process.argv.length > 2
       ? process.argv.slice(2).map((name) => path.resolve(name))
-      : await filesIn(path.join(root, 'src/client'))
+      : (await filesIn(path.join(root, 'src'))).filter((file) =>
+          file.split(path.sep).includes('client'),
+        )
   const errors = (
     await Promise.all(
       files.map(async (file) => {

@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { advanceMotion } from '../src/shared/slider-motion.ts'
-import { particlesFor } from '../src/shared/particle-motion.ts'
+import { advanceMotion } from '../src/components/model-selector/shared/slider-motion.ts'
+import { particlesFor } from '../src/components/model-selector/shared/particle-motion.ts'
 
 // fixture 来自固定提交的 __internals 实际输出，不由本项目实现生成。
 const fixture = JSON.parse(

@@ -2,7 +2,7 @@
 
 ## 当前范围
 
-- 本项目是自用、单包的 DSH 插件，当前提供模型选择器及 Fast 请求参数适配，验证基线为 `0.2.1-rc.5`。
+- 本项目是自用、一个安装入口包含多个功能组件的 DSH 插件，用户只安装 `dsh-rong-aio`。当前模型选择器、effort、Fast UI 与宿主请求适配是同一个组件，验证基线为 `0.2.1-rc.5`。
 - 文档使用中文。维护选择器、构建和测试，不自行扩展新业务、CI 或发布流程。
 - 保留现有 LICENSE 原文；开发依赖固定版本并更新 pnpm-lock.yaml。
 
@@ -18,12 +18,23 @@
 
 ## 代码边界
 
-- `src/host`：宿主侧实现，可使用 Node 能力，可依赖 Shared，不导入 Client。
-- `src/client`：浏览器侧实现，可依赖 Shared，不导入 Host 或 Node 内置模块。
-- `src/shared`：与运行侧无关的类型、协议和纯函数，不依赖 Host、Client、Node 或 DOM 专有能力。
+- `src/components/<功能>/host`：宿主侧实现，可使用 Node 能力，可依赖 Shared，不导入 Client。
+- `src/components/<功能>/client`：浏览器侧实现，可依赖 Shared，不导入 Host 或 Node 内置模块。
+- `src/components/<功能>/shared`：组件内部的纯类型、协议和函数，不依赖 Host、Client、Node 或 DOM 专有能力。
+- `src/runtime/host` 只负责组件装配，不放业务逻辑；根部 `src/shared` 只放已被多个组件需要的公共契约与纯工具，不提前抽象或移动单组件规则。
+- 组件不直接导入其他组件内部，也不依赖装配层；跨组件协作通过根 Shared 中的公开契约和 DSH 服务完成。`pnpm lint` 包含静态边界检查，覆盖 import、再导出、类型导入和固定路径动态导入。
 - 功能确定后才增加目录；项目内部使用相对 ESM 导入。引入路径别名或调整目录时同步验证 lint 边界。
-- Fast 型号规则集中在 `src/shared/speed.ts`；宿主按会话、provider、model 隔离状态，只改写已验证 HTTP 协议的速度字段，不修改消息内容。
+- Fast 型号规则集中在 `src/components/model-selector/shared/speed.ts`；宿主按会话、provider、model 隔离状态，只改写已验证 HTTP 协议的速度字段，不修改消息内容。
 - DSH 扩展优先依赖公开服务契约，注册资源遵循其生命周期清理机制。
+
+## 组件接入约定
+
+- 每个完整功能对应一个稳定配置 ID、一个根包子路径入口及一个内部包清单；参考 [组件架构](docs/components.md)。内部清单只提供模块身份，不单独安装或发布，不增加独立锁文件、工具链或 workspace 依赖。
+- 新组件在 `cordis.patch.yml` 中默认启用，不写 `disabled: true`；已有 ID 不随目录或名称变动，用户关闭状态由 DSH profile 覆盖层保留。不得另建启停数据库、批量重置覆盖项或增加 AIO 管理页面。
+- 新增组件时同时更新清单、根包 exports、中文/英文 locale 元信息和配置层。统一构建发现 `src/components/*/package.json`，生成独立客户端工厂与宿主装配入口；所有内部清单和产物随根包分发。
+- rc.5 不扫描包子路径客户端；必须由公开 Loader 挂载带独立清单的内部条目。内部条目不写入根配置层，随所属功能卸载，不能泄漏客户端、样式、事件或宿主资源。
+- Cordis 和 Loader 作为宿主提供的可选 peer 声明并外置，开发/测试使用固定版本；不要内嵌框架副本。纯 UI 组件由构建生成空宿主锚点，不增加业务占位模块。
+- 组件新增或装配变更必须验证独立启停、总包启停、重新加载和清理；临时双组件夹具放在 `agent_temp/`。保留旧宿主入口的兼容转发、选择器 ID、Fast 接口和存储名称；手写绑定旧模块名的覆盖项需在安装说明中明确迁移方式。
 
 ## 安装契约
 

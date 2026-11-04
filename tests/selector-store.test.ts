@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { createSelectorStore } from '../src/client/model-selector/selector-store.ts'
-import { createSpeedStore } from '../src/client/model-selector/speed-store.ts'
-import { speedKey } from '../src/shared/speed.ts'
+import { createSelectorStore } from '../src/components/model-selector/client/model-selector/selector-store.ts'
+import { createSpeedStore } from '../src/components/model-selector/client/model-selector/speed-store.ts'
+import { speedKey } from '../src/components/model-selector/shared/speed.ts'
 
 test('选择器状态：实例隔离、原子切换、重复操作不通知、保存互斥', () => {
   const first = createSelectorStore()

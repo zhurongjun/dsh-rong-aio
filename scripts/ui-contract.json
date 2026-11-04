@@ -123,21 +123,21 @@
   },
   "localBindings": [
     {
-      "file": "src/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/model-selector/styles.css",
       "selector": ".rong-model-popover",
       "property": "--dsw-elevation-stroke-color",
       "value": "var(--dsw-alias-border-l1)",
       "reason": "官方 elevation 留出的描边颜色入口，仅作用于本弹层"
     },
     {
-      "file": "src/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/model-selector/styles.css",
       "selector": ".rong-model-popover",
       "property": "--dsh-scrollbar-thumb",
       "value": "var(--dsw-alias-scrollbar-bg-l2)",
       "reason": "共享滚动条允许在浮层重绑到 L2 语义"
     },
     {
-      "file": "src/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/model-selector/styles.css",
       "selector": ".rong-model-popover",
       "property": "--dsh-scrollbar-thumb-hover",
       "value": "var(--dsw-alias-scrollbar-hover-l2)",
@@ -146,28 +146,28 @@
   ],
   "decorations": [
     {
-      "file": "src/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/model-selector/styles.css",
       "selector": ".rong-effort-thumb",
       "property": "background",
       "value": "#fff",
       "reason": "滑块白色图形，两种主题均固定白色，保持既定视觉"
     },
     {
-      "file": "src/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/model-selector/styles.css",
       "selector": ".rong-effort-thumb",
       "property": "box-shadow",
       "value": "0 1px 4px #00000024, inset 0 0 0 1px #00000005",
       "reason": "滑块微阴影是局部图形，不套用菜单 elevation"
     },
     {
-      "file": "src/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/model-selector/styles.css",
       "selector": ".rong-effort-star>i",
       "property": "background",
       "value": "#fff",
       "reason": "向左流动的白色粒子，颜色属于特色装饰"
     },
     {
-      "file": "src/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/model-selector/styles.css",
       "selector": ".rong-effort-star>i",
       "property": "box-shadow",
       "value": "0 0 4px #ffffffd9",

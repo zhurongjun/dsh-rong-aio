@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { speedRuleFor, speedKey } from '../src/shared/speed.ts'
-import { createSpeedTransport } from '../src/host/speed-transport.ts'
+import { speedRuleFor, speedKey } from '../src/components/model-selector/shared/speed.ts'
+import { createSpeedTransport } from '../src/components/model-selector/host/speed-transport.ts'
 
 const openai = speedRuleFor('gpt-6-astra')!
 const anthropic = speedRuleFor('claude-opus-5')!
