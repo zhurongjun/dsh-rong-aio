@@ -6,17 +6,17 @@
 
 ## 安装
 
-源码安装前先构建：
+推荐在 **DSH Desktop → 插件 → 添加插件** 中填写：
 
-```sh
-pnpm install --frozen-lockfile
-pnpm check
-pnpm build
+```text
+github:zhurongjun/dsh-rong-aio#<完整提交 SHA>
 ```
 
-然后在 **DSH Desktop → 插件 → 添加插件** 中填写仓库绝对路径并启用。当前工作区为 `/Users/rong/workspace/project/dsh-rong-aio`。详细步骤、Web 安装、干净检出、更新及回退见[安装说明](docs/installation.md)。
+将占位符替换为已推送提交。首次安装需允许该 Git 包的构建脚本；`prepare` 会自动安装开发依赖并生成运行产物，完成后点击“立即启用”。也可以省略 `#<完整提交 SHA>` 安装默认分支最新版本。
 
-不需要安装生命周期脚本；构建是开发者显式执行的步骤。`pnpm pack` 得到的包包含构建产物，安装该包不需要开发依赖。`lib/` 不提交，因此不要把未经构建的 Git 检出直接交给 DSH 安装。
+本地开发执行 `pnpm install --frozen-lockfile`，安装结束会自动构建，再运行 `pnpm check`；随后在 DSH 中添加源码目录绝对路径。`pnpm pack` 同样自动构建，生成的安装包无需开发依赖或安装时构建。`lib/` 仍不提交。
+
+首次脚本许可、Web 安装、固定版本、卸载与回退见[安装说明](docs/installation.md)。
 
 ## 使用
 
@@ -57,6 +57,6 @@ Host 不导入 Client；Client 不导入 Host 或 Node；Shared 不依赖任一�
 | `pnpm test`                                        | 规则、动画计算与 DOM 交互测试                       |
 | `pnpm check`                                       | 依次检查格式、lint、UI 契约、类型和测试，不改写源码 |
 | `pnpm build`                                       | 生成可安装的 `lib/`                                 |
-| `pnpm pack --pack-destination agent_temp/packages` | 将已有构建产物打成安装包；先执行 build              |
+| `pnpm pack --pack-destination agent_temp/packages` | 自动构建并打成安装包                                |
 
 没有 CI、提交钩子、自动发布或自动提交。保留已有 [GPL v3 许可证](LICENSE)。

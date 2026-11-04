@@ -52,6 +52,7 @@
     "lint:fix": "oxlint --fix --no-error-on-unmatched-pattern --max-warnings 0 .",
     "check": "pnpm format:check && pnpm lint && pnpm check:ui && pnpm typecheck && pnpm test",
     "build": "node scripts/build.mjs",
+    "prepare": "node scripts/build.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "node --experimental-strip-types --test tests/*.test.ts tests/*.test.mjs",
     "check:ui": "node scripts/check-ui-contract.mjs"
