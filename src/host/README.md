@@ -1,9 +1,5 @@
-# Host：宿主侧实现
+# Host
 
-放置运行在 DSH 宿主进程中的插件实现。后续的服务、工具、事件钩子和外部系统集成都按实际功能在这里组织。
+`index.ts` 注册经过 DSH 连接认证的速度设置接口，用 `storageDomain` 保存每个会话、provider、model 的选择，并接入公开 `llm/stream` 瀑布。
 
-- 可以使用 Node 能力，也可以导入 `src/shared`。
-- 不导入 `src/client`，包括它的类型和转导出。两侧共用的契约应放到 Shared。
-- 优先消费 DSH 的公开服务契约，显式声明服务依赖，随插件卸载清理注册和资源。
-
-当前没有功能代码；加入第一个功能时再创建入口并更新 bundle 配置。
+`speed-transport.ts` 是 rc.5 的 HTTP 兼容层：用 AsyncLocalStorage 隔离请求，只向匹配的 OpenAI / Anthropic JSON 请求添加速度参数。停用时恢复 fetch；不导入 Client，不改写提示词、工具或会话日志。型号规则在 Shared 中维护，协议范围和限制见 `docs/model-selector.md`。

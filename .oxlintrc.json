@@ -17,6 +17,7 @@
     "typescript/no-require-imports": "error"
   },
   "ignorePatterns": [
+    "agent_temp/**",
     "node_modules/**",
     ".pnpm-store/**",
     ".cache/**",
@@ -29,7 +30,9 @@
   "overrides": [
     {
       "files": ["src/host/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
-      "env": { "node": true },
+      "env": {
+        "node": true
+      },
       "rules": {
         "no-restricted-imports": [
           "error",
@@ -46,7 +49,9 @@
     },
     {
       "files": ["src/client/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
-      "env": { "browser": true },
+      "env": {
+        "browser": true
+      },
       "rules": {
         "import/no-nodejs-modules": "error",
         "no-restricted-imports": [
@@ -77,6 +82,19 @@
             ]
           }
         ]
+      }
+    },
+    {
+      "files": ["scripts/**/*.{js,mjs,ts}", "tests/**/*.{js,mjs,ts,tsx}"],
+      "env": {
+        "node": true
+      }
+    },
+    {
+      "files": ["tests/component.test.mjs"],
+      "env": {
+        "node": true,
+        "browser": true
       }
     }
   ]

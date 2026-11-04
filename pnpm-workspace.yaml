@@ -1,0 +1,6 @@
+# 仅用于包管理器配置，项目仍然是单包。
+allowBuilds:
+  esbuild: true
+
+# 本地依赖缓存统一归入忽略的工作目录。
+storeDir: agent_temp/pnpm-store

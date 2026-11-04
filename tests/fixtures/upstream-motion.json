@@ -1,0 +1,666 @@
+{
+  "source": "Microqian2th/dsh-codex-effort-slider",
+  "commit": "fc5a994e34d3329bef748135e2c2ed219b9e30ce",
+  "frames": [
+    {
+      "before": {
+        "position": 0,
+        "velocity": 0
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.08333333333333333,
+        "velocity": 5
+      }
+    },
+    {
+      "before": {
+        "position": 0.08333333333333333,
+        "velocity": 5
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.25,
+        "velocity": 10
+      }
+    },
+    {
+      "before": {
+        "position": 0.25,
+        "velocity": 10
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.41666666666666663,
+        "velocity": 10
+      }
+    },
+    {
+      "before": {
+        "position": 0.41666666666666663,
+        "velocity": 10
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.5833333333333333,
+        "velocity": 10
+      }
+    },
+    {
+      "before": {
+        "position": 0.5833333333333333,
+        "velocity": 10
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.7499999999999999,
+        "velocity": 10
+      }
+    },
+    {
+      "before": {
+        "position": 0.7499999999999999,
+        "velocity": 10
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.9166666666666665,
+        "velocity": 10
+      }
+    },
+    {
+      "before": {
+        "position": 0.9166666666666665,
+        "velocity": 10
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 1,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 1,
+        "velocity": 0
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 1,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 1,
+        "velocity": 0
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 1,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 1,
+        "velocity": 0
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 1,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 1,
+        "velocity": 0
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 1,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 1,
+        "velocity": 0
+      },
+      "target": 1,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 1,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 1,
+        "velocity": 0
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.9166666666666666,
+        "velocity": -5
+      }
+    },
+    {
+      "before": {
+        "position": 0.9166666666666666,
+        "velocity": -5
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.75,
+        "velocity": -10
+      }
+    },
+    {
+      "before": {
+        "position": 0.75,
+        "velocity": -10
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.5833333333333334,
+        "velocity": -10
+      }
+    },
+    {
+      "before": {
+        "position": 0.5833333333333334,
+        "velocity": -10
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.41666666666666674,
+        "velocity": -10
+      }
+    },
+    {
+      "before": {
+        "position": 0.41666666666666674,
+        "velocity": -10
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.2500000000000001,
+        "velocity": -10
+      }
+    },
+    {
+      "before": {
+        "position": 0.2500000000000001,
+        "velocity": -10
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.25,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 0.25,
+        "velocity": 0
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.25,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 0.25,
+        "velocity": 0
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.25,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 0.25,
+        "velocity": 0
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.25,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 0.25,
+        "velocity": 0
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.25,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 0.25,
+        "velocity": 0
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.25,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 0.25,
+        "velocity": 0
+      },
+      "target": 0.25,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.25,
+        "velocity": 0
+      }
+    },
+    {
+      "before": {
+        "position": 0.25,
+        "velocity": 0
+      },
+      "target": 0.75,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.3333333333333333,
+        "velocity": 5
+      }
+    },
+    {
+      "before": {
+        "position": 0.3333333333333333,
+        "velocity": 5
+      },
+      "target": 0.75,
+      "elapsed": 0.016666666666666666,
+      "expected": {
+        "position": 0.5,
+        "velocity": 10
+      }
+    }
+  ],
+  "stars": [
+    {
+      "position": 0,
+      "expected": []
+    },
+    {
+      "position": 0.3333333333333333,
+      "expected": []
+    },
+    {
+      "position": 0.5,
+      "expected": [
+        {
+          "y": 52,
+          "duration": 5.64384,
+          "delay": -3.528889910266207,
+          "brightness": 0.6395
+        },
+        {
+          "y": 84,
+          "duration": 5.56032,
+          "delay": -1.357151659851631,
+          "brightness": 0.671
+        },
+        {
+          "y": 64,
+          "duration": 6.4368,
+          "delay": -5.554069904355971,
+          "brightness": 0.7025
+        },
+        {
+          "y": 16,
+          "duration": 6.35328,
+          "delay": -3.060222211379729,
+          "brightness": 0.8420000000000001
+        },
+        {
+          "y": 92,
+          "duration": 6.269760000000001,
+          "delay": -0.6706758745227055,
+          "brightness": 0.8734999999999999
+        },
+        {
+          "y": 44,
+          "duration": 6.18624,
+          "delay": -4.489688007384898,
+          "brightness": 0.9055
+        }
+      ]
+    },
+    {
+      "position": 0.6666666666666666,
+      "expected": [
+        {
+          "y": 52,
+          "duration": 2.82192,
+          "delay": -1.7644449551331034,
+          "brightness": 0.6395
+        },
+        {
+          "y": 84,
+          "duration": 2.78016,
+          "delay": -0.6785758299258156,
+          "brightness": 0.671
+        },
+        {
+          "y": 64,
+          "duration": 3.2184,
+          "delay": -2.7770349521779853,
+          "brightness": 0.7025
+        },
+        {
+          "y": 16,
+          "duration": 3.17664,
+          "delay": -1.5301111056898644,
+          "brightness": 0.8420000000000001
+        },
+        {
+          "y": 92,
+          "duration": 3.1348800000000003,
+          "delay": -0.33533793726135275,
+          "brightness": 0.8734999999999999
+        },
+        {
+          "y": 44,
+          "duration": 3.09312,
+          "delay": -2.244844003692449,
+          "brightness": 0.9055
+        },
+        {
+          "y": 76,
+          "duration": 3.05136,
+          "delay": -1.051400772183155,
+          "brightness": 0.545
+        },
+        {
+          "y": 56,
+          "duration": 3.0096000000000003,
+          "delay": -2.89939419633347,
+          "brightness": 0.5765
+        },
+        {
+          "y": 88,
+          "duration": 2.9678400000000003,
+          "delay": -1.747006844143393,
+          "brightness": 0.608
+        },
+        {
+          "y": 40,
+          "duration": 2.92608,
+          "delay": -0.6070442276129248,
+          "brightness": 0.6395
+        },
+        {
+          "y": 36,
+          "duration": 2.88432,
+          "delay": -2.3832382667420657,
+          "brightness": 0.779
+        }
+      ]
+    },
+    {
+      "position": 0.75,
+      "expected": [
+        {
+          "y": 52,
+          "duration": 2.257536,
+          "delay": -1.4115559641064825,
+          "brightness": 0.6395
+        },
+        {
+          "y": 84,
+          "duration": 2.224128,
+          "delay": -0.5428606639406525,
+          "brightness": 0.671
+        },
+        {
+          "y": 64,
+          "duration": 2.5747199999999997,
+          "delay": -2.2216279617423877,
+          "brightness": 0.7025
+        },
+        {
+          "y": 16,
+          "duration": 2.541312,
+          "delay": -1.2240888845518916,
+          "brightness": 0.8420000000000001
+        },
+        {
+          "y": 92,
+          "duration": 2.5079040000000004,
+          "delay": -0.2682703498090822,
+          "brightness": 0.8734999999999999
+        },
+        {
+          "y": 44,
+          "duration": 2.474496,
+          "delay": -1.7958752029539593,
+          "brightness": 0.9055
+        },
+        {
+          "y": 76,
+          "duration": 2.441088,
+          "delay": -0.8411206177465242,
+          "brightness": 0.545
+        },
+        {
+          "y": 56,
+          "duration": 2.40768,
+          "delay": -2.3195153570667757,
+          "brightness": 0.5765
+        },
+        {
+          "y": 88,
+          "duration": 2.374272,
+          "delay": -1.3976054753147142,
+          "brightness": 0.608
+        },
+        {
+          "y": 40,
+          "duration": 2.340864,
+          "delay": -0.4856353820903398,
+          "brightness": 0.6395
+        },
+        {
+          "y": 36,
+          "duration": 2.307456,
+          "delay": -1.9065906133936525,
+          "brightness": 0.779
+        },
+        {
+          "y": 68,
+          "duration": 2.274048,
+          "delay": -1.012082947784652,
+          "brightness": 0.8109999999999999
+        },
+        {
+          "y": 48,
+          "duration": 2.323584,
+          "delay": -0.09376092174066536,
+          "brightness": 0.8425
+        },
+        {
+          "y": 80,
+          "duration": 2.290176,
+          "delay": -1.5096057925099104,
+          "brightness": 0.982
+        }
+      ]
+    },
+    {
+      "position": 1,
+      "expected": [
+        {
+          "y": 52,
+          "duration": 1.41096,
+          "delay": -0.8822224775665517,
+          "brightness": 0.6395
+        },
+        {
+          "y": 84,
+          "duration": 1.39008,
+          "delay": -0.3392879149629078,
+          "brightness": 0.671
+        },
+        {
+          "y": 64,
+          "duration": 1.6092,
+          "delay": -1.3885174760889927,
+          "brightness": 0.7025
+        },
+        {
+          "y": 16,
+          "duration": 1.58832,
+          "delay": -0.7650555528449322,
+          "brightness": 0.8420000000000001
+        },
+        {
+          "y": 92,
+          "duration": 1.5674400000000002,
+          "delay": -0.16766896863067637,
+          "brightness": 0.8734999999999999
+        },
+        {
+          "y": 44,
+          "duration": 1.54656,
+          "delay": -1.1224220018462245,
+          "brightness": 0.9055
+        },
+        {
+          "y": 76,
+          "duration": 1.52568,
+          "delay": -0.5257003860915775,
+          "brightness": 0.545
+        },
+        {
+          "y": 56,
+          "duration": 1.5048000000000001,
+          "delay": -1.449697098166735,
+          "brightness": 0.5765
+        },
+        {
+          "y": 88,
+          "duration": 1.4839200000000001,
+          "delay": -0.8735034220716965,
+          "brightness": 0.608
+        },
+        {
+          "y": 40,
+          "duration": 1.46304,
+          "delay": -0.3035221138064624,
+          "brightness": 0.6395
+        },
+        {
+          "y": 36,
+          "duration": 1.44216,
+          "delay": -1.1916191333710329,
+          "brightness": 0.779
+        },
+        {
+          "y": 68,
+          "duration": 1.42128,
+          "delay": -0.6325518423654076,
+          "brightness": 0.8109999999999999
+        },
+        {
+          "y": 48,
+          "duration": 1.45224,
+          "delay": -0.05860057608791585,
+          "brightness": 0.8425
+        },
+        {
+          "y": 80,
+          "duration": 1.4313600000000002,
+          "delay": -0.9435036203186941,
+          "brightness": 0.982
+        },
+        {
+          "y": 32,
+          "duration": 1.4104800000000002,
+          "delay": -0.3920426779792765,
+          "brightness": 0.5135
+        },
+        {
+          "y": 28,
+          "duration": 1.3896,
+          "delay": -1.2461430042696633,
+          "brightness": 0.545
+        },
+        {
+          "y": 60,
+          "duration": 1.6087200000000001,
+          "delay": -0.8397965764894257,
+          "brightness": 0.6845
+        },
+        {
+          "y": 12,
+          "duration": 1.58784,
+          "delay": -0.22363423973939617,
+          "brightness": 0.7165
+        },
+        {
+          "y": 72,
+          "duration": 1.56696,
+          "delay": -1.190350230819171,
+          "brightness": 0.748
+        },
+        {
+          "y": 24,
+          "duration": 1.5463200000000001,
+          "delay": -0.5851889928747498,
+          "brightness": 0.7795000000000001
+        },
+        {
+          "y": 20,
+          "duration": 1.5254400000000001,
+          "delay": -0.005695632571433347,
+          "brightness": 0.919
+        },
+        {
+          "y": 8,
+          "duration": 1.50456,
+          "delay": -0.9366604464979212,
+          "brightness": 0.9505
+        }
+      ]
+    }
+  ]
+}
