@@ -41,9 +41,9 @@ export const ModelList = memo(
     }, [highlight])
     return (
       <div className="rong-models-pane" key="models">
-        <div className="rong-list-heading">
+        <div className="rong-models-toolbar">
           <button
-            className="rong-icon-button"
+            className="rong-icon-button rong-models-back"
             type="button"
             aria-label="返回强度选择"
             disabled={!hasModel}
@@ -51,25 +51,23 @@ export const ModelList = memo(
           >
             <IconChevronLeftOutlineRegular size={18} />
           </button>
-          <strong>选择模型</strong>
-          <span />
-        </div>
-        <div className="rong-search">
-          <IconSearchOutlineRegular size={16} />
-          <input
-            ref={ref}
-            placeholder="搜索模型…"
-            aria-label="搜索模型"
-            value={query}
-            onChange={(event) => {
-              actions.search(event.target.value)
-            }}
-            role="combobox"
-            aria-expanded="true"
-            aria-controls={`${id}-list`}
-            aria-autocomplete="list"
-            aria-activedescendant={highlight < rowCount ? `${id}-option-${highlight}` : undefined}
-          />
+          <div className="rong-search">
+            <IconSearchOutlineRegular size={16} />
+            <input
+              ref={ref}
+              placeholder="搜索模型…"
+              aria-label="搜索模型"
+              value={query}
+              onChange={(event) => {
+                actions.search(event.target.value)
+              }}
+              role="combobox"
+              aria-expanded="true"
+              aria-controls={`${id}-list`}
+              aria-autocomplete="list"
+              aria-activedescendant={highlight < rowCount ? `${id}-option-${highlight}` : undefined}
+            />
+          </div>
         </div>
         <div
           ref={list}

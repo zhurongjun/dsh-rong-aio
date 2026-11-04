@@ -1,0 +1,177 @@
+{
+  "baseline": {
+    "version": "0.2.1-rc.5",
+    "commit": "b830ec950faba0a46dda564be3e2d854afed94f1",
+    "sourceBase": "https://github.com/deepseek-ai/deepseek-harness/blob/b830ec950faba0a46dda564be3e2d854afed94f1/"
+  },
+  "tokens": {
+    "--dsh-composer-model-icon-display": {
+      "kind": "component-contract",
+      "source": "packages/client/ui-model-selection/src/client/ModelSelect.module.css#L67",
+      "role": "输入框窄宽度下切换模型文字与图标；不是全局主题 token"
+    },
+    "--dsh-composer-model-text-display": {
+      "kind": "component-contract",
+      "source": "packages/client/ui-model-selection/src/client/ModelSelect.module.css#L75",
+      "role": "输入框窄宽度下切换模型文字与图标；不是全局主题 token"
+    },
+    "--dsh-scrollbar-thumb": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/scrollbar.css#L17",
+      "role": "滚动条"
+    },
+    "--dsh-scrollbar-thumb-hover": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/scrollbar.css#L18",
+      "role": "滚动条"
+    },
+    "--dsw-alias-border-l1": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L185",
+      "role": "语义颜色"
+    },
+    "--dsw-alias-border-l3": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L188",
+      "role": "语义颜色"
+    },
+    "--dsw-alias-interactive-bg-hover": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L213",
+      "role": "语义颜色"
+    },
+    "--dsw-alias-label-caption": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L214",
+      "role": "语义颜色"
+    },
+    "--dsw-alias-label-dimmed": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L217",
+      "role": "语义颜色"
+    },
+    "--dsw-alias-label-primary": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L222",
+      "role": "语义颜色"
+    },
+    "--dsw-alias-label-secondary": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L223",
+      "role": "语义颜色"
+    },
+    "--dsw-alias-label-tertiary": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L225",
+      "role": "语义颜色"
+    },
+    "--dsw-alias-scrollbar-bg-l2": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L237",
+      "role": "滚动条"
+    },
+    "--dsw-alias-scrollbar-hover-l2": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L239",
+      "role": "滚动条"
+    },
+    "--dsw-alias-state-business-primary": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L240",
+      "role": "语义颜色"
+    },
+    "--dsw-elevation-prominent": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L36",
+      "role": "层级与阴影"
+    },
+    "--dsw-elevation-stroke-color": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L17",
+      "role": "层级与阴影"
+    },
+    "--dsw-focus-ring-color": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/focus.css#L19",
+      "role": "焦点"
+    },
+    "--dsw-focus-ring-width": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/focus.css#L3",
+      "role": "焦点"
+    },
+    "--dsw-font-xs-13-font-size": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L238",
+      "role": "排版"
+    },
+    "--dsw-font-xxs-12": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L248",
+      "role": "排版"
+    },
+    "--dsw-font-xxs-12-font-size": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L252",
+      "role": "排版"
+    },
+    "--dsw-radius-sm": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/base.css#L19",
+      "role": "圆角"
+    }
+  },
+  "localBindings": [
+    {
+      "file": "src/client/model-selector/styles.css",
+      "selector": ".rong-model-popover",
+      "property": "--dsw-elevation-stroke-color",
+      "value": "var(--dsw-alias-border-l1)",
+      "reason": "官方 elevation 留出的描边颜色入口，仅作用于本弹层"
+    },
+    {
+      "file": "src/client/model-selector/styles.css",
+      "selector": ".rong-model-popover",
+      "property": "--dsh-scrollbar-thumb",
+      "value": "var(--dsw-alias-scrollbar-bg-l2)",
+      "reason": "共享滚动条允许在浮层重绑到 L2 语义"
+    },
+    {
+      "file": "src/client/model-selector/styles.css",
+      "selector": ".rong-model-popover",
+      "property": "--dsh-scrollbar-thumb-hover",
+      "value": "var(--dsw-alias-scrollbar-hover-l2)",
+      "reason": "共享滚动条允许在浮层重绑到 L2 hover 语义"
+    }
+  ],
+  "decorations": [
+    {
+      "file": "src/client/model-selector/styles.css",
+      "selector": ".rong-effort-thumb",
+      "property": "background",
+      "value": "#fff",
+      "reason": "滑块白色图形，两种主题均固定白色，保持既定视觉"
+    },
+    {
+      "file": "src/client/model-selector/styles.css",
+      "selector": ".rong-effort-thumb",
+      "property": "box-shadow",
+      "value": "0 1px 4px #00000024, inset 0 0 0 1px #00000005",
+      "reason": "滑块微阴影是局部图形，不套用菜单 elevation"
+    },
+    {
+      "file": "src/client/model-selector/styles.css",
+      "selector": ".rong-effort-star>i",
+      "property": "background",
+      "value": "#fff",
+      "reason": "向左流动的白色粒子，颜色属于特色装饰"
+    },
+    {
+      "file": "src/client/model-selector/styles.css",
+      "selector": ".rong-effort-star>i",
+      "property": "box-shadow",
+      "value": "0 0 4px #ffffffd9",
+      "reason": "粒子白色光晕，保持既定效果"
+    }
+  ]
+}

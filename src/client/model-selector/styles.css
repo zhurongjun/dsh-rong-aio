@@ -7,11 +7,11 @@
   height: 28px;
   padding: 0 4px 0 8px;
   border: 0;
-  border-radius: var(--dsw-radius-sm, 8px);
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;
-  font-size: 13px;
+  font-size: var(--dsw-font-xs-13-font-size);
   cursor: pointer;
 }
 .rong-model-trigger:hover:not(:disabled) {
@@ -46,10 +46,6 @@
   transform: rotate(180deg);
 }
 .rong-model-popover {
-  --rong-accent: #3983f7;
-  --dsw-menu-surface-fill: light-dark(#fffffff5, #2b2a2af5);
-  --dsw-menu-backdrop-filter: blur(20px);
-  --dsw-radius-lg: 17px;
   position: fixed;
   z-index: 1100;
   box-sizing: border-box;
@@ -65,7 +61,7 @@
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--dsw-font-xs-13-font-size);
   transform-origin: bottom right;
   transition: height 180ms cubic-bezier(0.19, 1, 0.22, 1);
   /* 入场结束释放 opacity/transform，避免形成永久 backdrop root，使 DSH 毛玻璃失效。 */
@@ -73,10 +69,6 @@
 }
 .rong-model-popover[data-pane='models'] {
   height: var(--rong-list-height, 344px);
-}
-.rong-model-popover,
-.rong-model-popover > div {
-  corner-shape: round;
 }
 .rong-model-popover:has(.rong-error) {
   height: 156px;
@@ -103,7 +95,8 @@
 .rong-model-popover button:focus-visible,
 .rong-effort-slider:focus-visible,
 .rong-model-trigger:focus-visible {
-  outline: 2px solid var(--dsw-focus-ring-color, var(--rong-accent, #557ff8));
+  outline: var(--dsw-focus-ring-width) solid
+    var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
 }
 .rong-effort-pane {
@@ -126,15 +119,12 @@
   border: 0;
   border-radius: 6px;
   background: transparent;
-  color: light-dark(#777, #959494);
+  color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
   transition: background 100ms ease;
 }
 .rong-icon-button:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
-}
-.rong-model-popover .rong-fast:disabled {
-  color: light-dark(#8d8d8d, #959494);
 }
 .rong-model-popover .rong-header-action {
   width: 26px;
@@ -142,7 +132,10 @@
   padding: 5px;
   margin: -3px -5px;
   border-radius: 8px;
-  color: light-dark(#777, #959494);
+  color: var(--dsw-alias-label-tertiary);
+}
+.rong-model-popover .rong-fast:disabled {
+  color: var(--dsw-alias-label-dimmed);
 }
 .rong-model-heading {
   min-width: 0;
@@ -157,7 +150,7 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  color: var(--rong-accent);
+  color: var(--dsw-alias-state-business-primary);
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
@@ -173,22 +166,21 @@
   position: absolute;
   left: calc(100% + 3px);
   top: 4px;
-  color: light-dark(#777, #959494);
+  color: var(--dsw-alias-label-tertiary);
 }
 .rong-model-name {
   display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: light-dark(#6b6b6b, #b5b5b5);
-  font-size: 12px;
-  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
+  font: var(--dsw-font-xxs-12);
 }
 .rong-effort-slider {
   position: relative;
   height: 24px;
   border-radius: 999px;
-  background: light-dark(#ededed, #414141);
+  background: var(--dsw-alias-border-l3);
   cursor: pointer;
   touch-action: none;
   user-select: none;
@@ -207,7 +199,7 @@
   inset: 0 auto 0 0;
   width: calc(14px + (100% - 28px) * var(--rong-position));
   border-radius: inherit;
-  background: var(--dsw-alias-state-business-primary, #4176e6);
+  background: var(--dsw-alias-state-business-primary);
   overflow: hidden;
 }
 .rong-effort-ticks {
@@ -300,34 +292,43 @@
   padding: 10px 10px 8px;
   animation: rong-pane-in 150ms ease-out;
 }
-.rong-list-heading {
+.rong-models-toolbar {
   display: grid;
-  grid-template-columns: 26px 1fr 26px;
+  grid-template-columns: 26px minmax(0, 1fr);
   align-items: center;
-  text-align: center;
-  margin-bottom: 10px;
+  flex-shrink: 0;
+  gap: 6px;
+  margin-bottom: 8px;
 }
-.rong-list-heading strong {
-  font-size: 14px;
-  font-weight: 600;
+.rong-models-back {
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+  border-radius: var(--dsw-radius-sm);
 }
 .rong-search {
-  margin: 0 4px 8px;
+  min-width: 0;
+  height: 26px;
+  box-sizing: border-box;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 7px 9px;
+  gap: 6px;
+  padding: 0 7px;
   border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-label-tertiary);
   background: var(--dsw-alias-interactive-bg-hover);
 }
+.rong-search > svg {
+  flex: none;
+}
 .rong-search:focus-within {
-  border-color: var(--rong-accent);
+  border-color: var(--dsw-alias-state-business-primary);
 }
 .rong-search input {
   min-width: 0;
   width: 100%;
+  padding: 0;
   border: 0;
   outline: 0;
   background: transparent;
@@ -351,7 +352,7 @@
 .rong-provider-name {
   padding: 5px 8px;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
 }
 .rong-model-option {
   width: 100%;
@@ -375,7 +376,7 @@
   text-overflow: ellipsis;
 }
 .rong-model-option > svg {
-  color: var(--rong-accent);
+  color: var(--dsw-alias-state-business-primary);
   flex: none;
 }
 .rong-model-option[data-highlighted],
@@ -387,7 +388,7 @@
   padding: 5px 0;
   text-align: center;
   color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
 }
 .rong-error {
   display: flex;
@@ -396,7 +397,7 @@
   min-height: 42px;
   max-height: 58px;
   padding: 4px 12px 10px;
-  font-size: 12px;
+  font-size: var(--dsw-font-xxs-12-font-size);
   color: var(--dsw-alias-label-secondary);
 }
 .rong-error > span {
@@ -411,7 +412,7 @@
   padding: 3px;
   border-radius: 3px;
   background: transparent;
-  color: var(--rong-accent);
+  color: var(--dsw-alias-state-business-primary);
   cursor: pointer;
 }
 .rong-sr-only {
@@ -469,31 +470,69 @@
 .rong-speed-menu {
   position: fixed;
   z-index: 1101;
-  width: min(234px, calc(100vw - 24px));
-  padding: 6px;
+  width: max-content;
+  min-width: 96px;
+  max-width: calc(100vw - 24px);
+  padding: 4px;
   box-sizing: border-box;
-  --dsw-radius-lg: 17px;
-  --dsw-menu-surface-fill: light-dark(#fffffff5, #2b2a2af5);
-  --dsw-menu-backdrop-filter: blur(20px);
-  corner-shape: round;
   color: var(--dsw-alias-label-primary);
-  animation: rong-pop-in 150ms cubic-bezier(0.19, 1, 0.22, 1) backwards;
-  transform-origin: top left;
+  /* 只在此短生命周期菜单上保留合成层，避免结束时再切换层；不改变 backdrop root。 */
+  transform: translate3d(0, 0, 0) scale(1);
+  transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* rc.5 MenuSurface 的首个 aria-hidden 子层是官方材质层。直接淡入该层，
+   避免祖先 opacity < 1 改变 backdrop root，最后一帧才突然采样到真实背景。 */
+.rong-speed-menu > [aria-hidden='true']:first-child,
+.rong-speed-items {
+  opacity: 1;
+  transition: opacity 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.rong-speed-menu[data-open='false'] {
+  transform: translate3d(0, 0, 0) scale(0.96);
+  pointer-events: none;
+  transition-duration: 110ms;
+  transition-timing-function: ease-in;
+}
+.rong-speed-menu[data-open='false'] > [aria-hidden='true']:first-child,
+.rong-speed-menu[data-open='false'] > .rong-speed-items {
+  opacity: 0;
+  transition-duration: 110ms;
+  transition-timing-function: ease-in;
+}
+@starting-style {
+  .rong-speed-menu[data-open='true'] {
+    transform: translate3d(0, 0, 0) scale(0.96);
+  }
+  .rong-speed-menu[data-open='true'] > [aria-hidden='true']:first-child,
+  .rong-speed-menu[data-open='true'] > .rong-speed-items {
+    opacity: 0;
+  }
 }
 .rong-speed-menu button {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px;
+  gap: 16px;
   align-items: center;
   width: 100%;
-  height: 36px;
-  padding: 0 6px;
+  height: 30px;
+  padding: 0 8px;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: inherit;
   font: inherit;
-  font-size: 14px;
+  font-size: var(--dsw-font-xs-13-font-size);
+  line-height: 20px;
+  text-align: left;
+  white-space: nowrap;
   cursor: pointer;
+}
+.rong-speed-check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
 }
 .rong-speed-menu button:hover,
 .rong-speed-menu button:focus-visible {
@@ -501,7 +540,9 @@
   background: var(--dsw-alias-interactive-bg-hover);
 }
 @media (prefers-reduced-motion: reduce) {
-  .rong-speed-menu {
-    animation: none;
+  .rong-speed-menu,
+  .rong-speed-menu > [aria-hidden='true']:first-child,
+  .rong-speed-items {
+    transition: none;
   }
 }

@@ -28,39 +28,75 @@ export const SpeedControl = memo(function SpeedControl(props: Props) {
 function Control({ store, identityKey, open, disabled }: Props) {
   const { state, loading, saving, select } = useSpeedSelection(store, identityKey)
   const [expanded, setExpanded] = useState(false)
+  const [mounted, setMounted] = useState(false)
   const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' })
   const button = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
   const id = useId()
   const enabled = state.modes.length > 1 && !loading && !saving && !disabled
+  const visible = expanded && open && enabled
 
   useEffect(() => {
     if (!open || !enabled) setExpanded(false)
   }, [open, enabled])
 
   useLayoutEffect(() => {
-    if (!expanded) return
+    if (visible) {
+      setMounted(true)
+      return
+    }
+    if (!mounted) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setMounted(false)
+      return
+    }
+    // 正常由 transitionend 卸载；取消过渡、隐藏页面等情况由这个兜底清理。
+    const timer = window.setTimeout(() => setMounted(false), 180)
+    return () => window.clearTimeout(timer)
+  }, [visible, mounted])
+
+  useLayoutEffect(() => {
+    if (!visible || !mounted) return
     const place = () => {
       const anchor = button.current?.getBoundingClientRect()
-      if (!anchor || !menu.current) return
+      const surface = menu.current
+      if (!anchor || !surface) return
+      const viewport = window.visualViewport
+      const left = viewport?.offsetLeft ?? 0
+      const top = viewport?.offsetTop ?? 0
+      const width = viewport?.width ?? window.innerWidth
+      const height = viewport?.height ?? window.innerHeight
+      const preferredLeft = anchor.right + 6
+      const x = Math.max(
+        left + 12,
+        Math.min(
+          preferredLeft + surface.offsetWidth <= left + width - 12
+            ? preferredLeft
+            : anchor.left - 6 - surface.offsetWidth,
+          left + width - surface.offsetWidth - 12,
+        ),
+      )
+      const y = Math.max(
+        top + 12,
+        Math.min(anchor.top - 4, top + height - surface.offsetHeight - 12),
+      )
       const next = {
-        left: Math.max(
-          12,
-          Math.min(anchor.right + 8, window.innerWidth - menu.current.offsetWidth - 12),
-        ),
-        top: Math.max(
-          12,
-          Math.min(anchor.top - 8, window.innerHeight - menu.current.offsetHeight - 12),
-        ),
+        left: x,
+        top: y,
+        transformOrigin: `${Math.max(0, Math.min(surface.offsetWidth, anchor.left + anchor.width / 2 - x))}px ${Math.max(0, Math.min(surface.offsetHeight, anchor.top + anchor.height / 2 - y))}px`,
       }
       setPosition((previous) =>
-        previous.left === next.left && previous.top === next.top ? previous : next,
+        previous.left === next.left &&
+        previous.top === next.top &&
+        previous.transformOrigin === next.transformOrigin
+          ? previous
+          : next,
       )
     }
     place()
-    menu.current
-      ?.querySelector<HTMLButtonElement>('[aria-checked="true"]')
-      ?.focus({ preventScroll: true })
+    const observer = new ResizeObserver(place)
+    if (menu.current) observer.observe(menu.current)
+    if (button.current) observer.observe(button.current)
     const outside = (event: PointerEvent) => {
       if (
         !menu.current?.contains(event.target as Node) &&
@@ -71,15 +107,27 @@ function Control({ store, identityKey, open, disabled }: Props) {
     document.addEventListener('pointerdown', outside)
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
+    window.visualViewport?.addEventListener('resize', place)
+    window.visualViewport?.addEventListener('scroll', place)
     return () => {
+      observer.disconnect()
       document.removeEventListener('pointerdown', outside)
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
+      window.visualViewport?.removeEventListener('resize', place)
+      window.visualViewport?.removeEventListener('scroll', place)
     }
-  }, [expanded])
+  }, [visible, mounted])
+
+  useLayoutEffect(() => {
+    if (!visible || !mounted || position.visibility === 'hidden') return
+    menu.current
+      ?.querySelector<HTMLButtonElement>('[aria-checked="true"]')
+      ?.focus({ preventScroll: true })
+  }, [visible, mounted, position.visibility])
 
   function choose(mode: SpeedMode) {
-    if (!enabled) return
+    if (!visible) return
     setExpanded(false)
     button.current?.focus()
     void select(mode)
@@ -98,8 +146,8 @@ function Control({ store, identityKey, open, disabled }: Props) {
             : `Fast 不可用：${state.reason ?? (loading ? '正在读取速度设置' : '此模型不在支持规则内')}`
         }
         aria-haspopup="menu"
-        aria-expanded={expanded}
-        aria-controls={expanded ? id : undefined}
+        aria-expanded={visible}
+        aria-controls={visible ? id : undefined}
         onKeyDown={(event) => {
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault()
@@ -118,21 +166,33 @@ function Control({ store, identityKey, open, disabled }: Props) {
           }
           if (event.key === 'Tab') setExpanded(false)
         }}
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => setExpanded((previous) => !previous)}
       >
         <FastIcon active={state.mode !== 'standard' && state.modes.length > 1} />
       </button>
-      {expanded &&
+      {mounted &&
         createPortal(
           <MenuSurface
+            compact
             ref={menu}
             id={id}
-            role="menu"
+            role={visible ? 'menu' : undefined}
+            aria-hidden={!visible || undefined}
             aria-label="速度模式"
             data-rong-speed-menu
+            data-open={visible}
             className="rong-speed-menu"
             style={position}
+            onTransitionEnd={(event) => {
+              if (
+                event.target === event.currentTarget &&
+                event.propertyName === 'transform' &&
+                !visible
+              )
+                setMounted(false)
+            }}
             onKeyDown={(event) => {
+              if (!visible) return
               const items = Array.from(
                 menu.current?.querySelectorAll<HTMLButtonElement>('button') ?? [],
               )
@@ -156,18 +216,23 @@ function Control({ store, identityKey, open, disabled }: Props) {
               event.stopPropagation()
             }}
           >
-            {state.modes.map((mode) => (
-              <button
-                key={mode}
-                type="button"
-                role="menuitemradio"
-                aria-checked={state.mode === mode}
-                onClick={() => void choose(mode)}
-              >
-                <span>{SPEED_LABELS[mode]}</span>
-                {state.mode === mode && <IconCheckOutlineRegular size={16} />}
-              </button>
-            ))}
+            <div className="rong-speed-items">
+              {state.modes.map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={state.mode === mode}
+                  disabled={!visible}
+                  onClick={() => void choose(mode)}
+                >
+                  <span>{SPEED_LABELS[mode]}</span>
+                  <span className="rong-speed-check" aria-hidden="true">
+                    {state.mode === mode && <IconCheckOutlineRegular size={16} />}
+                  </span>
+                </button>
+              ))}
+            </div>
           </MenuSurface>,
           document.body,
         )}

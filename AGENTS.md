@@ -33,9 +33,20 @@
 - 安装验证优先使用隔离的 DSH home/profile；用户明确要求时可通过官方插件页面安装到日常 Desktop，避免改变已有会话的模型配置。不得修改应用安装目录。
 - 源码安装前执行 `pnpm build`。`lib/` 不提交，无安装生命周期脚本；Git 检出需要显式构建，安装包需包含产物。
 
+## Design Token 与界面规范（强制）
+
+- 以 DSH `0.2.1-rc.5` 为基线，遵守 [UI 消费契约](docs/ui-contract.md) 与 `scripts/ui-contract.json`。直接使用宿主提供的语义 CSS 变量和 `@deepseek-ai/dsh-client-ui-primitives` 公开组件；不复制全量 token、主题 CSS 或组件库，不建立重复的主题状态管理或逐项转发层。
+- 中性文字、图标、背景、边框、hover、focus、disabled 和强调色必须使用官方语义 token，不用相近 hex 猜测，不直接消费原始色板，不自行写 `light-dark()`、系统明暗媒体查询或宿主明暗属性分支。DeepSeek 蓝使用 `--dsw-alias-state-business-primary`；`brand-primary` 是中性色。
+- 菜单使用 `MenuSurface`，由官方管理填充、模糊、圆角与平台 backing；不得覆盖 `--dsw-menu-surface-fill`、`--dsw-menu-backdrop-filter` 或主题圆角。其他宿主命名空间变量默认只读，仅允许消费契约中精确登记的局部 elevation/scrollbar 重绑。
+- 普通控件优先使用官方 public export；先核对布局密度、可访问性、键盘和生命周期语义再替换。统一样式不等于改成官方模型选择流程；保留当前单层入口、明确 effort、Fast、SVG、滑杆几何、向左运动粒子、已过圆点隐藏与 reduced-motion。
+- 字体继承宿主字体偏好；字号、行高、字重等值时才映射官方排版角色。组件几何、14/20/600 标题和特色运动可保留局部数值，不为消除字面量误用 token。Fast/Reset hover 只改变背景，不改变图标颜色、亮度或形状。
+- 新增 token 必须核对固定版本官方声明与语义，并更新消费清单的来源。装饰色例外需登记文件、选择器、属性、完整值与原因；不得使用整文件豁免，也不得把例外扩展到中性控件。
+- 运行 `pnpm check:ui` 验证 CSS AST 与 TSX/SVG 静态样式；动态颜色写入 CSS 语义类，不能用字符串注入绕过检查。检查器不代替实际主题、字体、窄视口、键盘与平台材质验证。
+- DSH 升级时复核 token、public export 和菜单材质；日常检查离线运行，不自动跟随 upstream main。研究快照、完整 token 抽取、截图和验证记录只能放在 `agent_temp/`。
+
 ## 检查
 
-- 完成修改前运行 `pnpm check`（格式、lint、类型、测试）及 `pnpm build`；check 不改写源码，测试生成文件只写入忽略的 `agent_temp/`。
+- 完成修改前运行 `pnpm check`（格式、lint、UI 契约、类型、测试）及 `pnpm build`；check 不改写源码，测试生成文件只写入忽略的 `agent_temp/`。
 - 需要修复时显式运行 `pnpm format`、`pnpm lint:fix`，随后重新检查。
 - 质量配置变更用临时正反例验证，包括合法 Shared 导入、跨侧导入、Node 内置模块、未使用变量及调试语句；不提交这些临时样例。
 - 不通过全局关闭规则或吞掉退出码掩盖失败；必要的局部例外应说明原因。

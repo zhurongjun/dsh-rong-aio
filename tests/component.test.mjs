@@ -55,7 +55,7 @@ await build({
           loader: 'js',
           contents: `
       import React from 'react';
-      export const MenuSurface = React.forwardRef((props, ref) => React.createElement('div', {...props, ref}));
+      export const MenuSurface = React.forwardRef(({compact: _compact, ...props}, ref) => React.createElement('div', {...props, ref}));
       const Icon = () => null;
       export { Icon as IconCheckOutlineRegular, Icon as IconChevronDownOutlineRegular, Icon as IconChevronLeftOutlineRegular, Icon as IconChevronRightOutlineRegular, Icon as IconDataOutlineRegular, Icon as IconRefreshOutlineRegular, Icon as IconSearchOutlineRegular };
     `,
@@ -150,9 +150,15 @@ test('实际组件：拖动只在释放时保存、取消不保存、失败回�
   assert.match(document.querySelector('[role="alert"]').textContent, /测试保存失败/)
   fail = false
   await click(document.querySelector('.rong-model-heading'))
-  await click(
-    [...document.querySelectorAll('[role="option"]')].find((el) => el.textContent === 'Second'),
+  const search = document.querySelector('[role="combobox"]')
+  assert.equal(document.activeElement, search)
+  await key(search, 'ArrowDown')
+  assert.equal(document.activeElement, search)
+  assert.equal(
+    document.getElementById(search.getAttribute('aria-activedescendant')).textContent,
+    'Second',
   )
+  await key(search, 'Enter')
   assert.equal(state.current.reasoningEffort, 'high')
   assert.equal(document.querySelector('[role="slider"]').getAttribute('aria-valuetext'), 'high')
   assert.equal(document.querySelectorAll('.rong-effort-ticks i:not([data-passed])').length, 1)
@@ -212,6 +218,7 @@ test('Fast 菜单：按支持档位显示、键盘选择、实心状态、写入
   assert.equal(fast.disabled, false)
   assert.equal(fast.querySelector('svg').getAttribute('fill'), 'none')
   await click(fast)
+  assert.equal(document.activeElement.getAttribute('aria-checked'), 'true')
   await act(async () =>
     fast.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })),
   )
@@ -245,6 +252,74 @@ test('Fast 菜单：按支持档位显示、键盘选择、实心状态、写入
   assert.equal(document.querySelector('.rong-trigger-fast'), null)
   await act(async () => root.unmount())
   assert.equal(document.querySelector('[role="menu"]'), null)
+})
+
+test('Fast 退场：立即禁用交互、结束后卸载；快速重开保留同一面板并取消旧清理', async () => {
+  const originalMatchMedia = window.matchMedia
+  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
+  globalThis.fetch = async () => Response.json({ mode: 'standard', modes: ['standard', 'fast'] })
+  const state = {
+    current: { provider: 'p', model: 'gpt-6-astra', reasoningEffort: 'high' },
+    groups: [
+      {
+        id: 'p',
+        name: 'Provider',
+        models: [{ id: 'gpt-6-astra', name: 'GPT-6 Astra', reasoning: { efforts: levels } }],
+      },
+    ],
+    failures: [],
+    pending: null,
+    status: 'ready',
+    error: null,
+  }
+  const root = createRoot(document.getElementById('root'))
+  const click = async (element) => act(async () => element.click())
+  const finish = async (element) =>
+    act(async () => {
+      const event = new window.Event('transitionend', { bubbles: true })
+      Object.defineProperty(event, 'propertyName', { value: 'transform' })
+      element.dispatchEvent(event)
+    })
+  try {
+    await act(async () =>
+      root.render(
+        React.createElement(ModelSelector, {
+          available: true,
+          locked: false,
+          sessionId: 'menu-motion',
+          directory: { getSnapshot: () => state, subscribe: () => () => {} },
+          load() {},
+          select() {},
+        }),
+      ),
+    )
+    await click(document.querySelector('.rong-model-trigger'))
+    const fast = document.querySelector('.rong-fast')
+    await click(fast)
+    const menu = document.querySelector('[data-rong-speed-menu]')
+    assert.equal(document.activeElement.getAttribute('aria-checked'), 'true')
+    await click(fast)
+    assert.equal(menu.dataset.open, 'false')
+    assert.equal(menu.getAttribute('aria-hidden'), 'true')
+    assert.equal(document.querySelector('[role="menu"]'), null)
+    assert.ok([...menu.querySelectorAll('button')].every((item) => item.disabled))
+    await click(fast)
+    assert.equal(document.querySelector('[role="menu"]'), menu)
+    assert.equal(menu.dataset.open, 'true')
+    await finish(menu) // 上一次关闭的迟到事件不能移除重新打开的面板。
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 200)))
+    assert.equal(document.querySelector('[role="menu"]'), menu)
+    await click(fast)
+    await finish(menu)
+    assert.equal(document.querySelector('[data-rong-speed-menu]'), null)
+    await click(fast)
+    await click(fast)
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 200)))
+    assert.equal(document.querySelector('[data-rong-speed-menu]'), null)
+  } finally {
+    await act(async () => root.unmount())
+    window.matchMedia = originalMatchMedia
+  }
 })
 
 test('输入框 Fast 提示：不打开弹层也读取持久化状态，切换会话/模型不串状态，忽略旧请求', async () => {

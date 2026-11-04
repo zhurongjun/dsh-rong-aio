@@ -43,17 +43,20 @@ tests/                            # 规则、运动及组件交互测试
 
 Host 不导入 Client；Client 不导入 Host 或 Node；Shared 不依赖任一侧实现或 DOM。项目内部使用相对 ESM 导入。
 
+界面直接消费 DSH 的语义 token 与公开控件；中性色、菜单材质和字体跟随宿主，保留选择器的布局与特色交互。新增界面遵守 [UI 消费契约](docs/ui-contract.md)，使用 `pnpm check:ui` 检查颜色、token 与局部例外。
+
 开发环境：Node.js `^22.19.0 || >=24.0.0`、pnpm `11.25.0`。依赖固定版本，锁文件随源码提交。`pnpm-workspace.yaml` 配置 esbuild 的开发安装脚本许可及本地依赖缓存位置，仍是单包项目。
 
-| 命令                                               | 用途                                       |
-| -------------------------------------------------- | ------------------------------------------ |
-| `pnpm format`                                      | 格式化源码、配置与中文文档                 |
-| `pnpm format:check`                                | 只检查格式                                 |
-| `pnpm lint` / `pnpm lint:fix`                      | 检查代码与导入边界 / 安全修复              |
-| `pnpm typecheck`                                   | 检查 DSH 契约与组件类型                    |
-| `pnpm test`                                        | 规则、动画计算与 DOM 交互测试              |
-| `pnpm check`                                       | 依次检查格式、lint、类型和测试，不改写源码 |
-| `pnpm build`                                       | 生成可安装的 `lib/`                        |
-| `pnpm pack --pack-destination agent_temp/packages` | 将已有构建产物打成安装包；先执行 build     |
+| 命令                                               | 用途                                                |
+| -------------------------------------------------- | --------------------------------------------------- |
+| `pnpm format`                                      | 格式化源码、配置与中文文档                          |
+| `pnpm format:check`                                | 只检查格式                                          |
+| `pnpm lint` / `pnpm lint:fix`                      | 检查代码与导入边界 / 安全修复                       |
+| `pnpm typecheck`                                   | 检查 DSH 契约与组件类型                             |
+| `pnpm check:ui`                                    | 检查 UI token、颜色与主题所有权                     |
+| `pnpm test`                                        | 规则、动画计算与 DOM 交互测试                       |
+| `pnpm check`                                       | 依次检查格式、lint、UI 契约、类型和测试，不改写源码 |
+| `pnpm build`                                       | 生成可安装的 `lib/`                                 |
+| `pnpm pack --pack-destination agent_temp/packages` | 将已有构建产物打成安装包；先执行 build              |
 
 没有 CI、提交钩子、自动发布或自动提交。保留已有 [GPL v3 许可证](LICENSE)。

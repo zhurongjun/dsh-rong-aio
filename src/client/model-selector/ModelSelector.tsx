@@ -191,7 +191,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
 
   useEffect(() => {
     if (!open || !mounted) return
-    if (pane === 'models') search.current?.focus()
+    if (pane === 'models') search.current?.focus({ preventScroll: true })
     else header.current?.focus({ preventScroll: true })
   }, [open, mounted, pane, position.visibility])
 
@@ -272,7 +272,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
           ? (value + (event.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length
           : 0,
       )
-      search.current?.focus()
+      search.current?.focus({ preventScroll: true })
     }
     if (pane === 'models' && event.target === search.current && event.key === 'Enter') {
       event.preventDefault()
@@ -326,7 +326,8 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
             style={
               {
                 ...position,
-                '--rong-list-height': `${Math.min(344, 90 + rows.length * 33 + groups.length * 26)}px`,
+                // 内距 18 + 工具栏 26 + 间距 8；无结果时也留一行显示状态。
+                '--rong-list-height': `${Math.min(344, 52 + Math.max(1, rows.length) * 33 + groups.length * 26)}px`,
               } as CSSProperties
             }
             onKeyDown={onKeyDown}
