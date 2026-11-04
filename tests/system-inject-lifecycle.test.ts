@@ -111,17 +111,17 @@ test('新会话不校验模型；显式选择被拒绝后仍关闭，换回兼�
   await f.put()
   await f.configure()
   f.selectRoute({ ...route, model: 'denied' })
-  assert.equal((await f.controller.view('s')).resolved.status, 'off')
+  assert.equal((await f.controller.view('s')).session!.resolved.status, 'off')
   assert.equal(f.entry.error, undefined)
   await assert.rejects(f.select(), { code: INJECT_SELECTION_ERROR })
   assert.deepEqual(f.entry.state, { name: null })
   f.selectRoute(route)
-  assert.equal((await f.controller.view('s')).resolved.status, 'off')
+  assert.equal((await f.controller.view('s')).session!.resolved.status, 'off')
   await f.select()
   assert.equal(f.entry.state.name, prompt.name)
   const other = await f.sessions.initialize({ id: 'independent', cwd: f.workspace })
   assert.deepEqual(other.state, { name: null })
-  assert.equal((await f.controller.view('independent')).resolved.status, 'off')
+  assert.equal((await f.controller.view('independent')).session!.resolved.status, 'off')
 })
 
 test('模型提交与改选串行；捕获期间改选拒绝且模型拒绝不调用提交', async (t) => {
@@ -161,8 +161,7 @@ test('模型提交与改选串行；捕获期间改选拒绝且模型拒绝不�
 test('关闭状态的选模和请求不读取模型、模板或白名单，也不获取工程目录锁', async (t) => {
   const f = await fixture(t)
   const view = await f.controller.view('s')
-  assert.equal(view.resolved.status, 'off')
-  assert.deepEqual(view.resolved, view.session?.resolved)
+  assert.equal(view.session!.resolved.status, 'off')
   f.controller.catalog.scan = async () => {
     throw new Error('不应扫描目录')
   }
@@ -189,18 +188,15 @@ test('关闭状态的选模和请求不读取模型、模板或白名单，也�
   assert.equal((await f.controller.view('s')).session?.error, undefined)
 })
 
-test('关闭候选不会因旧规则或模板目录变化而开启或阻止发送', async (t) => {
+test('关闭候选不会因白名单或模板目录变化而开启或阻止发送', async (t) => {
   const f = await fixture(t)
   await f.put()
   await f.configure()
   await f.controller.capture('s')
-  await writeFile(
-    f.paths.config(),
-    JSON.stringify({ version: 1, state: { name: prompt.name }, whitelist: [] }),
-  )
+  await f.configure([])
+  await rm(f.paths.prompts('user'), { recursive: true })
   const view = await f.controller.view('s')
-  assert.equal(view.resolved.status, 'off')
-  assert.deepEqual(view.resolved, view.session?.resolved)
+  assert.equal(view.session!.resolved.status, 'off')
   assert.equal(f.controller.body('s'), '')
   await f.controller.selectModel('s', { ...route, model: 'denied' }, async () => {})
   await f.controller.admit('s', route, '', true)
@@ -215,7 +211,7 @@ test('选择拒绝是可确认通知，不是当前破甲状态；迟到确认�
     f.controller.command({ type: 'select', sessionId: 's', state: { name: prompt.name } }),
   )
   const first = f.entry.error!.id
-  assert.equal((await f.controller.view('s')).resolved.status, 'off')
+  assert.equal((await f.controller.view('s')).session!.resolved.status, 'off')
   await f.controller.command({ type: 'acknowledge-error', sessionId: 's', noticeId: first })
   assert.equal(f.entry.error, undefined)
   assert.equal((await f.controller.view('s')).session?.error, undefined)
@@ -228,5 +224,5 @@ test('选择拒绝是可确认通知，不是当前破甲状态；迟到确认�
   assert.equal(f.entry.error!.id, second)
   await f.controller.command({ type: 'acknowledge-error', sessionId: 's', noticeId: second })
   assert.equal(f.entry.error, undefined)
-  assert.equal((await f.controller.view('s')).resolved.status, 'off')
+  assert.equal((await f.controller.view('s')).session!.resolved.status, 'off')
 })

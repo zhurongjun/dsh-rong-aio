@@ -1,36 +1,37 @@
-import { useEffect, useId, useState, type ReactNode } from 'react'
-import { Button, IconChevronDownOutlineRegular, Menu } from '@deepseek-ai/dsh-client-ui-primitives'
-
-interface Option {
-  value: string
-  label: string
-  detail?: string
-  disabled?: boolean
-}
+import { useEffect, useId, useState } from 'react'
+import {
+  Button,
+  IconChevronDownOutlineRegular,
+  Menu,
+  PathLabel,
+} from '@deepseek-ai/dsh-client-ui-primitives'
+import type { Scope } from '../shared/state.ts'
 
 /** rc.5 未公开独立 Select；设置选项由官方 Menu 和 Button 组合，不实现另一套弹层或键盘逻辑。 */
-export function SettingsChoice({
-  label,
+export function ScopeChoice({
   value,
-  options,
+  workspace,
   disabled = false,
-  hint,
+  path,
   onChange,
 }: {
-  label: string
-  value: string
-  options: Option[]
+  value: Scope
+  workspace: string
   disabled?: boolean
-  hint?: ReactNode
-  onChange: (value: string) => void
+  path: string
+  onChange: (value: Scope) => void
 }) {
   const [open, setOpen] = useState(false)
   const id = useId()
-  const selected = options.find((option) => option.value === value)
+  const options = [
+    { value: 'user' as const, label: '全局' },
+    ...(workspace ? [{ value: 'workspace' as const, label: '当前项目' }] : []),
+  ]
+  const selected = value === 'user' ? '全局' : '当前项目'
   useEffect(() => setOpen(false), [disabled, value])
   return (
     <div className="rong-inject-field">
-      <span id={id}>{label}</span>
+      <span id={id}>保存位置</span>
       <Menu
         open={open && !disabled}
         onClose={() => setOpen(false)}
@@ -40,23 +41,18 @@ export function SettingsChoice({
         selectedId={value}
         items={options.map((option) => ({
           id: option.value,
-          disabled: option.disabled,
           label: (
             <span className="rong-inject-menu-label">
               <span className="rong-inject-menu-name" title={option.label}>
                 {option.label}
               </span>
-              {option.detail && (
-                <small className="rong-inject-menu-detail" title={option.detail}>
-                  {option.detail}
-                </small>
-              )}
             </span>
           ),
         }))}
         onSelect={(next) => {
           setOpen(false)
-          if (next !== value) onChange(next)
+          const option = options.find((item) => item.value === next)
+          if (option && next !== value) onChange(option.value)
         }}
         anchor={
           <Button
@@ -67,7 +63,7 @@ export function SettingsChoice({
             aria-labelledby={`${id} ${id}-value`}
             aria-haspopup="menu"
             aria-expanded={open && !disabled}
-            title={selected ? [selected.label, selected.detail].filter(Boolean).join(' · ') : value}
+            title={selected}
             onClick={() => setOpen(!open)}
             onKeyDown={(event) => {
               if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
@@ -77,13 +73,15 @@ export function SettingsChoice({
             }}
           >
             <span className="rong-inject-choice-value" id={`${id}-value`}>
-              {selected?.label ?? value}
+              {selected}
             </span>
             <IconChevronDownOutlineRegular size={14} />
           </Button>
         }
       />
-      {hint && <small>{hint}</small>}
+      <small>
+        <PathLabel path={path} />
+      </small>
     </div>
   )
 }

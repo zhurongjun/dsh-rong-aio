@@ -42,10 +42,10 @@ export class Controller {
     await this.tail
     await this.sessions.close()
   }
-  fail(id: string, error: unknown, route?: Route): Error {
+  fail(id: string, error: unknown): Error {
     const entry = this.sessions.entries.get(id)
     const text = message(error)
-    if (entry) entry.error = { id: ++this.failureId, message: text, route }
+    if (entry) entry.error = { id: ++this.failureId, message: text }
     return new Error(text, { cause: error })
   }
   async context(workspace = '') {
@@ -64,8 +64,8 @@ export class Controller {
     }
     return { config, user }
   }
-  resolve(config: ConfigView | undefined, entry?: SessionEntry): ResolvedState {
-    if (entry?.loadError)
+  private resolve(config: ConfigView | undefined, entry: SessionEntry): ResolvedState {
+    if (entry.loadError)
       return {
         state: entry.state,
         source: 'session',
@@ -74,12 +74,12 @@ export class Controller {
         message: entry.loadError,
       }
     // 展示、选模和请求共用同一优先级：本会话快照 > 已捕获候选 > 本会话显式选择。
-    if (!entry?.frozen && entry?.candidate) return entry.candidate.resolved
-    if (!config && !entry?.frozen && entry?.state.name)
+    if (!entry.frozen && entry.candidate) return entry.candidate.resolved
+    if (!config && !entry.frozen && entry.state.name)
       throw new Error('破甲状态缺少模板目录或请求快照')
     return resolveState({
-      session: entry?.state,
-      frozen: entry?.frozen,
+      session: entry.state,
+      frozen: entry.frozen,
       prompts: config?.templates ?? [],
       errors: config?.errors,
     })
@@ -94,30 +94,21 @@ export class Controller {
   }
   async view(id?: string, workspace = '') {
     const entry = id ? this.sessions.get(id) : undefined
-    // 可编辑会话读取目录供菜单展示；目录错误不能改变关闭状态。冻结浏览不访问目录。
-    const { config, resolved } = entry
-      ? entry.eligible && !entry.candidate && !entry.loadError
-        ? await this.context(entry.meta.cwd).then(({ config }) => ({
-            config,
-            resolved: this.resolve(config, entry),
-          }))
-        : await this.sessionResolution(entry)
-      : await this.context(workspace).then(({ config }) => ({
-          config,
-          resolved: this.resolve(config),
-        }))
-    let session: SessionView | undefined
-    if (entry && id)
-      session = {
-        sessionId: id,
-        workspace: entry.meta.cwd ?? '',
-        state: entry.state,
-        frozen: entry.frozen,
-        resolved,
-        busy: entry.busy,
-        error: entry.error,
-      }
-    return { config, session, resolved }
+    if (!entry) return { config: (await this.context(workspace)).config }
+    // 可编辑会话读取目录供菜单展示；冻结浏览不访问目录，也不重复传输快照正文。
+    const config =
+      entry.eligible && !entry.candidate && !entry.loadError
+        ? (await this.context(entry.meta.cwd)).config
+        : undefined
+    const session: SessionView = {
+      sessionId: entry.meta.id,
+      workspace: entry.meta.cwd ?? '',
+      inheritedFrom: entry.frozen?.inherited_from,
+      resolved: this.resolve(config, entry),
+      busy: entry.busy,
+      error: entry.error,
+    }
+    return { config, session }
   }
   private reject(id: string, reason: unknown, notify = true) {
     const noticeId = ++this.failureId
@@ -163,7 +154,7 @@ export class Controller {
     })
   }
   /** 只采集当前宿主的显式草稿选择；冻结快照不再属于文件引用。 */
-  async references(): Promise<Record<string, string[]>> {
+  references(): Record<string, string[]> {
     const refs: Record<string, string[]> = {}
     const add = (name: string | null | undefined, label: string) => {
       if (name) (refs[name] ??= []).push(label)
@@ -205,12 +196,10 @@ export class Controller {
             throw new Error('破甲词或白名单在请求准备期间发生变化，请重新发送')
         }
         await this.authorize(this.resolve(undefined, entry), route)
-        if (body) {
-          if (!prefixMatches(system, body))
-            throw new Error(
-              '实际请求未包含破甲正文首段。当前完整系统预设或其他扩展不兼容，已阻止发送。',
-            )
-        }
+        if (body && !prefixMatches(system, body))
+          throw new Error(
+            '实际请求未包含破甲正文首段。当前完整系统预设或其他扩展不兼容，已阻止发送。',
+          )
         if (!this.active) throw new Error('破甲模式组件已停用')
         if (freeze && !entry.frozen) {
           const candidate = entry.candidate!
@@ -266,7 +255,7 @@ export class Controller {
             previous &&
             (command.type === 'delete-template' || command.template.name !== previous.name)
           ) {
-            const refs = (await this.references())[previous.name] ?? []
+            const refs = this.references()[previous.name] ?? []
             if (refs.length && !command.confirmed)
               throw new Error(`操作会使以下引用失效，请确认：${refs.join('；')}`)
           }

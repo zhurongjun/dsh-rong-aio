@@ -1,6 +1,6 @@
 # DSH 界面消费契约
 
-破甲模式使用官方 Button、Input、Menu、Modal、Toast、SegmentedTabs、PathLabel 与线性图标。设置页的保存位置及服务商/模型选择由官方 Button 和 Menu 组合，采用标准菜单密度、尾部勾选和辅助信息右对齐；弹层定位、材质、键盘导航和焦点恢复交给宿主。触发按钮仅调整至 32px 高及 13/20 排版，与紧凑表单对齐，不重写中性颜色或交互状态。
+破甲模式使用官方 Button、Input、Menu、Modal、Toast、SegmentedTabs、PathLabel 与线性图标。编辑器的保存位置由 `ScopeChoice` 使用官方 Button 和 Menu 组合，采用标准菜单密度、尾部勾选和辅助信息右对齐；弹层定位、材质、键盘导航和焦点恢复交给宿主。触发按钮仅调整至 32px 高及 13/20 排版，与紧凑表单对齐，不重写中性颜色或交互状态。
 
 rc.5 没有公开独立 Select 或长正文 Textarea；不导入内部 ConfigField，也不将只有短草稿语义的 InlineEditor 用于破甲词正文。正文编辑和快照阅读保留 textarea，消费官方语义 token。输入框光晕以 rc.5 的 `data-composer-card` 锚点和本组件标记限定范围，仅占用 `::before`，不修改编辑器或宿主 `::after`；升级时必须复核该 DOM 锚点。光晕使用错误红、panel 圆角与官方运动曲线，减少动态效果时禁用过渡。
 

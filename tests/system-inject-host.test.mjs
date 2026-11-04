@@ -1,7 +1,5 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { writeFile, rm } from 'node:fs/promises'
-import { join } from 'node:path'
 import { createSystemMessage } from '@deepseek-ai/dsh-llm'
 import { hostFixture } from './helpers/system-inject-host.mjs'
 import { INJECT_SELECTION_ERROR } from '../src/components/system-inject/shared/selection-error.ts'
@@ -58,10 +56,6 @@ test('模型目录名称仅作展示，白名单仍只保存精确提供商与�
 
 test('真实宿主：新会话关闭且不弹拒绝，改模型/重载均不自动开启，首次发送冻结关闭', async (t) => {
   const f = await hostFixture(t)
-  await writeFile(
-    f.paths.config(),
-    JSON.stringify({ version: 1, state: { name: f.prompt.name }, whitelist: [f.route] }),
-  )
   f.selection.current = { ...f.route, model: 'denied' }
   let view = await f.api()
   assert.equal(view.session.resolved.status, 'off')
@@ -78,38 +72,6 @@ test('真实宿主：新会话关闭且不弹拒绝，改模型/重载均不自�
   assert.equal(request.messages[0].content[0].text.includes(f.prompt.body), false)
   assert.deepEqual((await f.frozen()).state, { name: null })
   assert.equal(f.calls(), 1)
-})
-
-test('历史用户/工程来源仅作为冻结元信息保留，规则删除后正文及子会话继承不变', async (t) => {
-  for (const source of ['user', 'workspace']) {
-    await t.test(source, async (t) => {
-      const f = await hostFixture(t)
-      await f.api({ type: 'select', sessionId: f.agent.id, state: { name: f.prompt.name } })
-      const before = await f.stream()
-      const frozen = { ...(await f.frozen()), source }
-      await writeFile(
-        join(f.location(f.agent.session.header), 'system_inject.json'),
-        JSON.stringify(frozen),
-      )
-      await rm(f.paths.prompts('user'), { recursive: true })
-      await f.reload()
-      const after = await f.stream()
-      assert.deepEqual(after.messages[0].content, before.messages[0].content)
-      const child = {
-        ...f.agent,
-        id: 'child',
-        session: {
-          ...f.agent.session,
-          header: { id: 'child', cwd: f.workspace, parentSession: f.agent.id },
-        },
-      }
-      f.agents.push(child)
-      assert.equal(
-        (await f.api(undefined, child.id)).session.frozen.state.snapshot.body,
-        f.prompt.body,
-      )
-    })
-  }
 })
 
 test('通知确认经过会话 API 清理宿主错误，未破甲的模型选择和实际请求不被护栏拦截', async (t) => {
@@ -139,10 +101,12 @@ test('原生装配与分发：预览不冻结，精确护栏、完整预设和�
   const f = await hostFixture(t)
   await f.api({ type: 'select', sessionId: f.agent.id, state: { name: f.prompt.name } })
   assert.equal((await f.api()).session.resolved.status, 'on')
-  assert.equal((await f.api()).session.frozen, undefined)
+  assert.equal((await f.api()).session.resolved.editable, true)
+  await assert.rejects(f.frozen(), { code: 'ENOENT' })
   await assert.rejects(f.stream({ model: 'denied' }), /未获/)
   assert.equal(f.calls(), 0)
-  assert.equal((await f.api()).session.frozen, undefined)
+  assert.equal((await f.api()).session.resolved.editable, true)
+  await assert.rejects(f.frozen(), { code: 'ENOENT' })
   const complete = f.ctx.systemPrompt.section({
     name: 'complete',
     order: 0,
@@ -203,8 +167,8 @@ test('冻结后编辑、改名、删除都不改变实际请求；子会话继�
   }
   f.agents.push(child)
   const childView = await f.api(undefined, child.id)
-  assert.equal(childView.session.frozen.state.snapshot.body, f.prompt.body)
-  assert.equal(childView.session.frozen.source, 'parent')
+  assert.equal(childView.session.resolved.state.snapshot.body, f.prompt.body)
+  assert.equal(childView.session.resolved.source, 'parent')
   await f.fiber.dispose()
   assert.equal(f.endpoint(), undefined)
 })
@@ -243,7 +207,10 @@ test('公共选模方法在保存前拒绝不合法模型，停用还原；子�
   await f.api(undefined, child.id)
   f.agents.splice(0, 1)
   await f.reload()
-  assert.equal((await f.api(undefined, child.id)).session.frozen.state.snapshot.body, f.prompt.body)
+  assert.equal(
+    (await f.api(undefined, child.id)).session.resolved.state.snapshot.body,
+    f.prompt.body,
+  )
   await f.ctx.sessionController.selectModel({
     sessionId: child.id,
     provider: 'fixture',
@@ -278,7 +245,7 @@ test('冷会话保持关闭，只有显式选词才通过历史投影读取模�
   const view = await f.api()
   assert.equal(view.session.resolved.editable, true)
   assert.equal(view.session.resolved.status, 'off')
-  assert.deepEqual(view.session.state, { name: null })
+  assert.deepEqual(view.session.resolved.state, { name: null })
   assert.equal(view.session.error, undefined)
   assert.equal(restores, 0)
   await f.api({ type: 'select', sessionId: meta.id, state: { name: f.prompt.name } })

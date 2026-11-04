@@ -1,7 +1,7 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { SpeedMode, SpeedRule } from '../shared/speed.ts'
 
-export interface SpeedCall {
+interface SpeedCall {
   model: string
   rule: SpeedRule
   mode: SpeedMode

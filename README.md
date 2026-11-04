@@ -2,7 +2,7 @@
 
 自用、一个安装入口包含多个功能组件的 DeepSeek Harness 插件，验证基线为 **DSH `0.2.1-rc.5`**，支持 Desktop 与 Web。
 
-首个功能是 **Codex 风格的模型与推理强度选择器**：打开即显示强度滑块，点击标题切换模型；按 Codex 参考图调整比例、字号和图标，接入 DSH 的主题与会话状态。只提供目录实际声明的明确 effort，不显示 Default。左上角闪电按人工维护的 OpenAI / Anthropic 型号规则启用，菜单提供该型号支持的标准、快速或超快；宿主向实际 API 请求传递速度参数。
+包含两个独立组件：**模型选择器**提供紧凑的模型、effort 与 Fast 控制；**破甲模式**提供文件破甲词库、新会话显式授权、冻结快照和精确模型白名单。界面使用 DSH 主题与公开控件，各组件独立启停。
 
 ## 安装
 
@@ -12,7 +12,7 @@
 github:zhurongjun/dsh-rong-aio#<完整提交 SHA>
 ```
 
-将占位符替换为已推送提交。DSH 宿主需能执行 Node.js、Git 和 pnpm（见安装说明）。首次安装需允许该 Git 包的构建脚本；`prepare` 会自动安装开发依赖并生成运行产物，完成后点击“立即启用”。也可以省略 `#<完整提交 SHA>` 安装默认分支最新版本。
+将占位符替换为已推送提交。DSH 宿主需能执行 Node.js、Git 和 pnpm（见安装说明）。首次安装需允许该 Git 包的构建脚本；pnpm 准备 Git 依赖时安装开发依赖，再由 `prepare` 生成运行产物，完成后点击“立即启用”。也可以省略 `#<完整提交 SHA>` 安装默认分支最新版本。
 
 本地开发执行 `pnpm install --frozen-lockfile`，安装结束会自动构建，再运行 `pnpm check`；随后在 DSH 中添加源码目录绝对路径。`pnpm pack` 同样自动构建，生成的安装包无需开发依赖或安装时构建。`lib/` 仍不提交。
 
@@ -36,16 +36,17 @@ github:zhurongjun/dsh-rong-aio#<完整提交 SHA>
 
 ```text
 src/
-├── components/model-selector/    # 完整功能：host、client、shared、locale 和内部清单
-├── runtime/host/                 # 组件装配与生命周期
-└── shared/                       # 实际需要的跨组件公共契约
+├── components/
+│   ├── model-selector/           # 模型、effort 与 Fast
+│   └── system-inject/            # 破甲词、会话冻结与模型护栏
+└── runtime/host/                 # 组件装配与生命周期
 scripts/build.mjs                 # 统一生成组件入口与 DSH 模块工厂
 tests/                            # 规则、装配生命周期、运动及交互测试
 ```
 
 用户只安装 `dsh-rong-aio`，在 DSH 原生“包含的组件”中分别启停完整功能；总开关控制全部组件。新功能默认开启，已关闭组件沿用当前 profile 的覆盖状态。内部清单随根包分发，不单独安装。
 
-Host 不导入 Client；Client 不导入 Host 或 Node；Shared 不依赖任一侧实现或 DOM。组件不相互导入内部实现，公共服务契约放在根 Shared。项目内部使用相对 ESM 导入；新增组件步骤见[组件架构](docs/components.md)。
+Host 不导入 Client；Client 不导入 Host 或 Node；Shared 不依赖任一侧实现或 DOM。组件不相互导入内部实现，确有跨组件契约时才建立根 `src/shared/`，当前组件之间没有业务依赖。项目内部使用相对 ESM 导入；新增组件步骤见[组件架构](docs/components.md)。
 
 界面直接消费 DSH 的语义 token 与公开控件；中性色、菜单材质和字体跟随宿主，保留选择器的布局与特色交互。新增界面遵守 [UI 消费契约](docs/ui-contract.md)，使用 `pnpm check:ui` 检查颜色、token 与局部例外。
 

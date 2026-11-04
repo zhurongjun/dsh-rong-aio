@@ -15,7 +15,7 @@ export interface SessionMeta {
   cwd?: string
   parent?: string
 }
-export interface Candidate {
+interface Candidate {
   resolved: ResolvedState
   revision?: string
 }

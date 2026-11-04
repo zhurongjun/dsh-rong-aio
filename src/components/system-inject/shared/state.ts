@@ -8,7 +8,7 @@ export const nameSchema = z
   .regex(/^[A-Za-z0-9._-]+$/)
   .refine((value) => value !== '.' && value !== '..', 'name 不能为 . 或 ..')
 export const selectionSchema = z.object({ name: nameSchema.nullable() }).strict()
-export const snapshotSchema = z
+const snapshotSchema = z
   .object({
     display_name: z.string().min(1).max(120),
     description: z.string().max(500),
@@ -19,7 +19,7 @@ export const snapshotSchema = z
       .refine((value) => !!value.trim(), '正文不能为空'),
   })
   .strict()
-export const injectStateSchema = selectionSchema.extend({ snapshot: snapshotSchema.optional() })
+const injectStateSchema = selectionSchema.extend({ snapshot: snapshotSchema.optional() })
 export type InjectState = z.infer<typeof injectStateSchema>
 export const promptSchema = snapshotSchema
   .extend({
@@ -30,16 +30,13 @@ export const promptSchema = snapshotSchema
   .transform((value) => ({ ...value, display_name: value.display_name || value.name }))
 export type Prompt = z.infer<typeof promptSchema>
 export type Scope = 'user' | 'workspace'
-// user/workspace 仅保留用于读取已有冻结文件的来源元信息，运行时不再解析这些层级。
-export const sourceSchema = z.enum(['user', 'workspace', 'session', 'parent', 'none'])
-export type Source = z.infer<typeof sourceSchema>
+const sourceSchema = z.enum(['session', 'parent', 'none'])
+type Source = z.infer<typeof sourceSchema>
 export const frozenSchema = z
   .object({
     version: z.literal(1),
     state: injectStateSchema.refine(
-      (state) =>
-        state.name !== undefined &&
-        (state.name === null ? state.snapshot === undefined : !!state.snapshot),
+      (state) => (state.name === null ? state.snapshot === undefined : !!state.snapshot),
       '冻结状态缺少正文或明确选择',
     ),
     frozen_at: z.string().datetime(),
@@ -62,8 +59,6 @@ export interface ResolvedState {
   message?: string
 }
 export const SOURCE_LABELS: Record<Source, string> = {
-  user: '历史用户规则',
-  workspace: '历史工程规则',
   session: '本会话选择',
   parent: '继承父会话',
   none: '未开启',

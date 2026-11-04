@@ -13,7 +13,7 @@ export function missing(error: unknown): boolean {
 export function message(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
-export interface FileVersion {
+interface FileVersion {
   text?: string
   revision: string
 }

@@ -38,7 +38,6 @@ test('全局和项目设置范围固定且实例隔离，迟到项目响应不�
     routes: [],
     references: {},
     catalogErrors: [],
-    resolved: { state: { name: null }, status: 'off', source: 'none', editable: true },
   })
   try {
     globalThis.fetch = async (input, options) => {
@@ -78,11 +77,9 @@ test('草稿通知确认跨界面挂载与轮询保留，迟到确认响应不�
   const store = createInjectStore('draft')
   const resolved = { state: { name: null }, status: 'off', source: 'none', editable: true }
   const response = (id: number) => ({
-    resolved,
     session: {
       sessionId: 'draft',
       resolved,
-      state: { name: null },
       error: { id, message: '模型未授权' },
     },
   })
@@ -138,8 +135,7 @@ test('通知确认通信失败不改写破甲状态，后续刷新重试宿主�
         failure = undefined
       }
       return Response.json({
-        resolved,
-        session: { sessionId: 'draft', state: { name: null }, resolved, error: failure },
+        session: { sessionId: 'draft', resolved, error: failure },
       })
     }
     await store.refresh()
@@ -169,8 +165,7 @@ test('明确的选择拒绝保留已确认状态与光晕，直接呈现对应�
     editable: true,
   }
   try {
-    globalThis.fetch = async () =>
-      Response.json({ session: { sessionId: 's', resolved, state: { name: 'a' } }, resolved })
+    globalThis.fetch = async () => Response.json({ session: { sessionId: 's', resolved } })
     await store.refresh()
     globalThis.fetch = async () =>
       Response.json(
@@ -183,7 +178,7 @@ test('明确的选择拒绝保留已确认状态与光晕，直接呈现对应�
     )
     assert.equal(store.getState().verified, true)
     assert.equal(store.getState().data?.session?.resolved.status, 'on')
-    assert.equal(store.getState().data?.session?.state.name, 'a')
+    assert.equal(store.getState().data?.session?.resolved.state.name, 'a')
     assert.equal(store.getState().data?.session?.error?.id, 9)
     assert.equal(store.getState().error, undefined)
   } finally {
@@ -200,7 +195,6 @@ test('前端读取失败不保留成功标记，保存失败保留已知内容�
     routes: [],
     references: {},
     catalogErrors: [],
-    resolved: { state: { name: null }, status: 'off', source: 'none', editable: true },
   }
   try {
     globalThis.fetch = async () => Response.json(state)
@@ -240,7 +234,6 @@ test('前端过期读取不覆盖保存结果，组件停用中止未完成请�
           routes: [],
           references: {},
           catalogErrors: [],
-          resolved: { state: { name: null }, status: 'off', source: 'none', editable: true },
         })
       return new Promise((resolve) => {
         finishRead = resolve
@@ -261,7 +254,6 @@ test('前端过期读取不覆盖保存结果，组件停用中止未完成请�
         routes: [],
         references: {},
         catalogErrors: [],
-        resolved: { state: { name: null }, status: 'off', source: 'none', editable: true },
       }),
     )
     await read
@@ -275,7 +267,6 @@ test('前端过期读取不覆盖保存结果，组件停用中止未完成请�
         routes: [],
         references: {},
         catalogErrors: [],
-        resolved: { state: { name: null }, status: 'off', source: 'none', editable: true },
       }),
     )
     await pending

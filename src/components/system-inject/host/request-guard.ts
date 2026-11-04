@@ -33,6 +33,6 @@ export async function guardRequest(
       return
     await controller.admit(id, options, text, !options.purpose)
   } catch (error) {
-    throw controller.fail(id, error, { provider: options.provider, model: options.model })
+    throw controller.fail(id, error)
   }
 }

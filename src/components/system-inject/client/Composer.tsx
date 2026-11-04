@@ -52,7 +52,7 @@ export function Composer({ sessionId, store, settingsFor, blocks, available }: P
   if (!available) return null
   const statusLabel = view ? stateLabel(view.resolved) : '未破甲'
   const body = view?.resolved.state.snapshot?.body ?? ''
-  const choice = view?.state
+  const choice = view?.resolved.state
   const choose = (state: InjectState) => {
     // 先关闭选择菜单，再等待宿主校验；toast 不接管焦点，也不阻止重新选择。
     setOpen(false)
@@ -192,9 +192,9 @@ export function Composer({ sessionId, store, settingsFor, blocks, available }: P
               <small>{SOURCE_LABELS[view.resolved.source]} · 只读</small>
             </div>
             {view.resolved.message && <p className="rong-inject-error">{view.resolved.message}</p>}
-            {view.frozen?.inherited_from && (
-              <small className="rong-inject-truncate" title={view.frozen.inherited_from}>
-                父会话：{view.frozen.inherited_from}
+            {view.inheritedFrom && (
+              <small className="rong-inject-truncate" title={view.inheritedFrom}>
+                父会话：{view.inheritedFrom}
               </small>
             )}
             {body ? (

@@ -43,9 +43,9 @@ display_name 省略时使用 name；description 可选。正文按字面注入�
 }
 ```
 
-用户 config.json 仅维护精确模型白名单；工程只提供破甲词库，不再读取或写入工程 config.json。旧用户配置中残留的 state 被忽略，下一次保存白名单时不再写回；旧工程配置完全不参与运行。已有冻结文件不迁移、不删除，历史来源元信息仍可展示。
+用户 config.json 只接受 version 和 whitelist，未知字段明确报错。工程只提供破甲词库，不能通过工程配置授权模型。
 
-会话使用 InjectState：`{"name": null}` 关闭，`{"name": "example"}` 引用用户显式选择的破甲词。选择接口要求明确的 name，不接受空状态 `{}` 或默认规则写入命令。打开界面、创建模板、授权模型、切换工作区或模型，都不会自动开启破甲。
+会话使用 InjectState：`{"name": null}` 关闭，`{"name": "example"}` 引用用户显式选择的破甲词。选择接口要求明确的 name，不接受空状态 `{}`。打开界面、创建模板、授权模型、切换工作区或模型，都不会自动开启破甲。
 
 未发送的会话选择仅保留在宿主内存；同一宿主窗口共享，浏览器刷新保留，宿主或组件重载后回到关闭，需重新显式选择。UI 使用宿主统一解析结果：有效选择显示橘红裂盾、显示名称和静态红色外扩光晕；关闭显示灰色完整盾牌及“未破甲”；名称缺失或冲突显示“已失效”。选词及选模在保存前由宿主校验组合；不兼容时在当前入口提示（本包和原生模型按钮使用官方 Toast，原生 `/model` 保留内联拒绝），并保留原来已确认的组合。拒绝后切换兼容模型不会自动开启，仍需主动选词。
 
@@ -57,7 +57,7 @@ display_name 省略时使用 name；description 可选。正文按字面注入�
 
 首次请求装配前在原生会话目录原子写入 `system_inject.pending.json`，内容仅为 `{"version":1}`，证明尚未放行首次请求，不保存选词或正文。随后捕获不可变候选状态，按实际分发的 provider 和 model 精确匹配白名单，并核对请求首段。开启时相关文件变化会取消本次请求，需重新发送；关闭候选不依赖这些文件。全部校验通过后才持久化会话快照，再交给适配器；关闭状态也会冻结。校验或写盘失败不调用适配器，通过官方 Toast 提示；API 调用失败仍保留快照。冻结成功后清理资格标记；准备或护栏失败保留标记，重启后仍允许选择，但内存选择丢弃并恢复关闭。即使标记清理失败，冻结文件始终优先。
 
-冻结文件包含版本、state、frozen_at、source，以及可选 inherited_from。开启时 state 附带 snapshot（display_name、description、body）；关闭时 name 为 null，不附带正文。后续展示与请求优先读取本会话副本，不扫描模板、不锁定这些目录；仅在选模与实际请求时读取最新用户白名单。快照读取失败时该会话明确报错且只读，不回退为新会话，也不影响其他会话的加载。编辑、删除和改名不会改变已冻结正文。
+冻结文件包含版本、state、frozen_at、source，以及可选 inherited_from。source 只允许 session（本会话选择）、parent（继承父会话）和 none（未开启）。开启时 state 附带 snapshot（display_name、description、body）；关闭时 name 为 null，不附带正文。后续展示与请求优先读取本会话副本，不扫描模板、不锁定这些目录；仅在选模与实际请求时读取最新用户白名单。快照读取失败时该会话明确报错且只读，不回退为新会话，也不影响其他会话的加载。编辑、删除和改名不会改变已冻结正文。
 
 本地 fork、spawn、团队成员及其后代继承相同冻结结果（包括关闭状态），首次继承即各自持久化独立副本；之后恢复不依赖父会话存在。首次继承无法确认父状态时明确失败。
 
@@ -77,10 +77,10 @@ display_name 省略时使用 name；description 可选。正文按字面注入�
 
 ## 代码职责
 
-组件的 shared/state.ts 是唯一纯解析器；shared/markdown.ts 处理 Markdown，shared/protocol.ts 定义传输契约。host 下的 paths、prompt-catalog、config-store、session-location、session-store 分别处理路径、扫描、配置和会话存储；controller 协调并发与操作，request-guard 检查实际请求，model-selection 封装 rc.5 的公开选模方法适配，selection-error 生成跨组件可识别的校验错误，index 仅装配 DSH 公开钩子。
+组件的 shared/state.ts 是唯一纯解析器；shared/markdown.ts 处理 Markdown，shared/protocol.ts 定义传输契约。host 下的 paths、prompt-catalog、config-store、session-location、session-store 分别处理路径、扫描、配置和会话存储；controller 协调并发与操作，request-guard 检查实际请求，model-selection 封装 rc.5 的公开选模方法适配，selection-error 生成组件内部可识别的校验错误，index 仅装配 DSH 公开钩子。
 
 rc.5 没有选模前置事件，适配仅装饰公开 `sessionController.selectModel`，校验成功后保持原调用上下文委托，保留默认模型保存等原生行为；停用时还原。升级 DSH 必须复核方法、远程错误传递、运行中选模时序及生命周期。
 
 选模拒绝通过 RemoteResult 返回，由当前选模入口呈现：原生模型菜单和本包选择器使用官方 Toast，原生 `/model` 保留菜单内错误提示；本组件不监听模型目录，也不另发一份选模拒绝通知。切换破甲词失败与请求护栏拒绝由本组件使用官方 Toast 呈现，结束时按通知 ID 确认；重复操作使用新通知 ID，旧 Toast 的退出回调不会清除新通知。Toast 不接管焦点，显示期间仍可输入、换模或重新选择。未开启破甲的会话不会因为模型不在白名单中而收到拒绝通知。
 
-前端使用 Zustand 与 Immer 接收权威结果，不另做模型白名单或会话状态解析。正式代码不包含旧 storageDomain 的兼容层、自动迁移或删除历史会话逻辑。
+前端使用 Zustand 与 Immer 接收权威结果。会话接口只返回一份 `session.resolved`，包含最终状态、正文、来源、有效性和可编辑性；父会话标识使用 `session.inheritedFrom`。UI 不复制原始选择或冻结文件，不另做模型白名单或会话状态解析。设置接口只返回文件配置与目录，不构造虚拟会话状态。

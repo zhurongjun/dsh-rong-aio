@@ -49,7 +49,7 @@ Fast 菜单只展示档位名称和固定宽度的勾选列，最小宽 96px、�
 
 动画独立于请求耗时：入场 150ms、退出 120ms，列表与滑块的高度切换 180ms。滑块采用 requestAnimationFrame 连续位置/速度跟踪，跨档阈值、速度上限和过冲钳制集中在 `src/components/model-selector/shared/slider-motion.ts`。滑轨填充使用 DSH 的 DeepSeek 蓝色主题变量 `--dsw-alias-state-business-primary`，不显示渐变或滚动扫光；粒子密度随滑块位置增加。减少动态效果时去掉弹层与粒子动画，滑块直接到位。卸载清理动画帧、事件监听及 ResizeObserver。
 
-面板采用 Codex 紧凑布局：面板宽 256px、高 98px，水平内距 13px；标题 14/20px、模型名 12/18px；滑轨 24px，圆钮 28px。Fast 和重置均为 16px SVG，采用归一化的轮廓；闪电关闭时空心、开启时实心，重置为细描边。强度标题为蓝色，模型名右侧放箭头；模型名保持居中。图标不是 Codex 原始 SVG 源文件。文字、中性图标、轨道、焦点与强调色消费 DSH 语义 token；MenuSurface 采用官方材质、16px 圆角及平台轮廓，明暗主题由宿主管理，详见 [UI 消费契约](ui-contract.md)。主面板与 Fast 的缩放、材质和内容淡入分别处理；挂载期间保留根节点合成层，避免收尾时改变背景采样或切换图层，具体结构约束见 UI 消费契约。
+面板采用 Codex 紧凑布局：面板宽 256px、高 98px，水平内距 13px；标题 14/20px、模型名 12/18px；滑轨 24px，圆钮 28px。Fast 和重置均为 16px SVG，采用归一化的轮廓；闪电关闭时空心、开启时实心，重置为细描边。强度标题为蓝色，模型名右侧放箭头；模型名保持居中。文字、中性图标、轨道、焦点与强调色消费 DSH 语义 token；MenuSurface 采用官方材质、16px 圆角及平台轮廓，明暗主题由宿主管理，详见 [UI 消费契约](ui-contract.md)。主面板与 Fast 的缩放、材质和内容淡入分别处理；挂载期间保留根节点合成层，避免收尾时改变背景采样或切换图层，具体结构约束见 UI 消费契约。
 
 粒子与滑块计算固定参考 `Microqian2th/dsh-codex-effort-slider` 提交 `fc5a994e34d3329bef748135e2c2ed219b9e30ce`，按其代码改编并保留 MIT 许可。粒子保持固定高度，**从右向左连续横穿**，无往复或上下浮动。
 
@@ -64,13 +64,11 @@ Fast 菜单只展示档位名称和固定宽度的勾选列，最小宽 96px、�
 | 运动参数          | `K=60, A=500, k=60, amax=300, vmax=10, epsX=.0015, epsV=.02` |
 | 松手外推 / 帧上限 | `0` / `0.05s`                                                |
 
-本项目使用静态淡蓝填充，不显示能量渐变和扫光，并隐藏已经过的档位圆点；粒子与运动计算沿用固定上游参数。减少动态效果时停用粒子动画。弹层 150/120/180ms 的开合参数是当前实现值，没有证据证明它们是 Codex 官方原值。
+本项目使用静态淡蓝填充，不显示能量渐变和扫光，并隐藏已经过的档位圆点；粒子与运动计算沿用固定上游参数。减少动态效果时停用粒子动画。
 
-## 参考与复刻范围
+## 代码职责
 
-- [Codex 紧凑选择器公开截图](https://codex-design.beacon.host/audit/crops/effort-popover.png?v=1789018609023)
-- [公开视频的 18:23](https://www.youtube.com/watch?v=i33yG_W9-1U&t=1103s)
-- [Microqian2th 的运动研究与演示](https://github.com/Microqian2th/dsh-codex-effort-slider)
-- [HanaAyane 的 DSH 公共插槽集成参考](https://github.com/HanaAyane/dsh-reasoning-effort)
-
-布局参考 Codex 选择器。运动与粒子模块改编自上述 MIT 项目，许可见 `THIRD_PARTY_NOTICES.md`。该项目没有提供可独立验证的“百分之百一致”证明；公开研究不等于官方动画常量，因此不声称像素或时序完全一致。
+- `shared/model-selection.ts` 处理模型与明确 effort，`shared/speed.ts` 维护速度规则；运动和粒子数学计算分别集中在 `slider-motion.ts`、`particle-motion.ts`。改编来源与许可见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
+- `client/model-selector/selector-store.ts` 管理每个会话的弹层、搜索、预览与操作通知；DSH `modelDirectories` 是已确认模型的唯一来源。`speed-store.ts` 按路由读取和保存速度，迟到响应不能覆盖新路由。
+- React 负责结构与可访问性；`useSliderMotion.ts` 的 RAF 只更新运动样式、粒子节点和经过状态，不逐帧更新 React store。同一运动属性不能同时由 JSX 写入。
+- `host/index.ts` 装配速度接口、storageDomain 和 `llm/stream`；`host/speed-transport.ts` 在限定请求作用域内适配 HTTP 字段，停用恢复 fetch。

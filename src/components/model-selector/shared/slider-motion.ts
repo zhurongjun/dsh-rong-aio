@@ -1,5 +1,5 @@
 /** Adapted from Microqian2th/dsh-codex-effort-slider fc5a994 (MIT). See THIRD_PARTY_NOTICES. */
-export interface MotionState {
+interface MotionState {
   position: number
   velocity: number
 }

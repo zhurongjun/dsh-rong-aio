@@ -489,10 +489,6 @@
   font: inherit;
   color: var(--dsw-alias-label-tertiary);
 }
-/* 辅助信息不能挤压选项名称。 */
-.rong-inject-choice-menu .rong-inject-menu-detail {
-  max-width: 60%;
-}
 .rong-inject-menu-hint {
   padding: 6px 8px;
   color: var(--dsw-alias-label-tertiary);

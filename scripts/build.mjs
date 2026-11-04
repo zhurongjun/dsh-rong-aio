@@ -101,12 +101,3 @@ for (const entry of components.sort((a, b) => a.name.localeCompare(b.name))) {
   )
   await writeFile(path.join(output, `${id}.d.ts`), declaration)
 }
-// 保留旧宿主入口，升级时既有 ID、接口和 storageDomain 均不变。
-await writeFile(
-  path.join(output, 'index.js'),
-  "export { inject, apply } from './model-selector.js'\n",
-)
-await writeFile(
-  path.join(output, 'index.d.ts'),
-  "export { inject, apply } from './model-selector.js'\n",
-)

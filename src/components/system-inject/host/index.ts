@@ -72,8 +72,6 @@ export async function apply(ctx: Context): Promise<void> {
       )
     },
   )
-  const workspaces = () =>
-    ctx.workspaceRegistry.list().map((item) => ({ path: item.path, title: item.title }))
   const controller = new Controller(paths, sessions, async (id) => {
     const agent = ctx.agents.list().find((item) => item.id === id)
     if (!agent) {
@@ -177,7 +175,7 @@ export async function apply(ctx: Context): Promise<void> {
           : (url.searchParams.get('workspace') ?? '')
         if (
           workspace &&
-          !workspaces().some((item) => item.path === workspace) &&
+          !ctx.workspaceRegistry.list().some((item) => item.path === workspace) &&
           ![...sessions.entries.values()].some((entry) => entry.meta.cwd === workspace)
         )
           throw new Error('工作区未在 DSH 中注册')
@@ -214,7 +212,7 @@ export async function apply(ctx: Context): Promise<void> {
             ).flat()
         const data: StateView = {
           ...view,
-          references: id ? {} : await controller.references(),
+          references: id ? {} : controller.references(),
           routes,
           catalogErrors,
         }

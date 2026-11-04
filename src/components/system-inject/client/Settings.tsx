@@ -3,7 +3,6 @@ import { useStore } from 'zustand'
 import {
   Button,
   Input,
-  PathLabel,
   SegmentedTabs,
   IconPlusOutlineRegular,
   IconSearchOutlineRegular,
@@ -13,7 +12,7 @@ import { exportMarkdown, importMarkdown } from '../shared/markdown.ts'
 import { promptSchema, type CatalogPrompt, type Prompt, type Scope } from '../shared/state.ts'
 import type { InjectStore } from './store.ts'
 import { Dialog } from './Dialog.tsx'
-import { SettingsChoice } from './SettingsChoice.tsx'
+import { ScopeChoice } from './ScopeChoice.tsx'
 import { TemplateLibrary, type LibraryView } from './TemplateLibrary.tsx'
 import { Whitelist } from './Whitelist.tsx'
 import { routeKey } from './whitelist-models.ts'
@@ -190,16 +189,12 @@ export function Settings({ store }: { store: InjectStore }) {
           </div>
           <div className="rong-inject-editor-layout">
             <div className="rong-inject-editor-meta">
-              <SettingsChoice
-                label="保存位置"
+              <ScopeChoice
                 disabled={saving || !!editor.file}
                 value={editor.scope}
-                options={[
-                  { value: 'user', label: '全局' },
-                  ...(config.workspace ? [{ value: 'workspace', label: '当前项目' }] : []),
-                ]}
-                onChange={(scope) => setEditor({ ...editor, scope: scope as Scope })}
-                hint={<PathLabel path={editor.file ?? config.paths[editor.scope] ?? ''} />}
+                workspace={config.workspace}
+                onChange={(scope) => setEditor({ ...editor, scope })}
+                path={editor.file ?? config.paths[editor.scope] ?? ''}
               />
               <label className="rong-inject-field">
                 短标识（name）

@@ -3,8 +3,6 @@ import {
   promptSchema,
   selectionSchema,
   type CatalogPrompt,
-  type FrozenSession,
-  type InjectState,
   type ResolvedState,
   type Scope,
 } from './state.ts'
@@ -53,7 +51,6 @@ export type Command = z.infer<typeof commandSchema>
 export interface RequestFailure {
   id: number
   message: string
-  route?: Route
 }
 export interface ConfigView {
   revision: string
@@ -66,15 +63,13 @@ export interface ConfigView {
 export interface SessionView {
   sessionId: string
   workspace: string
-  state: InjectState
-  frozen?: FrozenSession
+  inheritedFrom?: string
   resolved: ResolvedState
   busy: boolean
   error?: RequestFailure
 }
 export interface StateView {
   config?: ConfigView
-  resolved: ResolvedState
   session?: SessionView
   references: Record<string, string[]>
   routes: CatalogRoute[]
