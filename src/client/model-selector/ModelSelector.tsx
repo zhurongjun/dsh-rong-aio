@@ -1,5 +1,7 @@
 import {
+  useCallback,
   useEffect,
+  useMemo,
   useId,
   useLayoutEffect,
   useRef,
@@ -9,15 +11,7 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
-import {
-  MenuSurface,
-  IconCheckOutlineRegular,
-  IconChevronDownOutlineRegular,
-  IconChevronLeftOutlineRegular,
-  IconChevronRightOutlineRegular,
-  IconDataOutlineRegular,
-  IconSearchOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives'
+import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
@@ -33,11 +27,17 @@ import {
   selectionFor,
 } from '../../shared/model-selection.ts'
 import { EffortSlider } from './EffortSlider.tsx'
-import { FastIcon, ResetIcon } from './SelectorIcons.tsx'
+import { ResetIcon } from './SelectorIcons.tsx'
 
 import { SpeedControl } from './SpeedControl.tsx'
-import { useSpeedSelection } from './useSpeedSelection.ts'
-import { SPEED_LABELS } from '../../shared/speed.ts'
+import { speedKey } from '../../shared/speed.ts'
+import { useStore } from 'zustand'
+import { useShallow } from 'zustand/react/shallow'
+import { createSelectorStore } from './selector-store.ts'
+import { createSpeedStore } from './speed-store.ts'
+import { SelectorTrigger } from './SelectorTrigger.tsx'
+import { EffortHeading } from './EffortHeading.tsx'
+import { ModelList } from './ModelList.tsx'
 
 type Props = ModelSelectInjected &
   Pick<PropsRuntime<'conversation.input.model'>, 'locked' | 'sessionId'>
@@ -48,49 +48,70 @@ export function ModelSelector(props: Props) {
 }
 
 function Selector({ locked, available, directory, load, select, sessionId }: Props) {
-  const state = useSyncExternalStore(
-    (notify) => directory.subscribe(notify),
-    () => directory.getSnapshot(),
+  const [store] = useState(createSelectorStore)
+  const actions = store.getState().actions
+  const [speedStore] = useState(() => createSpeedStore(actions.reportError))
+  const { open, mounted, pane, query, saving, error } = useStore(
+    store,
+    useShallow((state) => ({
+      open: state.open,
+      mounted: state.mounted,
+      pane: state.pane,
+      query: state.query,
+      saving: state.saving,
+      error: state.error,
+    })),
   )
-  const [open, setOpen] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const [pane, setPane] = useState<'effort' | 'models'>('effort')
-  const [query, setQuery] = useState('')
-  const [highlight, setHighlight] = useState(0)
-  const [preview, setPreview] = useState<string>()
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const source = useMemo(
+    () => ({
+      subscribe: (notify: () => void) => directory.subscribe(notify),
+      getSnapshot: () => directory.getSnapshot(),
+    }),
+    [directory],
+  )
+  const state = useSyncExternalStore(source.subscribe, source.getSnapshot)
   const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' })
   const trigger = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
   const search = useRef<HTMLInputElement>(null)
   const header = useRef<HTMLButtonElement>(null)
   const alive = useRef(true)
-  const inFlight = useRef(false)
   const id = useId()
   const current = state.pending ?? state.current
-  const model = currentModelOf(state.groups, current)
-  const efforts = effortsOf(model)
-  const effort = efforts.find((entry) => entry.id === preview) ?? currentEffortOf(model, current)
-  const groups = filterModels(state.groups, query)
-  const rows = groups.flatMap((group) => group.models.map((model) => ({ group, model })))
-  const busy = saving || state.pending !== null || locked
-  const title = effort?.name ?? (efforts.length ? '请选择强度' : '推理强度')
-  const modelName = model?.name ?? current?.model ?? '选择模型'
-  const routeKey = JSON.stringify([
-    current?.provider,
-    current?.model,
-    efforts.map((entry) => entry.id),
-  ])
-
-  const speed = useSpeedSelection(
-    available && current
-      ? { sessionId, provider: current.provider, model: current.model }
-      : undefined,
-    open,
-    setError,
+  const model = useMemo(
+    () => currentModelOf(state.groups, current),
+    [state.groups, current?.provider, current?.model],
   )
-  const fastActive = speed.state.mode !== 'standard' && speed.state.modes.includes(speed.state.mode)
+  const efforts = useMemo(() => effortsOf(model), [model])
+  const selected = useMemo(() => currentEffortOf(model, current), [model, current?.reasoningEffort])
+  const catalog = useMemo(() => {
+    const filtered = filterModels(state.groups, query)
+    const rows = filtered.flatMap((group) => group.models.map((model) => ({ group, model })))
+    let offset = 0
+    const groups = filtered.map((group) => {
+      const entry = { group, offset }
+      offset += group.models.length
+      return entry
+    })
+    return { groups, rows }
+  }, [state.groups, query])
+  const { groups, rows } = catalog
+  const busy = saving || state.pending !== null || locked
+  const modelName = model?.name ?? current?.model ?? '选择模型'
+  const routeKey = useMemo(
+    () => JSON.stringify([current?.provider, current?.model, efforts.map((entry) => entry.id)]),
+    [current?.provider, current?.model, efforts],
+  )
+  const identity = useMemo(
+    () =>
+      available && current
+        ? { sessionId, provider: current.provider, model: current.model }
+        : undefined,
+    [available, sessionId, current?.provider, current?.model],
+  )
+  const speedRoute = identity ? speedKey(identity) : ''
+  useEffect(() => speedStore.sync(identity, open), [speedStore, identity, open])
+  useEffect(() => () => speedStore.dispose(), [speedStore])
 
   useEffect(() => {
     alive.current = true
@@ -100,19 +121,18 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   }, [])
 
   useEffect(() => {
-    if (open) {
-      setMounted(true)
-      return
-    }
-    const timer = window.setTimeout(() => setMounted(false), 120)
+    if (open) return
+    const timer = window.setTimeout(actions.unmount, 120)
     return () => window.clearTimeout(timer)
-  }, [open])
+  }, [open, actions])
 
-  const close = (restoreFocus = false) => {
-    setOpen(false)
-    setPreview(undefined)
-    if (restoreFocus) trigger.current?.focus()
-  }
+  const close = useCallback(
+    (restoreFocus = false) => {
+      actions.close()
+      if (restoreFocus) trigger.current?.focus()
+    },
+    [actions],
+  )
 
   useEffect(() => {
     if (!open) return
@@ -127,11 +147,11 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     }
     document.addEventListener('pointerdown', outside)
     return () => document.removeEventListener('pointerdown', outside)
-  }, [open])
+  }, [open, close])
 
   useEffect(() => {
     if (locked || !available) close()
-  }, [locked, available])
+  }, [locked, available, close])
 
   useLayoutEffect(() => {
     if (!mounted) return
@@ -149,7 +169,10 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
       const x = Math.max(left + 12, Math.min(anchor.right - width, left + vw - width - 12))
       const above = anchor.top - 8 - height
       const y = above >= top + 12 ? above : Math.min(anchor.bottom + 8, top + vh - height - 12)
-      setPosition({ left: x, top: Math.max(top + 12, y) })
+      const next = { left: x, top: Math.max(top + 12, y) }
+      setPosition((previous) =>
+        previous.left === next.left && previous.top === next.top ? previous : next,
+      )
     }
     place()
     const observer = new ResizeObserver(place)
@@ -173,55 +196,49 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   }, [open, mounted, pane, position.visibility])
 
   useEffect(() => {
-    setPreview(undefined)
-  }, [routeKey])
+    actions.preview(undefined)
+  }, [routeKey, actions])
 
-  useEffect(() => {
-    if (pane === 'models') {
-      menu.current
-        ?.querySelector(`[data-model-index="${highlight}"]`)
-        ?.scrollIntoView({ block: 'nearest' })
-    }
-  }, [highlight, pane])
-
-  async function submit(selection: ModelSelection): Promise<boolean> {
-    if (inFlight.current || locked || state.pending !== null) return false
-    inFlight.current = true
-    setSaving(true)
-    setError(null)
-    try {
-      const result = await select(selection)
-      if (!result?.ok) throw new Error(result ? result.error.message : '当前会话无法切换模型')
-      return true
-    } catch (reason) {
-      if (alive.current) setError(reason instanceof Error ? reason.message : '保存失败，请重试')
-      return false
-    } finally {
-      inFlight.current = false
-      if (alive.current) {
-        setSaving(false)
-        setPreview(undefined)
+  const submit = useCallback(
+    async (selection: ModelSelection): Promise<boolean> => {
+      if (locked || directory.getSnapshot().pending !== null || !actions.startSaving()) return false
+      try {
+        const result = await select(selection)
+        if (!result?.ok) throw new Error(result ? result.error.message : '当前会话无法切换模型')
+        return true
+      } catch (reason) {
+        if (alive.current)
+          actions.reportError(reason instanceof Error ? reason.message : '保存失败，请重试')
+        return false
+      } finally {
+        if (alive.current) actions.finishSaving()
       }
-    }
-  }
+    },
+    [locked, directory, actions, select],
+  )
 
-  function chooseEffort(value: string) {
-    if (!current || !efforts.some((entry) => entry.id === value)) return
-    if (current.reasoningEffort === value) return
-    void submit({ provider: current.provider, model: current.model, reasoningEffort: value })
-  }
+  const chooseEffort = useCallback(
+    (value: string) => {
+      if (!current || !efforts.some((entry) => entry.id === value)) return
+      if (current.reasoningEffort === value) return
+      void submit({ provider: current.provider, model: current.model, reasoningEffort: value })
+    },
+    [current, efforts, submit],
+  )
 
-  async function chooseModel(provider: string, next: ModelCatalogModel) {
-    const result = await submit(selectionFor(provider, next))
-    if (result && alive.current) {
-      setPane('effort')
-      setPreview(undefined)
-    }
-  }
+  const chooseModel = useCallback(
+    async (provider: string, next: ModelCatalogModel) => {
+      const result = await submit(selectionFor(provider, next))
+      if (result && alive.current) {
+        actions.setPane('effort')
+        actions.preview(undefined)
+      }
+    },
+    [submit, actions],
+  )
 
-  const showModels = () => {
-    setQuery('')
-    setHighlight(
+  const showModels = useCallback(() => {
+    actions.showModels(
       Math.max(
         0,
         rows.findIndex(
@@ -229,20 +246,28 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
         ),
       ),
     )
-    setPane('models')
-  }
+  }, [actions, rows, current])
+
+  const toggle = useCallback(() => {
+    if (store.getState().open) close(true)
+    else {
+      actions.show(model ? 'effort' : 'models')
+      load()
+    }
+  }, [store, close, actions, model, load])
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
-      if (pane === 'models' && model) setPane('effort')
+      if (pane === 'models' && model) actions.setPane('effort')
       else close(true)
     }
     if (pane === 'models' && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
       event.preventDefault()
-      setHighlight((value) =>
+      const value = store.getState().highlight
+      actions.highlight(
         rows.length
           ? (value + (event.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length
           : 0,
@@ -251,7 +276,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     }
     if (pane === 'models' && event.target === search.current && event.key === 'Enter') {
       event.preventDefault()
-      const row = rows[highlight]
+      const row = rows[store.getState().highlight]
       if (row && !busy) void chooseModel(row.group.id, row.model)
     }
     if (event.key === 'Tab') {
@@ -274,47 +299,18 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   if (!available) return null
   return (
     <>
-      <button
+      <SelectorTrigger
         ref={trigger}
-        type="button"
-        className="rong-model-trigger"
-        disabled={locked}
-        aria-label={`选择模型与推理强度：${modelName}${effort ? `，${effort.name}` : ''}${fastActive ? `，${SPEED_LABELS[speed.state.mode]}模式` : ''}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-controls={open ? id : undefined}
-        onClick={() => {
-          if (open) {
-            close(true)
-            return
-          }
-          setQuery('')
-          setError(null)
-          setPreview(undefined)
-          setPane(model ? 'effort' : 'models')
-          setOpen(true)
-          setMounted(true)
-          load()
-        }}
-      >
-        {fastActive ? (
-          <span
-            className="rong-trigger-fast"
-            aria-hidden="true"
-            title={`${SPEED_LABELS[speed.state.mode]}模式`}
-          >
-            <FastIcon active />
-          </span>
-        ) : (
-          <IconDataOutlineRegular size={16} className="rong-trigger-icon" />
-        )}
-        <span className="rong-trigger-name">{modelName}</span>
-        <span className="rong-trigger-effort">{effort?.name}</span>
-        <IconChevronDownOutlineRegular
-          size={12}
-          className={open ? 'rong-chevron rong-open' : 'rong-chevron'}
-        />
-      </button>
+        store={store}
+        speedStore={speedStore}
+        speedKey={speedRoute}
+        modelName={modelName}
+        efforts={efforts}
+        selected={selected}
+        locked={locked}
+        id={id}
+        onToggle={toggle}
+      />
       {mounted &&
         createPortal(
           <MenuSurface
@@ -339,30 +335,20 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
               <div className="rong-effort-pane" key="effort">
                 <div className="rong-effort-header">
                   <SpeedControl
-                    identity={{
-                      sessionId,
-                      provider: current?.provider ?? '',
-                      model: current?.model ?? '',
-                    }}
+                    store={speedStore}
+                    identityKey={speedRoute}
                     open={open && !!current}
                     disabled={busy}
-                    {...speed}
                   />
-                  <button
+                  <EffortHeading
                     ref={header}
-                    className="rong-model-heading"
-                    type="button"
-                    onClick={showModels}
+                    store={store}
+                    efforts={efforts}
+                    selected={selected}
+                    modelName={modelName}
                     disabled={busy}
-                  >
-                    <span className="rong-effort-title">{title}</span>
-                    <span className="rong-model-label">
-                      <span className="rong-model-name" title={modelName}>
-                        {modelName}
-                      </span>
-                      <IconChevronRightOutlineRegular size={10} />
-                    </span>
-                  </button>
+                    onClick={showModels}
+                  />
                   <button
                     className="rong-icon-button rong-header-action"
                     type="button"
@@ -380,9 +366,9 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
                   <EffortSlider
                     key={routeKey}
                     efforts={efforts}
-                    selected={currentEffortOf(model, current)?.id}
+                    selected={selected?.id}
                     disabled={busy || !open}
-                    onPreview={setPreview}
+                    onPreview={actions.preview}
                     onCommit={chooseEffort}
                   />
                 ) : (
@@ -392,83 +378,19 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
                 )}
               </div>
             ) : (
-              <div className="rong-models-pane" key="models">
-                <div className="rong-list-heading">
-                  <button
-                    className="rong-icon-button"
-                    type="button"
-                    aria-label="返回强度选择"
-                    disabled={!model}
-                    onClick={() => setPane('effort')}
-                  >
-                    <IconChevronLeftOutlineRegular size={18} />
-                  </button>
-                  <strong>选择模型</strong>
-                  <span />
-                </div>
-                <div className="rong-search">
-                  <IconSearchOutlineRegular size={16} />
-                  <input
-                    ref={search}
-                    placeholder="搜索模型…"
-                    aria-label="搜索模型"
-                    value={query}
-                    onChange={(event) => {
-                      setQuery(event.target.value)
-                      setHighlight(0)
-                    }}
-                    role="combobox"
-                    aria-expanded="true"
-                    aria-controls={`${id}-list`}
-                    aria-autocomplete="list"
-                    aria-activedescendant={
-                      rows[highlight] ? `${id}-option-${highlight}` : undefined
-                    }
-                  />
-                </div>
-                <div className="rong-model-list" role="listbox" id={`${id}-list`} aria-label="模型">
-                  {groups.map((group) => (
-                    <div key={group.id} role="group" aria-label={group.name}>
-                      <div className="rong-provider-name">{group.name}</div>
-                      {group.models.map((entry) => {
-                        const rowIndex = rows.findIndex(
-                          (row) => row.group.id === group.id && row.model.id === entry.id,
-                        )
-                        const selected =
-                          current?.provider === group.id && current.model === entry.id
-                        return (
-                          <button
-                            type="button"
-                            role="option"
-                            key={entry.id}
-                            id={`${id}-option-${rowIndex}`}
-                            tabIndex={-1}
-                            data-model-index={rowIndex}
-                            data-highlighted={rowIndex === highlight || undefined}
-                            aria-selected={selected}
-                            disabled={busy}
-                            className="rong-model-option"
-                            onPointerMove={() => setHighlight(rowIndex)}
-                            onClick={() => void chooseModel(group.id, entry)}
-                          >
-                            <span title={entry.name}>{entry.name}</span>
-                            {selected && <IconCheckOutlineRegular size={18} />}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  ))}
-                  {!rows.length && (
-                    <p className="rong-empty">
-                      {state.status === 'loading'
-                        ? '正在加载模型…'
-                        : query
-                          ? '没有匹配的模型'
-                          : '暂无可用模型'}
-                    </p>
-                  )}
-                </div>
-              </div>
+              <ModelList
+                ref={search}
+                store={store}
+                groups={groups}
+                rowCount={rows.length}
+                query={query}
+                current={current}
+                busy={busy}
+                hasModel={!!model}
+                status={state.status}
+                id={id}
+                chooseModel={chooseModel}
+              />
             )}
             {(error || state.error || state.failures.length > 0) && (
               <div className="rong-error" role="alert">
@@ -481,7 +403,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
                   type="button"
                   disabled={busy}
                   onClick={() => {
-                    setError(null)
+                    actions.reportError(null)
                     load()
                   }}
                 >

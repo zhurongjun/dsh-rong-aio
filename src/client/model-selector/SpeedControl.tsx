@@ -1,30 +1,32 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import {
+  memo,
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from 'react'
 import { createPortal } from 'react-dom'
 import { MenuSurface, IconCheckOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
-import {
-  SPEED_LABELS,
-  speedKey,
-  type SpeedIdentity,
-  type SpeedMode,
-  type SpeedState,
-} from '../../shared/speed.ts'
+import { SPEED_LABELS, type SpeedMode } from '../../shared/speed.ts'
 import { FastIcon } from './SelectorIcons.tsx'
+import { useSpeedSelection } from './useSpeedSelection.ts'
+import type { SpeedStore } from './speed-store.ts'
 
 interface Props {
-  identity: SpeedIdentity
+  store: SpeedStore
+  identityKey: string
   open: boolean
   disabled: boolean
-  state: SpeedState
-  loading: boolean
-  saving: boolean
-  select(mode: SpeedMode): Promise<void>
 }
 
-export function SpeedControl(props: Props) {
-  return <Control key={speedKey(props.identity)} {...props} />
-}
+export const SpeedControl = memo(function SpeedControl(props: Props) {
+  return <Control key={props.identityKey} {...props} />
+})
 
-function Control({ open, disabled, state, loading, saving, select }: Props) {
+function Control({ store, identityKey, open, disabled }: Props) {
+  const { state, loading, saving, select } = useSpeedSelection(store, identityKey)
   const [expanded, setExpanded] = useState(false)
   const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' })
   const button = useRef<HTMLButtonElement>(null)
@@ -41,7 +43,7 @@ function Control({ open, disabled, state, loading, saving, select }: Props) {
     const place = () => {
       const anchor = button.current?.getBoundingClientRect()
       if (!anchor || !menu.current) return
-      setPosition({
+      const next = {
         left: Math.max(
           12,
           Math.min(anchor.right + 8, window.innerWidth - menu.current.offsetWidth - 12),
@@ -50,7 +52,10 @@ function Control({ open, disabled, state, loading, saving, select }: Props) {
           12,
           Math.min(anchor.top - 8, window.innerHeight - menu.current.offsetHeight - 12),
         ),
-      })
+      }
+      setPosition((previous) =>
+        previous.left === next.left && previous.top === next.top ? previous : next,
+      )
     }
     place()
     menu.current

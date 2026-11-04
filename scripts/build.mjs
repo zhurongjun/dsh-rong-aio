@@ -12,6 +12,7 @@ await build({
   format: 'cjs',
   target: 'es2022',
   jsx: 'automatic',
+  define: { 'process.env.NODE_ENV': '"production"' },
   external: ['react', 'react-dom', 'react/jsx-runtime', '@deepseek-ai/*'],
   loader: { '.css': 'text' },
   banner: {

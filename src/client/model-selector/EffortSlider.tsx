@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
+import { memo, useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { ModelReasoningEffort } from '@deepseek-ai/dsh-api-session-controller/types'
-import { advanceMotion, clamp, detentAt } from '../../shared/slider-motion.ts'
-import { energyFor, particlesFor } from '../../shared/particle-motion.ts'
+import { clamp, detentAt } from '../../shared/slider-motion.ts'
+import { useSliderMotion } from './useSliderMotion.ts'
 
 interface Props {
   efforts: readonly ModelReasoningEffort[]
@@ -11,20 +11,28 @@ interface Props {
   onCommit: (id: string) => void
 }
 
-export function EffortSlider({ efforts, selected, disabled, onPreview, onCommit }: Props) {
+export const EffortSlider = memo(function EffortSlider({
+  efforts,
+  selected,
+  disabled,
+  onPreview,
+  onCommit,
+}: Props) {
   const selectedIndex = efforts.findIndex((effort) => effort.id === selected)
   const [preview, setPreview] = useState<number | null>(null)
   const [reduced, setReduced] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const drag = useRef<{ pointer: number; index: number } | null>(null)
-  const motion = useRef({
-    position: Math.max(0, selectedIndex) / Math.max(1, efforts.length - 1),
-    velocity: 0,
-  })
-  const [shown, setShown] = useState(motion.current.position)
-  const frame = useRef(0)
   const index = preview ?? selectedIndex
   const target = Math.max(0, index) / Math.max(1, efforts.length - 1)
+
+  const { sparkles, ticks } = useSliderMotion({
+    root,
+    target,
+    hasSelection: index >= 0,
+    reduced,
+    count: efforts.length,
+  })
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
@@ -34,35 +42,16 @@ export function EffortSlider({ efforts, selected, disabled, onPreview, onCommit 
     return () => media.removeEventListener('change', update)
   }, [])
 
-  useEffect(() => {
-    cancelAnimationFrame(frame.current)
-    let last = performance.now()
-    const paint = () => {
-      const now = performance.now()
-      motion.current = reduced
-        ? { position: target, velocity: 0 }
-        : advanceMotion(motion.current, target, (now - last) / 1000)
-      last = now
-      root.current?.style.setProperty('--rong-position', String(motion.current.position))
-      setShown(motion.current.position)
-      if (motion.current.position !== target || motion.current.velocity !== 0) {
-        frame.current = requestAnimationFrame(paint)
-      }
-    }
-    frame.current = requestAnimationFrame(paint)
-    return () => cancelAnimationFrame(frame.current)
-  }, [target, reduced])
-
-  const cancel = () => {
+  const cancel = useCallback(() => {
     drag.current = null
     setPreview(null)
     onPreview(undefined)
-  }
+  }, [onPreview])
   useEffect(() => {
     // 弹窗失焦不提交未完成手势；pointercancel / Escape 同样回退。
     window.addEventListener('blur', cancel)
     return () => window.removeEventListener('blur', cancel)
-  })
+  }, [cancel])
 
   const point = (clientX: number) => {
     const rect = root.current!.getBoundingClientRect()
@@ -96,9 +85,6 @@ export function EffortSlider({ efforts, selected, disabled, onPreview, onCommit 
     onCommit(efforts[clamp(next, 0, efforts.length - 1)]!.id)
   }
 
-  const energy = index < 0 ? 0 : energyFor(shown)
-  const particles = reduced || index < 0 ? [] : particlesFor(shown)
-
   return (
     <div
       ref={root}
@@ -113,7 +99,6 @@ export function EffortSlider({ efforts, selected, disabled, onPreview, onCommit 
       aria-disabled={disabled || efforts.length < 2}
       data-unset={index < 0 || undefined}
       data-dragging={preview !== null || undefined}
-      style={{ '--rong-position': motion.current.position } as CSSProperties}
       onKeyDown={keyDown}
       onPointerDown={(event) => {
         if (disabled || efforts.length < 2 || event.button !== 0) return
@@ -145,42 +130,13 @@ export function EffortSlider({ efforts, selected, disabled, onPreview, onCommit 
       }}
     >
       <div className="rong-effort-fill" />
-      <div
-        className="rong-effort-sparkles"
-        aria-hidden="true"
-        style={{ opacity: 0.6 + 0.4 * energy }}
-      >
-        {particles.map((particle, i) => (
-          <span
-            key={i}
-            className="rong-effort-star"
-            style={{
-              top: `${particle.y}%`,
-              animationDuration: `${particle.duration.toFixed(3)}s`,
-              animationDelay: `${particle.delay.toFixed(3)}s`,
-            }}
-          >
-            <i
-              style={{
-                opacity: particle.brightness,
-                transform: `scale(${particle.brightness.toFixed(3)})`,
-              }}
-            />
-          </span>
-        ))}
-      </div>
-      <div className="rong-effort-ticks" aria-hidden="true">
-        {efforts.map((effort, tickIndex) => (
-          <i
-            key={effort.id}
-            title={effort.name}
-            data-passed={
-              (index >= 0 && tickIndex / Math.max(1, efforts.length - 1) <= shown) || undefined
-            }
-          />
+      <div ref={sparkles} className="rong-effort-sparkles" aria-hidden="true" />
+      <div ref={ticks} className="rong-effort-ticks" aria-hidden="true">
+        {efforts.map((effort) => (
+          <i key={effort.id} title={effort.name} />
         ))}
       </div>
       <div className="rong-effort-thumb" aria-hidden="true" />
     </div>
   )
-}
+})

@@ -319,3 +319,116 @@ test('输入框 Fast 提示：不打开弹层也读取持久化状态，切换�
   assert.equal(document.querySelector('.rong-trigger-fast'), null)
   await act(async () => root.unmount())
 })
+
+test('动画帧直接绘制且不触发 React 提交；目录订阅稳定、卸载取消动画', async (t) => {
+  const { advanceMotion } = await import('../src/shared/slider-motion.ts')
+  const { particlesFor, energyFor } = await import('../src/shared/particle-motion.ts')
+  let time = 0
+  let sequence = 0
+  let commits = 0
+  let subscriptions = 0
+  let activeSubscriptions = 0
+  const frames = new Map()
+  t.mock.method(globalThis.performance, 'now', () => time)
+  t.mock.method(globalThis, 'requestAnimationFrame', (callback) => {
+    frames.set(++sequence, callback)
+    return sequence
+  })
+  t.mock.method(globalThis, 'cancelAnimationFrame', (id) => frames.delete(id))
+  t.mock.method(window, 'matchMedia', () => ({
+    matches: false,
+    addEventListener() {},
+    removeEventListener() {},
+  }))
+  t.mock.method(globalThis, 'fetch', async () => Response.json({ mode: 'standard', modes: [] }))
+  const state = {
+    current: { provider: 'p', model: 'first', reasoningEffort: 'off' },
+    groups: [{ id: 'p', name: 'Provider', models }],
+    failures: [],
+    pending: null,
+    status: 'ready',
+    error: null,
+  }
+  const root = createRoot(document.getElementById('root'))
+  try {
+    await act(async () =>
+      root.render(
+        React.createElement(
+          React.Profiler,
+          {
+            id: 'selector',
+            onRender() {
+              commits++
+            },
+          },
+          React.createElement(ModelSelector, {
+            sessionId: 'animation',
+            available: true,
+            locked: false,
+            directory: {
+              getSnapshot: () => state,
+              subscribe() {
+                subscriptions++
+                activeSubscriptions++
+                return () => {
+                  activeSubscriptions--
+                }
+              },
+            },
+            load() {},
+            select() {
+              throw new Error('拖动预览不能提交')
+            },
+          }),
+        ),
+      ),
+    )
+    await act(async () => document.querySelector('.rong-model-trigger').click())
+    const slider = document.querySelector('[role="slider"]')
+    slider.getBoundingClientRect = () => ({ left: 0, width: 260 })
+    const event = new MouseEvent('pointerdown', { bubbles: true, clientX: 245, button: 0 })
+    Object.defineProperty(event, 'pointerId', { value: 1 })
+    await act(async () => slider.dispatchEvent(event))
+    const before = commits
+    let expected = { position: 0, velocity: 0 }
+    for (let frame = 0; frame < 30; frame++) {
+      const previous = time
+      time += 1000 / 60
+      expected = advanceMotion(expected, 1, (time - previous) / 1000)
+      const callbacks = [...frames.values()]
+      frames.clear()
+      await act(async () => callbacks.forEach((callback) => callback(time)))
+      assert.equal(Number(slider.style.getPropertyValue('--rong-position')), expected.position)
+      assert.equal(
+        Number(slider.querySelector('.rong-effort-sparkles').style.opacity),
+        0.6 + 0.4 * energyFor(expected.position),
+      )
+      const stars = [...slider.querySelectorAll('.rong-effort-star')]
+      const particles = particlesFor(expected.position)
+      assert.equal(stars.length, particles.length)
+      particles.forEach((particle, index) => {
+        const star = stars[index]
+        assert.equal(Number.parseFloat(star.style.top), particle.y)
+        assert.equal(star.style.animationDuration, `${particle.duration.toFixed(3)}s`)
+        assert.equal(star.style.animationDelay, `${particle.delay.toFixed(3)}s`)
+        assert.equal(Number(star.firstChild.style.opacity), particle.brightness)
+        assert.equal(star.firstChild.style.transform, `scale(${particle.brightness.toFixed(3)})`)
+      })
+      const ticks = [...slider.querySelectorAll('.rong-effort-ticks i')]
+      ticks.forEach((tick, index) =>
+        assert.equal(tick.hasAttribute('data-passed'), index / 4 <= expected.position),
+      )
+    }
+    assert.equal(expected.position, 1)
+    assert.equal(commits, before, 'RAF 不应触发 React 提交')
+    assert.equal(subscriptions, 1)
+    assert.equal(Object.isFrozen(state.groups), false, '不能冻结 DSH 目录')
+    assert.equal(Object.isFrozen(models[0]), false)
+    await act(async () => window.dispatchEvent(new window.Event('blur')))
+    assert.ok(frames.size > 0, '取消手势启动回退动画')
+  } finally {
+    await act(async () => root.unmount())
+  }
+  assert.equal(frames.size, 0)
+  assert.equal(activeSubscriptions, 0)
+})
