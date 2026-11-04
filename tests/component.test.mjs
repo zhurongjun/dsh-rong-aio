@@ -254,7 +254,7 @@ test('Fast 菜单：按支持档位显示、键盘选择、实心状态、写入
   assert.equal(document.querySelector('[role="menu"]'), null)
 })
 
-test('Fast 退场：立即禁用交互、结束后卸载；快速重开保留同一面板并取消旧清理', async () => {
+test('主弹层与 Fast 退场：结束后卸载；快速重开保留同一面板并取消旧清理', async () => {
   const originalMatchMedia = window.matchMedia
   window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
   globalThis.fetch = async () => Response.json({ mode: 'standard', modes: ['standard', 'fast'] })
@@ -316,6 +316,26 @@ test('Fast 退场：立即禁用交互、结束后卸载；快速重开保留同
     await click(fast)
     await act(async () => new Promise((resolve) => setTimeout(resolve, 200)))
     assert.equal(document.querySelector('[data-rong-speed-menu]'), null)
+
+    const trigger = document.querySelector('.rong-model-trigger')
+    const popover = document.querySelector('.rong-model-popover')
+    await click(trigger)
+    assert.equal(popover.dataset.open, 'false')
+    assert.equal(popover.getAttribute('aria-hidden'), 'true')
+    await finish(popover.querySelector('.rong-model-content'))
+    assert.equal(document.querySelector('.rong-model-popover'), popover, '忽略子层过渡事件')
+    await click(trigger)
+    await finish(popover)
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 200)))
+    assert.equal(document.querySelector('.rong-model-popover'), popover, '重开取消旧清理')
+    assert.equal(popover.dataset.open, 'true')
+    await click(trigger)
+    await finish(popover)
+    assert.equal(document.querySelector('.rong-model-popover'), null)
+    await click(trigger)
+    await click(trigger)
+    await act(async () => new Promise((resolve) => setTimeout(resolve, 200)))
+    assert.equal(document.querySelector('.rong-model-popover'), null, '没有结束事件也会清理')
   } finally {
     await act(async () => root.unmount())
     window.matchMedia = originalMatchMedia

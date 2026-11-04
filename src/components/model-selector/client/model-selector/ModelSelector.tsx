@@ -121,10 +121,15 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   }, [])
 
   useEffect(() => {
-    if (open) return
-    const timer = window.setTimeout(actions.unmount, 120)
+    if (open || !mounted) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      actions.unmount()
+      return
+    }
+    // 正常在 transform 退场完成后卸载；页面隐藏或过渡被取消时仍能清理。
+    const timer = window.setTimeout(actions.unmount, 180)
     return () => window.clearTimeout(timer)
-  }, [open, actions])
+  }, [open, mounted, actions])
 
   const close = useCallback(
     (restoreFocus = false) => {
@@ -331,90 +336,100 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
               } as CSSProperties
             }
             onKeyDown={onKeyDown}
+            onTransitionEnd={(event) => {
+              if (
+                event.target === event.currentTarget &&
+                event.propertyName === 'transform' &&
+                !open
+              )
+                actions.unmount()
+            }}
           >
-            {pane === 'effort' ? (
-              <div className="rong-effort-pane" key="effort">
-                <div className="rong-effort-header">
-                  <SpeedControl
-                    store={speedStore}
-                    identityKey={speedRoute}
-                    open={open && !!current}
-                    disabled={busy}
-                  />
-                  <EffortHeading
-                    ref={header}
-                    store={store}
-                    efforts={efforts}
-                    selected={selected}
-                    modelName={modelName}
-                    disabled={busy}
-                    onClick={showModels}
-                  />
+            <div className="rong-model-content">
+              {pane === 'effort' ? (
+                <div className="rong-effort-pane" key="effort">
+                  <div className="rong-effort-header">
+                    <SpeedControl
+                      store={speedStore}
+                      identityKey={speedRoute}
+                      open={open && !!current}
+                      disabled={busy}
+                    />
+                    <EffortHeading
+                      ref={header}
+                      store={store}
+                      efforts={efforts}
+                      selected={selected}
+                      modelName={modelName}
+                      disabled={busy}
+                      onClick={showModels}
+                    />
+                    <button
+                      className="rong-icon-button rong-header-action"
+                      type="button"
+                      aria-label="重置当前模型的推理强度"
+                      title="重置强度"
+                      disabled={busy || !model || !defaultEffortOf(model)}
+                      onClick={() => {
+                        if (model) chooseEffort(defaultEffortOf(model)!)
+                      }}
+                    >
+                      <ResetIcon />
+                    </button>
+                  </div>
+                  {efforts.length ? (
+                    <EffortSlider
+                      key={routeKey}
+                      efforts={efforts}
+                      selected={selected?.id}
+                      disabled={busy || !open}
+                      onPreview={actions.preview}
+                      onCommit={chooseEffort}
+                    />
+                  ) : (
+                    <p className="rong-empty">
+                      {model ? '此模型未提供可选推理强度' : '当前模型不可用，请重新选择'}
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <ModelList
+                  ref={search}
+                  store={store}
+                  groups={groups}
+                  rowCount={rows.length}
+                  query={query}
+                  current={current}
+                  busy={busy}
+                  hasModel={!!model}
+                  status={state.status}
+                  id={id}
+                  chooseModel={chooseModel}
+                />
+              )}
+              {(error || state.error || state.failures.length > 0) && (
+                <div className="rong-error" role="alert">
+                  <span>
+                    {error ??
+                      state.error ??
+                      `部分模型未能加载：${state.failures.map((failure) => failure.name).join('、')}`}
+                  </span>
                   <button
-                    className="rong-icon-button rong-header-action"
                     type="button"
-                    aria-label="重置当前模型的推理强度"
-                    title="重置强度"
-                    disabled={busy || !model || !defaultEffortOf(model)}
+                    disabled={busy}
                     onClick={() => {
-                      if (model) chooseEffort(defaultEffortOf(model)!)
+                      actions.reportError(null)
+                      load()
                     }}
                   >
-                    <ResetIcon />
+                    重新加载
                   </button>
                 </div>
-                {efforts.length ? (
-                  <EffortSlider
-                    key={routeKey}
-                    efforts={efforts}
-                    selected={selected?.id}
-                    disabled={busy || !open}
-                    onPreview={actions.preview}
-                    onCommit={chooseEffort}
-                  />
-                ) : (
-                  <p className="rong-empty">
-                    {model ? '此模型未提供可选推理强度' : '当前模型不可用，请重新选择'}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <ModelList
-                ref={search}
-                store={store}
-                groups={groups}
-                rowCount={rows.length}
-                query={query}
-                current={current}
-                busy={busy}
-                hasModel={!!model}
-                status={state.status}
-                id={id}
-                chooseModel={chooseModel}
-              />
-            )}
-            {(error || state.error || state.failures.length > 0) && (
-              <div className="rong-error" role="alert">
-                <span>
-                  {error ??
-                    state.error ??
-                    `部分模型未能加载：${state.failures.map((failure) => failure.name).join('、')}`}
-                </span>
-                <button
-                  type="button"
-                  disabled={busy}
-                  onClick={() => {
-                    actions.reportError(null)
-                    load()
-                  }}
-                >
-                  重新加载
-                </button>
-              </div>
-            )}
-            <span className="rong-sr-only" role="status" aria-live="polite">
-              {saving ? '正在保存选择' : ''}
-            </span>
+              )}
+              <span className="rong-sr-only" role="status" aria-live="polite">
+                {saving ? '正在保存选择' : ''}
+              </span>
+            </div>
           </MenuSurface>,
           document.body,
         )}

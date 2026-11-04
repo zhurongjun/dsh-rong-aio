@@ -34,7 +34,9 @@
 
 Fast 子菜单使用公开 `compact` 属性，最小宽 96px，按档位名称自然扩展，单行高 30px，勾选列固定 16px。开启时从闪电一侧缩放、淡入 160ms，关闭时过渡 110ms 后移除；快速反向操作从当前帧继续，关闭期间立即停止交互。缩放原点随锚点和可用空间定位。菜单根节点只做 transform 过渡并在其挂载期间保持合成层，材质与内容分别淡入；根节点始终保持完全不透明，避免动画结束时切换背景采样范围。减少动态效果时立即开合。
 
-Fast 动画依赖固定版本 [MenuSurface 的材质子层结构](https://github.com/deepseek-ai/deepseek-harness/blob/b830ec950faba0a46dda564be3e2d854afed94f1/packages/client/ui-primitives/src/MenuSurface.tsx)：首个 `aria-hidden` 直接子元素是材质层。仅在 `.rong-speed-menu` 内控制它的透明度，不改官方填充或 blur。升级时必须核对该结构和实际毛玻璃效果；禁止改回整个 MenuSurface 淡入，因为 [opacity 小于 1 会建立 Backdrop Root](https://drafts.csswg.org/filter-effects-2/#BackdropRoot)，导致结束时背景采样发生变化。
+主弹层同样分离缩放、材质与内容淡入：150ms 入场、120ms 退场，保留原有位移、缩放幅度和缓动曲线。挂载期间不移除根节点 transform，不改变根节点 opacity；退场完成后卸载，并在过渡取消时兜底清理。快速重开延续当前过渡，减少动态效果时立即开合。
+
+两种弹层的动画依赖固定版本 [MenuSurface 的材质子层结构](https://github.com/deepseek-ai/deepseek-harness/blob/b830ec950faba0a46dda564be3e2d854afed94f1/packages/client/ui-primitives/src/MenuSurface.tsx)：首个 `aria-hidden` 直接子元素是材质层。仅在 `.rong-model-popover` 和 `.rong-speed-menu` 内控制它的透明度，不改官方填充或 blur。升级时必须核对该结构和实际毛玻璃效果；禁止改回整个 MenuSurface 淡入，因为 [opacity 小于 1 会建立 Backdrop Root](https://drafts.csswg.org/filter-effects-2/#BackdropRoot)，导致结束时背景采样发生变化。
 
 选择器保持主弹层 256×98px、24px 轨道、28px 圆形滑块及 26px 头部按钮。模型列表顶部仅保留返回键与搜索框，两者高 26px、间隔 6px；没有独立标题行，搜索框占据剩余宽度。列表弹层按内容收缩，空结果仍保留一行状态提示。14/20/600 强度标题没有等值官方排版角色，保留原值；搜索框和分组分隔线的 1px 是当前布局契约，不机械替换为改变盒尺寸的细边。其他组件几何、内部圆角与动画参数按功能维护，不要求每个数值都有 token。
 
