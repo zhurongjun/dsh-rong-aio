@@ -119,6 +119,81 @@
       "kind": "theme",
       "source": "packages/client/ui-theme/src/styles/base.css#L19",
       "role": "圆角"
+    },
+    "--ds-transition-duration": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/base.css#L15",
+      "role": "状态切换淡入淡出"
+    },
+    "--ds-ease-in-out": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/base.css#L14",
+      "role": "官方运动曲线"
+    },
+    "--dsw-radius-panel": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/base.css#L23",
+      "role": "输入框外扩光晕跟随宿主圆角"
+    },
+    "--dsw-specific-input-major": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L269",
+      "role": "正文编辑器背景"
+    },
+    "--dsw-alias-state-warn-primary": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L257",
+      "role": "与错误语义色混合，表示破甲模式生效的橘红色警示"
+    },
+    "--dsw-alias-state-error-primary": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L250",
+      "role": "注入警示与错误状态"
+    },
+    "--ds-font-family-code": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/base.css#L13",
+      "role": "破甲词短标识跟随宿主代码字体"
+    },
+    "--dsw-alias-bg-module-platform": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L179",
+      "role": "破甲词短标识底色"
+    },
+    "--dsw-alias-border-l2": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L187",
+      "role": "破甲词来源分组间分隔线"
+    },
+    "--dsw-alias-settings-card-fill": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/base.css#L32",
+      "role": "破甲词卡片使用官方设置卡片填充"
+    },
+    "--dsw-alias-settings-card-stroke": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/base.css#L33",
+      "role": "破甲词卡片使用官方设置卡片描边"
+    },
+    "--dsw-radius-xl": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/base.css#L22",
+      "role": "内置插件同款独立卡片圆角"
+    },
+    "--dsw-radius-xs": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/base.css#L18",
+      "role": "破甲词短标识背景圆角"
+    },
+    "--dsw-alias-bg-layer-1": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L171",
+      "role": "白名单紧凑卡片，与模板内容卡片区分"
+    },
+    "--dsw-radius-md": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/base.css#L20",
+      "role": "白名单紧凑卡片，与模板内容卡片区分"
     }
   },
   "localBindings": [

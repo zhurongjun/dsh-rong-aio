@@ -12,6 +12,7 @@ interface SelectorState {
   preview: string | undefined
   saving: boolean
   error: string | null
+  errorSequence: number
   actions: {
     show(pane: Pane): void
     close(): void
@@ -24,6 +25,7 @@ interface SelectorState {
     startSaving(): boolean
     finishSaving(): void
     reportError(message: string | null): void
+    dismissError(sequence: number): void
   }
 }
 
@@ -39,6 +41,7 @@ export function createSelectorStore() {
       preview: undefined,
       saving: false,
       error: null,
+      errorSequence: 0,
       actions: {
         show: (pane) =>
           set((state) => {
@@ -97,6 +100,11 @@ export function createSelectorStore() {
         reportError: (message) =>
           set((state) => {
             state.error = message
+            if (message !== null) state.errorSequence++
+          }),
+        dismissError: (sequence) =>
+          set((state) => {
+            if (state.errorSequence === sequence) state.error = null
           }),
       },
     })),

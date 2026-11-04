@@ -4,6 +4,12 @@
 
 ## 目录和边界
 
+`system-inject`（破甲模式）是独立组件，包含提示词库、会话显式选择与冻结快照、模型白名单和输入框提醒；见[使用说明](system-inject.md)。稳定 ID 为 `rong-aio-system-inject`，根导出为 `dsh-rong-aio/system-inject`，内部工厂为 `dsh-rong-aio-system-inject`。它直接接入 DSH 公共选模服务，不依赖模型选择器组件或客户端模型目录。
+
+白名单新增菜单由 `system-inject` 自己实现，模型目录来自 DSH 公开的 `llm.listProviders/listModels`。它只维护授权，不调用 `selectModel` 或 Fast 服务；样式相似不构成代码、状态或运行依赖。两个组件各自管理客户端工厂、样式和生命周期，可以分别停用。
+
+破甲组件负责保存前的选模校验与实际请求护栏。选模拒绝只返回给调用者，由各选模入口呈现：原生模型菜单和本包选择器使用官方 Toast，`/model` 保留 DSH 原生内联提示，不再通过破甲会话通知重复报告。选词与请求拒绝由破甲组件自身呈现 Toast。停用模型选择器后，原生选模仍受同一校验；停用破甲组件后释放校验。两个组件不识别对方错误码，也不共享通知状态。
+
 ```text
 src/
 ├── components/

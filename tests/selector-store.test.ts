@@ -33,6 +33,20 @@ test('选择器状态：实例隔离、原子切换、重复操作不通知、�
   unsubscribe()
 })
 
+test('重复拒绝重新启动 toast，旧退出回调不能清掉新通知', () => {
+  const store = createSelectorStore()
+  const actions = store.getState().actions
+  actions.reportError('模型拒绝')
+  const first = store.getState().errorSequence
+  actions.reportError('模型拒绝')
+  const second = store.getState().errorSequence
+  assert.ok(second > first)
+  actions.dismissError(first)
+  assert.equal(store.getState().error, '模型拒绝')
+  actions.dismissError(second)
+  assert.equal(store.getState().error, null)
+})
+
 test('Fast 请求：路由切换与卸载取消旧写入，迟到结果不污染状态，重入不重复提交', async (t) => {
   const requests: { signal: AbortSignal; resolve(response: Response): void }[] = []
   t.mock.method(

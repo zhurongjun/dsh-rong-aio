@@ -2,3 +2,5 @@
 - insert:
     - id: rong-aio-model-selector
       name: dsh-rong-aio/model-selector
+    - id: rong-aio-system-inject
+      name: dsh-rong-aio/system-inject

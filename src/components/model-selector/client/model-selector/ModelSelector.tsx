@@ -11,7 +11,12 @@ import {
   type KeyboardEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives'
+import {
+  isBehindModal,
+  MenuSurface,
+  Toast,
+  IconWarningOutlineRegular,
+} from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type {
@@ -51,7 +56,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   const [store] = useState(createSelectorStore)
   const actions = store.getState().actions
   const [speedStore] = useState(() => createSpeedStore(actions.reportError))
-  const { open, mounted, pane, query, saving, error } = useStore(
+  const { open, mounted, pane, query, saving, error, errorSequence } = useStore(
     store,
     useShallow((state) => ({
       open: state.open,
@@ -60,6 +65,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
       query: state.query,
       saving: state.saving,
       error: state.error,
+      errorSequence: state.errorSequence,
     })),
   )
   const source = useMemo(
@@ -70,6 +76,9 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     [directory],
   )
   const state = useSyncExternalStore(source.subscribe, source.getSnapshot)
+  // 与原生选择器一致：目录读取错误留在菜单提供重试，操作拒绝只显示 toast。
+  const lastAction = useRef<'load' | 'select'>('load')
+  const visibleError = lastAction.current === 'load' ? state.error : null
   const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' })
   const trigger = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
@@ -77,7 +86,8 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   const header = useRef<HTMLButtonElement>(null)
   const alive = useRef(true)
   const id = useId()
-  const current = state.pending ?? state.current
+  // 宿主确认之前保持已接受的模型，避免被拒绝的候选短暂改写文字、effort 与 Fast 状态。
+  const current = state.current
   const model = useMemo(
     () => currentModelOf(state.groups, current),
     [state.groups, current?.provider, current?.model],
@@ -151,8 +161,18 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
       close()
     }
     document.addEventListener('pointerdown', outside)
-    return () => document.removeEventListener('pointerdown', outside)
-  }, [open, close])
+    const yieldToModal = () => {
+      if (!isBehindModal(menu.current)) return
+      close()
+      // 原生模态窗拥有焦点时直接释放浮层，避免退出动画盖住模态内容。
+      actions.unmount()
+    }
+    document.addEventListener('focusin', yieldToModal)
+    return () => {
+      document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('focusin', yieldToModal)
+    }
+  }, [open, close, actions])
 
   useEffect(() => {
     if (locked || !available) close()
@@ -195,7 +215,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   }, [mounted, pane])
 
   useEffect(() => {
-    if (!open || !mounted) return
+    if (!open || !mounted || isBehindModal(menu.current)) return
     if (pane === 'models') search.current?.focus({ preventScroll: true })
     else header.current?.focus({ preventScroll: true })
   }, [open, mounted, pane, position.visibility])
@@ -207,11 +227,13 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   const submit = useCallback(
     async (selection: ModelSelection): Promise<boolean> => {
       if (locked || directory.getSnapshot().pending !== null || !actions.startSaving()) return false
+      lastAction.current = 'select'
       try {
         const result = await select(selection)
         if (!result?.ok) throw new Error(result ? result.error.message : '当前会话无法切换模型')
         return true
       } catch (reason) {
+        // toast 属于本会话，菜单关闭后仍可反馈；卸载后不向另一会话写入迟到结果。
         if (alive.current)
           actions.reportError(reason instanceof Error ? reason.message : '保存失败，请重试')
         return false
@@ -256,6 +278,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   const toggle = useCallback(() => {
     if (store.getState().open) close(true)
     else {
+      lastAction.current = 'load'
       actions.show(model ? 'effort' : 'models')
       load()
     }
@@ -407,18 +430,17 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
                   chooseModel={chooseModel}
                 />
               )}
-              {(error || state.error || state.failures.length > 0) && (
+              {(visibleError || state.failures.length > 0) && (
                 <div className="rong-error" role="alert">
                   <span>
-                    {error ??
-                      state.error ??
+                    {visibleError ??
                       `部分模型未能加载：${state.failures.map((failure) => failure.name).join('、')}`}
                   </span>
                   <button
                     type="button"
                     disabled={busy}
                     onClick={() => {
-                      actions.reportError(null)
+                      lastAction.current = 'load'
                       load()
                     }}
                   >
@@ -433,6 +455,16 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
           </MenuSurface>,
           document.body,
         )}
+      {error && (
+        <Toast
+          key={errorSequence}
+          text={error}
+          icon={<IconWarningOutlineRegular />}
+          anchor={trigger.current?.closest<HTMLElement>('[data-composer-card]') ?? null}
+          holdMs={5000}
+          onDone={() => actions.dismissError(errorSequence)}
+        />
+      )}
     </>
   )
 }

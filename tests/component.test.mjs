@@ -56,8 +56,13 @@ await build({
           contents: `
       import React from 'react';
       export const MenuSurface = React.forwardRef(({compact: _compact, ...props}, ref) => React.createElement('div', {...props, ref}));
+      export const Toast = ({text, onDone}) => React.createElement('div', {'data-test-toast': '', role: 'status'}, text, React.createElement('button', {'data-test-dismiss': '', onClick: onDone}, 'dismiss'));
+      export const isBehindModal = (anchor) => {
+        const modal = document.querySelector('[data-test-modal]');
+        return !!anchor && !!modal && !modal.contains(anchor);
+      };
       const Icon = () => null;
-      export { Icon as IconCheckOutlineRegular, Icon as IconChevronDownOutlineRegular, Icon as IconChevronLeftOutlineRegular, Icon as IconChevronRightOutlineRegular, Icon as IconDataOutlineRegular, Icon as IconRefreshOutlineRegular, Icon as IconSearchOutlineRegular };
+      export { Icon as IconCheckOutlineRegular, Icon as IconChevronDownOutlineRegular, Icon as IconChevronLeftOutlineRegular, Icon as IconChevronRightOutlineRegular, Icon as IconDataOutlineRegular, Icon as IconRefreshOutlineRegular, Icon as IconSearchOutlineRegular, Icon as IconWarningOutlineRegular };
     `,
         }))
       },
@@ -71,6 +76,134 @@ const models = [
   { id: 'second', name: 'Second', reasoning: { efforts: levels, defaultEffort: 'high' } },
   { id: 'plain', name: 'Plain' },
 ]
+
+test('原生模态窗接管焦点时立即移除模型浮层，不把退出动画叠在模态窗上', async () => {
+  const state = {
+    current: { provider: 'p', model: 'first' },
+    groups: [{ id: 'p', name: 'Provider', models }],
+    failures: [],
+    pending: null,
+    status: 'ready',
+    error: null,
+  }
+  const root = createRoot(document.getElementById('root'))
+  const modal = document.createElement('div')
+  modal.dataset.testModal = ''
+  const button = document.createElement('button')
+  button.textContent = '知道了'
+  modal.append(button)
+  const originalMatchMedia = window.matchMedia
+  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
+  try {
+    await act(async () =>
+      root.render(
+        React.createElement(ModelSelector, {
+          sessionId: 'modal-test',
+          available: true,
+          locked: false,
+          directory: { getSnapshot: () => state, subscribe: () => () => {} },
+          load() {},
+          select() {},
+        }),
+      ),
+    )
+    await act(async () => document.querySelector('.rong-model-trigger').click())
+    assert.ok(document.querySelector('.rong-model-popover'))
+    await act(async () => {
+      document.body.append(modal)
+      button.focus()
+    })
+    assert.equal(document.querySelector('.rong-model-popover'), null)
+    assert.equal(document.activeElement, button)
+  } finally {
+    modal.remove()
+    await act(async () => root.unmount())
+    window.matchMedia = originalMatchMedia
+  }
+})
+
+test('通用选模拒绝只显示 toast，菜单开关不改变原模型、不创建 Modal 或抢焦点', async (t) => {
+  for (const closeFirst of [false, true]) {
+    await t.test(closeFirst ? '菜单先关闭' : '菜单保持打开', async () => {
+      let state = {
+        current: { provider: 'p', model: 'first' },
+        groups: [{ id: 'p', name: 'Provider', models }],
+        failures: [],
+        pending: null,
+        status: 'ready',
+        error: null,
+      }
+      const subscribers = new Set()
+      const update = (patch) => {
+        state = { ...state, ...patch }
+        for (const fn of subscribers) fn()
+      }
+      const result = Promise.withResolvers()
+      const root = createRoot(document.getElementById('root'))
+      const outside = document.createElement('div')
+      const button = document.createElement('button')
+      outside.append(button)
+      const fail = async () => {
+        update({ pending: null, status: 'error', error: 'fixture/rejected: 保存被拒绝' })
+        result.resolve({ ok: false, error: { code: 'fixture/rejected', message: '保存被拒绝' } })
+      }
+      document.body.append(outside)
+      const closeMenu = () => {
+        document.querySelector('.rong-model-trigger').click()
+        button.focus()
+      }
+      try {
+        await act(async () =>
+          root.render(
+            React.createElement(ModelSelector, {
+              sessionId: 'generic-rejection',
+              available: true,
+              locked: false,
+              directory: {
+                getSnapshot: () => state,
+                subscribe: (fn) => {
+                  subscribers.add(fn)
+                  return () => subscribers.delete(fn)
+                },
+              },
+              load: () => update({ error: null, status: 'ready' }),
+              select: (selection) => {
+                update({ pending: selection })
+                return result.promise
+              },
+            }),
+          ),
+        )
+        await act(async () => document.querySelector('.rong-model-trigger').click())
+        await act(async () => document.querySelector('.rong-model-heading').click())
+        await act(async () =>
+          [...document.querySelectorAll('[role="option"]')]
+            .find((row) => row.textContent === 'Second')
+            .click(),
+        )
+        if (closeFirst) await act(closeMenu)
+        const focused = document.activeElement
+        await act(fail)
+        assert.equal(state.current.model, 'first')
+        assert.match(document.querySelector('.rong-model-trigger').textContent, /First/)
+        assert.equal(document.querySelector('.rong-error'), null)
+        assert.equal(document.querySelectorAll('[data-test-toast]').length, 1)
+        assert.match(document.querySelector('[data-test-toast]').textContent, /保存被拒绝/)
+        assert.equal(document.activeElement, focused)
+        await act(async () => document.querySelector('[data-test-dismiss]').click())
+        assert.equal(document.querySelector('[data-test-toast]'), null)
+        if (!closeFirst) await act(closeMenu)
+        outside.remove()
+        await act(async () => document.querySelector('.rong-model-trigger').click())
+        assert.ok(document.querySelector('.rong-model-popover'))
+        assert.equal(document.querySelector('[role="alert"]'), null)
+      } finally {
+        outside.remove()
+        await act(async () => root.unmount())
+      }
+    })
+  }
+})
 
 test('实际组件：拖动只在释放时保存、取消不保存、失败回退、键盘与模型切换、Fast 禁用', async () => {
   let state = {
@@ -147,7 +280,8 @@ test('实际组件：拖动只在释放时保存、取消不保存、失败回�
   await key(slider, 'End')
   assert.equal(state.current.reasoningEffort, 'off')
   assert.equal(slider.getAttribute('aria-valuetext'), 'off')
-  assert.match(document.querySelector('[role="alert"]').textContent, /测试保存失败/)
+  assert.match(document.querySelector('[data-test-toast]').textContent, /测试保存失败/)
+  assert.equal(document.querySelector('.rong-error'), null)
   fail = false
   await click(document.querySelector('.rong-model-heading'))
   const search = document.querySelector('[role="combobox"]')
@@ -243,7 +377,7 @@ test('Fast 菜单：按支持档位显示、键盘选择、实心状态、写入
   fail = true
   await click(fast)
   await click(document.querySelector('[role="menuitemradio"]'))
-  assert.match(document.querySelector('[role="alert"]').textContent, /速度保存失败/)
+  assert.match(document.querySelector('[data-test-toast]').textContent, /速度保存失败/)
   assert.equal(fast.getAttribute('aria-label'), '速度：超快')
   assert.ok(document.querySelector('.rong-trigger-fast'))
   fail = false

@@ -22,6 +22,10 @@ const hostBuild = {
   target: 'node22',
   // Cordis 与 Loader 必须共享宿主实例，不能内嵌另一份框架。
   external: ['@deepseek-ai/*'],
+  // YAML 的 Node 分支含 CJS 内置模块引用；ESM 宿主包提供原生 require。
+  banner: {
+    js: "import { createRequire as __rongCreateRequire } from 'node:module'; const require = __rongCreateRequire(import.meta.url);",
+  },
 }
 
 await rm(output, { recursive: true, force: true })

@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Armor-piercing mode",
+    "description": "Frozen session prompt prefixes and an exact model allowlist. No presets or model grants by default."
+  }
+}
