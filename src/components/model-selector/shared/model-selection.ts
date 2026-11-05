@@ -1,3 +1,5 @@
+/** 纯模型选择规则：目录查找、明确 effort、切换时的回退档位与多词搜索。 */
+
 import type {
   ModelCatalogModel,
   ModelProviderGroup,
@@ -11,6 +13,10 @@ export function effortsOf(model: ModelCatalogModel | undefined) {
   )
 }
 
+/**
+ * 仅用于用户切换模型或重置：优先声明的默认档，再选 Medium、首个非关闭档或唯一关闭档。
+ * 没有明确档位时返回 undefined，不制造 Default。
+ */
 export function defaultEffortOf(model: ModelCatalogModel): string | undefined {
   const efforts = effortsOf(model)
   const declared = model.reasoning?.defaultEffort
@@ -22,6 +28,7 @@ export function defaultEffortOf(model: ModelCatalogModel): string | undefined {
   )?.id
 }
 
+/** 构造切换模型的原生选择请求；模型没有档位时完全省略 reasoningEffort。 */
 export function selectionFor(provider: string, model: ModelCatalogModel): ModelSelection {
   const reasoningEffort = defaultEffortOf(model)
   return {
@@ -31,6 +38,7 @@ export function selectionFor(provider: string, model: ModelCatalogModel): ModelS
   }
 }
 
+/** 以 provider+model 精确查找目录对象；未选择或目录已移除时返回 undefined。 */
 export function currentModelOf(
   groups: readonly ModelProviderGroup[],
   current: ModelSelection | null,

@@ -1,3 +1,5 @@
+/** 选择器编排：连接宿主目录、局部状态、定位与键盘流程；宿主确认结果是选模依据。 */
+
 import {
   useCallback,
   useEffect,
@@ -44,6 +46,7 @@ import { SelectorTrigger } from './SelectorTrigger.tsx'
 import { EffortHeading } from './EffortHeading.tsx'
 import { ModelList } from './ModelList.tsx'
 
+/** 复用 DSH 模型插槽契约；available 区分本地会话与独立运行时，locked 控制交互。 */
 type Props = ModelSelectInjected &
   Pick<PropsRuntime<'conversation.input.model'>, 'locked' | 'sessionId'>
 
@@ -52,6 +55,10 @@ export function ModelSelector(props: Props) {
   return <Selector key={props.sessionId} {...props} />
 }
 
+/**
+ * 单会话选择器实例。先派生宿主已确认数据，再绑定生命周期、定位、提交与键盘事件。
+ * 局部 store 只保存交互状态；不将目录数据写进 Immer，也不把 pending 模型展示为已选。
+ */
 function Selector({ locked, available, directory, load, select, sessionId }: Props) {
   const [store] = useState(createSelectorStore)
   const actions = store.getState().actions
@@ -68,6 +75,8 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
       errorSequence: state.errorSequence,
     })),
   )
+
+  // 宿主目录只读订阅：稳定 subscribe/getSnapshot，避免重建模型数据或冻结宿主对象。
   const source = useMemo(
     () => ({
       subscribe: (notify: () => void) => directory.subscribe(notify),
@@ -76,6 +85,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     [directory],
   )
   const state = useSyncExternalStore(source.subscribe, source.getSnapshot)
+
   // 与原生选择器一致：目录读取错误留在菜单提供重试，操作拒绝只显示 toast。
   const lastAction = useRef<'load' | 'select'>('load')
   const visibleError = lastAction.current === 'load' ? state.error : null
@@ -86,7 +96,9 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   const header = useRef<HTMLButtonElement>(null)
   const alive = useRef(true)
   const id = useId()
+
   // 宿主确认之前保持已接受的模型，避免被拒绝的候选短暂改写文字、effort 与 Fast 状态。
+  // 数据派生：实际模型、明确档位、过滤列表及速度身份都只基于已确认选择。
   const current = state.current
   const model = useMemo(
     () => currentModelOf(state.groups, current),
@@ -120,6 +132,8 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     [available, sessionId, current?.provider, current?.model],
   )
   const speedRoute = identity ? speedKey(identity) : ''
+
+  // 资源生命周期：路由读取、异步结果归属、弹层退场和外部事件成对清理。
   useEffect(() => speedStore.sync(identity, open), [speedStore, identity, open])
   useEffect(() => () => speedStore.dispose(), [speedStore])
 
@@ -136,11 +150,13 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
       actions.unmount()
       return
     }
+
     // 正常在 transform 退场完成后卸载；页面隐藏或过渡被取消时仍能清理。
     const timer = window.setTimeout(actions.unmount, 180)
     return () => window.clearTimeout(timer)
   }, [open, mounted, actions])
 
+  /** 关闭弹层；仅显式键盘/按钮操作需要把焦点恢复到触发按钮。 */
   const close = useCallback(
     (restoreFocus = false) => {
       actions.close()
@@ -151,6 +167,8 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
 
   useEffect(() => {
     if (!open) return
+
+    /** 忽略主面板、触发按钮及独立 Fast 门户内部的指针事件，其余位置关闭。 */
     const outside = (event: PointerEvent) => {
       if (
         menu.current?.contains(event.target as Node) ||
@@ -160,13 +178,18 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
         return
       close()
     }
+
     document.addEventListener('pointerdown', outside)
+
+    /** 原生 Modal 接管焦点时立即卸载当前面板，避免残留退场材质遮住模态内容。 */
     const yieldToModal = () => {
       if (!isBehindModal(menu.current)) return
       close()
+
       // 原生模态窗拥有焦点时直接释放浮层，避免退出动画盖住模态内容。
       actions.unmount()
     }
+
     document.addEventListener('focusin', yieldToModal)
     return () => {
       document.removeEventListener('pointerdown', outside)
@@ -178,8 +201,11 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     if (locked || !available) close()
   }, [locked, available, close])
 
+  // 定位与焦点：在 DOM 已挂载后测量；同位置返回原对象以避免无效渲染。
   useLayoutEffect(() => {
     if (!mounted) return
+
+    /** 以触发按钮右边缘对齐面板，优先向上展开，并把整个面板限制在可视视口内。 */
     const place = () => {
       const anchor = trigger.current?.getBoundingClientRect()
       const surface = menu.current
@@ -199,6 +225,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
         previous.left === next.left && previous.top === next.top ? previous : next,
       )
     }
+
     place()
     const observer = new ResizeObserver(place)
     if (menu.current) observer.observe(menu.current)
@@ -224,6 +251,10 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     actions.preview(undefined)
   }, [routeKey, actions])
 
+  /**
+   * 串行提交原生 ModelSelection，失败保持目录已确认值并显示 Toast。
+   * 卸载后忽略结果；finally 释放本实例保存标记。
+   */
   const submit = useCallback(
     async (selection: ModelSelection): Promise<boolean> => {
       if (locked || directory.getSnapshot().pending !== null || !actions.startSaving()) return false
@@ -244,6 +275,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     [locked, directory, actions, select],
   )
 
+  /** 只提交当前模型目录中的明确档位；相同选择不产生重复写入。 */
   const chooseEffort = useCallback(
     (value: string) => {
       if (!current || !efforts.some((entry) => entry.id === value)) return
@@ -253,6 +285,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     [current, efforts, submit],
   )
 
+  /** 按新模型的明确默认档构造选择，宿主确认成功后回到强度面板。 */
   const chooseModel = useCallback(
     async (provider: string, next: ModelCatalogModel) => {
       const result = await submit(selectionFor(provider, next))
@@ -264,6 +297,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     [submit, actions],
   )
 
+  /** 进入模型列表并以当前模型在扁平结果中的位置初始化键盘高亮。 */
   const showModels = useCallback(() => {
     actions.showModels(
       Math.max(
@@ -275,6 +309,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     )
   }, [actions, rows, current])
 
+  /** 关闭时恢复入口焦点；打开时初始化面板并触发宿主目录加载。 */
   const toggle = useCallback(() => {
     if (store.getState().open) close(true)
     else {
@@ -284,6 +319,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     }
   }, [store, close, actions, model, load])
 
+  /** 处理主面板层级：Escape 返回/关闭、方向键切换高亮、Enter 提交和 Tab 焦点循环。 */
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return
     if (event.key === 'Escape') {
@@ -324,6 +360,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     }
   }
 
+  // 渲染边界：独立运行时不接管模型控件；可见 UI 由下方子视图按职责组成。
   if (!available) return null
   return (
     <>
@@ -354,6 +391,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
             style={
               {
                 ...position,
+
                 // 内距 18 + 工具栏 26 + 间距 8；无结果时也留一行显示状态。
                 '--rong-list-height': `${Math.min(344, 52 + Math.max(1, rows.length) * 33 + groups.length * 26)}px`,
               } as CSSProperties

@@ -1,3 +1,5 @@
+/** 模型列表视图：按提供商分组，用扁平索引统一键盘高亮与滚动定位。 */
+
 import { forwardRef, memo, useEffect, useRef } from 'react'
 import { useStore } from 'zustand'
 import {
@@ -13,19 +15,40 @@ import type {
 import type { ModelDirectoryState } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { SelectorStore } from './selector-store.ts'
 
+/** 本视图所需的输入契约；数据保存与宿主副作用由外层负责。 */
 interface Props {
+  /** 选择器瞬时 store，列表只订阅高亮位置。 */
   store: SelectorStore
+
+  /** 过滤后的提供商组及在扁平列表中的起始偏移。 */
   groups: { group: ModelProviderGroup; offset: number }[]
+
+  /** 过滤后的模型总行数，用于空态及 aria 索引。 */
   rowCount: number
+
+  /** 外层搜索值；本组件把修改委托给 store。 */
   query: string
+
+  /** 宿主已接受的精确模型选择，用于勾选。 */
   current: ModelSelection | null
+
+  /** 保存或会话锁定中时禁止选择行。 */
   busy: boolean
+
+  /** 当前是否有可返回的强度面板。 */
   hasModel: boolean
+
+  /** 宿主模型目录加载阶段，区分加载与空目录。 */
   status: ModelDirectoryState['status']
+
+  /** 同一个弹层的稳定可访问性 ID 前缀。 */
   id: string
+
+  /** 向外层提交模型；本列表不直接写入宿主。 */
   chooseModel(provider: string, model: ModelCatalogModel): Promise<void>
 }
 
+/** 分组模型列表；ref 指向搜索框，焦点和整体键盘移动由外层选择器协调。 */
 export const ModelList = memo(
   forwardRef<HTMLInputElement, Props>(function ModelList(
     { store, groups, rowCount, query, current, busy, hasModel, status, id, chooseModel },

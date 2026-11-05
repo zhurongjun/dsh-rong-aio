@@ -1,21 +1,35 @@
+/** 静态导入边界检查：解析 JS/TS AST，覆盖导入、再导出、类型导入与动态导入。 */
+
 import { parse } from '@babel/parser'
 import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
+
+/** 从仓库相对路径提取功能归属，根共享和装配层不属于业务组件。 */
 const owner = (file) => /^src\/components\/([^/]+)\//.exec(file)?.[1]
+
+/** 识别 host/client/shared 运行边界；与文件扩展名无关。 */
 const layer = (file) => /(?:^|\/)(host|client|shared)\//.exec(file)?.[1]
 
+/**
+ * 解析单个源码文件并返回带行号的违规列表；解析失败也作为错误返回。
+ * 不执行代码、不解析运行时拼接路径，因此动态 import 必须为固定字面量。
+ */
 export function checkImports(source, file) {
   const errors = []
+
   const report = (node, message) => errors.push(`${file}:${node.loc?.start.line ?? 1}: ${message}`)
+
   let ast
   try {
     ast = parse(source, { sourceType: 'module', plugins: ['typescript', 'jsx'] })
   } catch (error) {
     return [`${file}:${error.loc?.line ?? 1}: 无法解析导入：${error.message}`]
   }
+
+  /** 将相对路径规范化后检查组件归属和运行侧；包名自引用同样禁止以免绕过边界。 */
   function check(node, value) {
     if (/^dsh-rong-aio(?:$|[-/])/.test(value))
       report(node, '项目内部使用相对导入；不得通过包名绕过组件边界')
@@ -36,6 +50,8 @@ export function checkImports(source, file) {
     )
       report(node, `${side} 不得导入 ${targetSide}；共用协议放在 shared`)
   }
+
+  /** 遍历 AST 的代码节点，覆盖普通导入、再导出与 TypeScript 类型导入。 */
   function visit(node) {
     if (
       ['ImportDeclaration', 'ExportNamedDeclaration', 'ExportAllDeclaration'].includes(node.type)
@@ -58,10 +74,12 @@ export function checkImports(source, file) {
       } else if (value?.type) visit(value)
     }
   }
+
   visit(ast)
   return errors
 }
 
+/** 递归收集源码文件，供命令行检查使用；目录读取失败直接使检查失败。 */
 async function filesIn(directory) {
   const files = await readdir(directory, { withFileTypes: true })
   return (
@@ -74,6 +92,7 @@ async function filesIn(directory) {
   ).flat()
 }
 
+// CLI 入口与可复用检查函数分开：测试导入模块时不会自动扫描工作区。
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const files =
     process.argv.length > 2

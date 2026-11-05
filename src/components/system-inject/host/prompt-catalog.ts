@@ -1,3 +1,5 @@
+/** 模板目录投影：直属文件扫描、解析缓存、同名冲突标记与可展示诊断。 */
+
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { importMarkdown } from '../shared/markdown.ts'
@@ -5,13 +7,28 @@ import type { CatalogPrompt, Prompt, Scope } from '../shared/state.ts'
 import { fingerprint, message, missing, readVersion } from './files.ts'
 import type { Paths } from './paths.ts'
 
-/** 每次扫描读取文件指纹，只有内容变化时才重新解析 YAML；缓存不是数据源。 */
+/**
+ * 将用户与指定工程的直属 Markdown 文件投影为模板目录。
+ *
+ * 缓存按文件内容版本复用成功或失败解析，不隐藏删除、改名或外部修改。
+ * 错误汇总为诊断；name 冲突同时标记所有命中文件，不执行用户/工程覆盖。
+ */
 export class PromptCatalog {
+  /** 按绝对路径和内容指纹缓存成功/失败解析，避免重复处理未变化的 YAML。 */
   private readonly cache = new Map<string, { revision: string; prompt?: Prompt; error?: string }>()
+
+  /** 提供当前扫描范围的全局与工程目录。 */
   private readonly paths: Paths
+
+  /** 绑定目录规则；实例缓存可随组件卸载丢弃，不承担持久化职责。 */
   constructor(paths: Paths) {
     this.paths = paths
   }
+
+  /**
+   * 扫描直属 Markdown 并返回模板、诊断和组合指纹。
+   * 文件/目录不可读会形成诊断；同名文件均标记冲突，不执行层级覆盖。
+   */
   async scan(
     workspace = '',
   ): Promise<{ prompts: CatalogPrompt[]; errors: string[]; revision: string }> {
@@ -37,6 +54,7 @@ export class PromptCatalog {
               } catch (error) {
                 parsed = { revision: version.revision, error: message(error) }
               }
+
               // 限制编辑过的历史路径占用，清空后仍可从文件重建。
               if (this.cache.size > 2048) this.cache.clear()
               this.cache.set(file, parsed)
@@ -57,6 +75,8 @@ export class PromptCatalog {
         if (!missing(error)) errors.push(`${directory}：${message(error)}`)
       }
     }
+
+    // 扫描结束后统一统计跨范围同名，任何一个重名文件都不能悄悄成为胜出项。
     const counts = new Map<string, number>()
     for (const prompt of prompts) counts.set(prompt.name, (counts.get(prompt.name) ?? 0) + 1)
     for (const prompt of prompts) prompt.conflict = counts.get(prompt.name)! > 1

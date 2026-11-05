@@ -1,3 +1,5 @@
+/** 使用真实 Cordis Loader 与 ClientModules 验证子条目身份、独立启停和异步卸载清理。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
@@ -36,6 +38,7 @@ test('真实 Loader：组件独立客户端身份、单独启停、总包重载�
         path.join(target, 'client.js'),
         `window.__ModuleLoader__.load({id:'fixture-${name}',factory:()=>({apply(){}})});`,
       )
+
       // 临时模块只记录生命周期；装配器不接收额外状态或开关。
       await writeFile(
         path.join(target, 'index.js'),
@@ -49,11 +52,14 @@ test('真实 Loader：组件独立客户端身份、单独启停、总包重载�
       )
       ctx.loader.builtins[name] = defineComponent(pathToFileURL(path.join(target, 'index.js')))
     }
+
     const entries = () => ['first', 'second'].map((id) => ({ id, name: `cordis:${id}` }))
+
     const settle = async () => {
       await ctx.loader.await()
       await setImmediate()
     }
+
     const expect = (names) => {
       assert.deepEqual([...live].sort(), names)
       assert.deepEqual(
@@ -64,6 +70,7 @@ test('真实 Loader：组件独立客户端身份、单独启停、总包重载�
         names.map((name) => `fixture-${name}`),
       )
     }
+
     await ctx.loader.root.update(entries())
     await settle()
     expect(['first', 'second'])

@@ -1,3 +1,5 @@
+/** 静态组件边界正反例：跨组件、跨运行侧、类型导入、再导出及动态导入。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { checkImports } from '../scripts/check-boundaries.mjs'

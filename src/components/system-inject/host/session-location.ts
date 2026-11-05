@@ -1,3 +1,5 @@
+/** rc.5 会话目录适配：从公开 Loader 的活动后端配置定位 root，再编码路径。 */
+
 import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
@@ -15,6 +17,8 @@ export function encodeSessionSegment(value: string): string {
   }
   return result
 }
+
+/** 把原生 cwd 编码为 rc.5 工程分区键，保留官方截断和分隔符折叠规则。 */
 export function projectKey(cwd: string): string {
   if (!cwd) throw new Error('工作区路径不能为空')
   let result = ''
@@ -33,6 +37,8 @@ export function projectKey(cwd: string): string {
   }
   return `--${(result.replace(/^-+/, '') || 'root').slice(0, 251)}--`
 }
+
+/** 由已解析后端 root、cwd 和 session ID 生成目录；无 cwd 使用原生 _no-cwd 分区。 */
 export function sessionDirectory(root: string, meta: { id: string; cwd?: string }): string {
   return join(
     root,

@@ -1,3 +1,5 @@
+/** 选择器专用 SVG：图形只消费 currentColor，颜色和悬停背景由语义 CSS 控制。 */
+
 /** 按用户提供的 2× Codex 截图轮廓归一化；不是 Codex 官方 SVG 源文件。 */
 export function FastIcon({ active = false }: { active?: boolean }) {
   return (
@@ -17,6 +19,7 @@ export function FastIcon({ active = false }: { active?: boolean }) {
   )
 }
 
+/** 重置按钮的固定线性轮廓；颜色继承中性图标 token，悬停不改变形状。 */
 export function ResetIcon() {
   return (
     <svg

@@ -1,3 +1,5 @@
+/** Markdown 与破甲词对象的转换；frontmatter 提供索引，正文保持字面语义。 */
+
 import { parseDocument, stringify } from 'yaml'
 import { promptSchema, type Prompt } from './state.ts'
 
@@ -20,6 +22,8 @@ export function importMarkdown(text: string): Prompt {
   if (!parsed.success) throw new Error('破甲词格式无效：请检查 name、display_name、简介和正文')
   return parsed.data
 }
+
+/** 只序列化受支持的元信息并追加原样正文；导出的 name 是索引，显示名不替代它。 */
 export function exportMarkdown(prompt: Prompt): string {
   return `---\n${stringify({ name: prompt.name, display_name: prompt.display_name, description: prompt.description })}---\n${prompt.body}`
 }

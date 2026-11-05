@@ -1,3 +1,5 @@
+/** 使用固定上游输出 fixture 校验运动和粒子参数，不根据当前实现重算期望值。 */
+
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { test } from 'node:test'

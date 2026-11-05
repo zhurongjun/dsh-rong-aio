@@ -1,3 +1,5 @@
+/** 离线 UI 契约检查：在 CSS 与源码 AST 中验证颜色、token 所有权和精确局部例外。 */
+
 import { readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -5,10 +7,18 @@ import * as css from 'css-tree'
 import { parse as parseSource } from '@babel/parser'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
+
+/** 固定版本消费清单；读取本地 JSON，不在检查时联网追踪上游。 */
 export const contract = JSON.parse(await readFile(new URL('./ui-contract.json', import.meta.url)))
+
+/** 宿主拥有的 CSS 变量命名空间，默认只允许读取。 */
 const owned = /^--(?:dsw|dsh|ds)-/
+
+/** 可能承载颜色的属性集合，包含 SVG paint 与阴影等复合值。 */
 const paint =
   /^(?:color|background(?:-color|-image)?|border(?:-(?:top|right|bottom|left|block|inline)(?:-start|-end)?)?(?:-color)?|border-image(?:-source)?|outline(?:-color)?|(?:box|text)-shadow|fill|stroke|text-decoration(?:-color)?|(?:stop|flood|lighting|caret|accent)-color)$/
+
+/** 需要使用语义 token 替代的具体颜色函数。 */
 const colorFunctions = new Set([
   'rgb',
   'rgba',
@@ -22,24 +32,39 @@ const colorFunctions = new Set([
   'color',
   'device-cmyk',
 ])
+
+/** 会导致插件自行分支主题的媒体条件或属性选择器。 */
 const themeBranch = /prefers-color-scheme|data-(?:ds-)?(?:dark-theme|theme(?:-source)?)\b/i
+
+/** 用 CSS AST 规范化值，使例外匹配不依赖空格写法。 */
 const normalize = (value) => css.generate(css.parse(value, { context: 'value' }))
+
+/** 把 JS/TSX 样式属性转换为 CSS 名称，自定义变量原样保留。 */
 const kebab = (name) =>
   name.startsWith('--') ? name : name.replace(/[A-Z]/g, (s) => `-${s.toLowerCase()}`)
 
+/** 创建单文件检查上下文，CSS 声明与 TSX/SVG 内联样式复用同一套值规则。 */
 function inspector(file, rules) {
   const errors = []
+
   const report = (line, message) => errors.push(`${file}:${line}: ${message}`)
+
+  /**
+   * 检查一条声明：先验证变量所有权与精确例外，再递归检查颜色/token。
+   * 条件分支不接受普通局部例外，防止把例外扩大到媒体查询或嵌套选择器。
+   */
   function declaration(property, value, selector, line, conditional = false) {
     property = css.ident.decode(property)
     if (!property.startsWith('--')) property = property.toLowerCase()
     const normalized = css.generate(value)
+
     const matches = (entry) =>
       !conditional &&
       entry.file === file &&
       entry.selector === selector &&
       entry.property === property &&
       normalize(entry.value) === normalized
+
     if (owned.test(property) && !rules.localBindings.some(matches)) {
       report(line, `不允许重定义宿主变量 ${property}；仅允许契约列出的局部重绑`)
     }
@@ -77,6 +102,8 @@ function inspector(file, rules) {
       }
     })
   }
+
+  /** 将源码中的静态样式字符串解析为 CSS 值并复用声明检查；解析失败直接报告。 */
   function value(property, source, line) {
     try {
       declaration(
@@ -89,9 +116,11 @@ function inspector(file, rules) {
       report(line, `无法解析内联样式：${error.message}`)
     }
   }
+
   return { errors, report, declaration, value }
 }
 
+/** 解析完整 CSS 并返回去重诊断；检查主题分支、嵌套上下文与全部声明值。 */
 export function checkCss(source, file, rules = contract) {
   const check = inspector(file, rules)
   let ast
@@ -111,6 +140,8 @@ export function checkCss(source, file, rules = contract) {
   css.walk(ast, {
     enter: function (node) {
       if (node.type === 'Rule') ruleDepth++
+
+      /** 提取源码位置，合成节点缺失位置信息时退回第一行。 */
       const line = node.loc?.start.line ?? 1
       if (node.type === 'Raw') check.report(line, '无法解析 CSS；不能跳过 UI 检查')
       if (node.type === 'Atrule' && node.prelude && themeBranch.test(css.generate(node.prelude))) {
@@ -137,6 +168,10 @@ export function checkCss(source, file, rules = contract) {
 }
 
 // 只分析静态样式语法，不执行业务代码。动态颜色应通过 CSS 类和宿主变量表达。
+/**
+ * 只分析静态 JS/TS/JSX/TSX，不执行表达式。
+ * 动态颜色、未知属性名和 style 字符串注入必须改为可检查的 CSS 语义类。
+ */
 export function checkSource(source, file, rules = contract) {
   const check = inspector(file, rules)
   let ast
@@ -146,9 +181,16 @@ export function checkSource(source, file, rules = contract) {
     check.report(error.loc?.line ?? 1, `无法解析源码：${error.message}`)
     return check.errors
   }
+
   const line = (node) => node.loc?.start.line ?? 1
+
+  /** 统一静态字符串键与标识符键；不求值计算属性。 */
   const nameOf = (node) => (node?.type === 'StringLiteral' ? node.value : (node?.name ?? ''))
+
+  /** 识别 DOM style 成员，供赋值与 setProperty 检查共用。 */
   const isStyle = (node) => node?.type === 'MemberExpression' && nameOf(node.property) === 'style'
+
+  /** 检查静态值及条件分支；解包 TypeScript 类型表达式后继续分析颜色。 */
   function expression(property, node) {
     if (!node) return
     if (node.type === 'StringLiteral' || node.type === 'NumericLiteral')
@@ -166,6 +208,8 @@ export function checkSource(source, file, rules = contract) {
       check.report(line(node), `无法静态检查 ${property}；将颜色或宿主变量写入 CSS 语义类`)
     }
   }
+
+  /** 同时覆盖样式对象、JSX/SVG 属性、DOM style 赋值及 setAttribute/setProperty。 */
   function visit(node) {
     if (node.type === 'ObjectProperty') {
       const property = kebab(nameOf(node.key))
@@ -219,10 +263,12 @@ export function checkSource(source, file, rules = contract) {
       } else if (child?.type) visit(child)
     }
   }
+
   visit(ast)
   return [...new Set(check.errors)]
 }
 
+/** 递归收集可能包含 CSS/静态样式的文件，并排序保证检查顺序稳定。 */
 async function filesIn(directory) {
   const entries = await readdir(directory, { withFileTypes: true })
   const lists = await Promise.all(
@@ -238,6 +284,7 @@ async function filesIn(directory) {
   return lists.flat().sort()
 }
 
+// CLI 默认只扫描客户端目录；测试可传入单段源码或替代消费清单验证规则。
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const files =
     process.argv.length > 2

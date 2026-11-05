@@ -1,17 +1,36 @@
+/** 粒子排布与速度参数的纯计算；确定性种子保证重渲染时视觉连续。 */
+
 /** Adapted from Microqian2th/dsh-codex-effort-slider fc5a994 (MIT). See THIRD_PARTY_NOTICES. */
 import { clamp } from './slider-motion.ts'
 
+/** 固定上游参数；改变它们会改变动画手感，需与上游输出 fixture 一并核对。 */
 export const PARTICLE_PARAMETERS = {
+  /** 最大粒子数；实际数量按滑块能量线性取整。 */
   count: 22,
+
+  /** 最高速度下单次横穿的平均秒数。 */
   durationMean: 1.5,
+
+  /** 时长离散幅度，避免粒子完全同步。 */
   durationSpread: 0.08,
+
+  /** 最低亮度，同时用于粒子的缩放系数。 */
   brightnessMin: 0.5,
+
+  /** 黄金比分布相位，让负延迟错开粒子位置。 */
   goldenRatio: 0.6180339887498949,
+
+  /** 滑块低位置时的最小速度因子。 */
   speedMin: 0.35,
+
+  /** 滑块高位置时的最大速度因子。 */
   speedMax: 2,
+
+  /** 相邻相位粒子在高度槽中的最小间隔。 */
   heightSlots: 3,
 } as const
 
+/** 从索引和盐生成稳定的 0–1 离散值；不使用运行时随机数。 */
 function hash(index: number, salt: number) {
   const value = ((index + 1) * salt * 2654435761) % 4294967296
   return ((value >>> 8) % 1000) / 1000
@@ -40,10 +59,15 @@ function buildParticles() {
 
 const particles = buildParticles()
 
+/** 滑块前 1/3 不产生粒子能量，之后线性增长到 1。 */
 export function energyFor(position: number) {
   return clamp((clamp(position, 0, 1) - 1 / 3) / (1 - 1 / 3), 0, 1)
 }
 
+/**
+ * 为当前位置生成可绘制粒子参数：高度百分比、横穿秒数、负延迟和亮度。
+ * 返回新数组，固定粒子基表不被修改。
+ */
 export function particlesFor(position: number) {
   const { count, durationMean, durationSpread, brightnessMin, speedMin, speedMax } =
     PARTICLE_PARAMETERS

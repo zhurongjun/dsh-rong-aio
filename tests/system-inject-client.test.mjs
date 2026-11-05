@@ -1,3 +1,5 @@
+/** 输入框集成回归：真实破甲宿主配合客户端入口，验证选择、拒绝通知和资源清理。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { mkdir } from 'node:fs/promises'
@@ -9,14 +11,22 @@ import { hostFixture } from './helpers/system-inject-host.mjs'
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
   pretendToBeVisual: true,
 })
+
 const { document } = dom.window
+
 for (const name of ['window', 'document', 'HTMLElement', 'Element', 'Node'])
   globalThis[name] = dom.window[name]
+
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
+
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window)
+
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window)
+
 const { createRoot } = await import('react-dom/client')
+
 await mkdir('agent_temp/tests', { recursive: true })
+
 await build({
   entryPoints: ['src/components/system-inject/client/index.ts'],
   outfile: 'agent_temp/tests/inject-client.mjs',
@@ -67,6 +77,7 @@ await build({
     },
   ],
 })
+
 const client = await import('../agent_temp/tests/inject-client.mjs')
 
 test('仅启用破甲组件：切换破甲只用 toast，选模拒绝交调用者呈现，停用释放护栏', async (t) => {
@@ -95,18 +106,22 @@ test('仅启用破甲组件：切换破甲只用 toast，选模拒绝交调用�
   })
   const props = { sessionId: f.agent.id, ...registration.inject(f.agent.id) }
   const root = createRoot(document.getElementById('root'))
+
   const select = (model) =>
     f.ctx.sessionController.selectModel({
       sessionId: f.agent.id,
       provider: 'fixture',
       model,
     })
+
   const settled = async (condition) => {
     for (let attempt = 0; attempt < 30 && !condition(); attempt++)
       await new Promise((resolve) => setTimeout(resolve, 5))
     assert.ok(condition(), '通知确认应及时完成')
   }
+
   const dialog = () => document.querySelector('[role="dialog"]')
+
   try {
     await act(async () => root.render(React.createElement(composer, props)))
     await act(async () => props.store.refresh())
@@ -115,12 +130,14 @@ test('仅启用破甲组件：切换破甲只用 toast，选模拒绝交调用�
     assert.equal(f.selection.current.model, 'denied')
     assert.equal(dialog(), null)
     assert.equal((await f.api()).session.error, undefined)
+
     const choosePrompt = () =>
       props.store.execute({
         type: 'select',
         sessionId: f.agent.id,
         state: { name: f.prompt.name },
       })
+
     const focused = document.activeElement
     await act(choosePrompt)
     assert.equal(dialog(), null)
@@ -129,6 +146,7 @@ test('仅启用破甲组件：切换破甲只用 toast，选模拒绝交调用�
     assert.equal(document.activeElement, focused)
     assert.equal(props.store.getState().data.session.resolved.status, 'off')
     assert.equal(props.store.getState().verified, true)
+
     // toast 可见期间仍允许重新打开选择菜单；不建立新的焦点层。
     await act(async () => document.querySelector('.rong-inject-trigger').click())
     assert.ok(document.querySelector('[role="menu"]'))

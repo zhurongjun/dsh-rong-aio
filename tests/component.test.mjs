@@ -1,3 +1,5 @@
+/** 模型选择器 DOM 回归：指针/键盘、退场时序、焦点、Fast 提示及错误呈现。宿主接口用可控替身驱动。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { build } from 'esbuild'
@@ -9,6 +11,7 @@ const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></
   pretendToBeVisual: true,
   url: 'http://localhost',
 })
+
 for (const name of [
   'window',
   'document',
@@ -19,21 +22,32 @@ for (const name of [
   'KeyboardEvent',
 ])
   globalThis[name] = dom.window[name]
+
 globalThis.fetch = async () => Response.json({ mode: 'standard', modes: [] })
+
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
+
 globalThis.requestAnimationFrame = dom.window.requestAnimationFrame.bind(dom.window)
+
 globalThis.cancelAnimationFrame = dom.window.cancelAnimationFrame.bind(dom.window)
+
 window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
+
 HTMLElement.prototype.setPointerCapture = () => {}
+
 HTMLElement.prototype.releasePointerCapture = () => {}
+
 HTMLElement.prototype.scrollIntoView = () => {}
+
 globalThis.ResizeObserver = class {
   observe() {}
   disconnect() {}
 }
+
 const { createRoot } = await import('react-dom/client')
 
 await mkdir('agent_temp/tests', { recursive: true })
+
 // 只替换 DSH 的视觉原子；被测组件、状态逻辑、React 与事件处理均使用实际实现。
 await build({
   entryPoints: ['src/components/model-selector/client/model-selector/ModelSelector.tsx'],
@@ -69,8 +83,11 @@ await build({
     },
   ],
 })
+
 const { ModelSelector } = await import('../agent_temp/tests/selector.mjs')
+
 const levels = ['off', 'low', 'medium', 'high', 'max'].map((id) => ({ id, name: id }))
+
 const models = [
   { id: 'first', name: 'First', reasoning: { efforts: levels } },
   { id: 'second', name: 'Second', reasoning: { efforts: levels, defaultEffort: 'high' } },
@@ -134,24 +151,30 @@ test('通用选模拒绝只显示 toast，菜单开关不改变原模型、不�
         error: null,
       }
       const subscribers = new Set()
+
       const update = (patch) => {
         state = { ...state, ...patch }
         for (const fn of subscribers) fn()
       }
+
       const result = Promise.withResolvers()
       const root = createRoot(document.getElementById('root'))
       const outside = document.createElement('div')
       const button = document.createElement('button')
       outside.append(button)
+
       const fail = async () => {
         update({ pending: null, status: 'error', error: 'fixture/rejected: 保存被拒绝' })
         result.resolve({ ok: false, error: { code: 'fixture/rejected', message: '保存被拒绝' } })
       }
+
       document.body.append(outside)
+
       const closeMenu = () => {
         document.querySelector('.rong-model-trigger').click()
         button.focus()
       }
+
       try {
         await act(async () =>
           root.render(
@@ -217,10 +240,12 @@ test('实际组件：拖动只在释放时保存、取消不保存、失败回�
   const subscribers = new Set()
   const calls = []
   let fail = false
+
   const update = (patch) => {
     state = { ...state, ...patch }
     for (const fn of subscribers) fn()
   }
+
   const props = {
     sessionId: 'test',
     available: true,
@@ -242,23 +267,28 @@ test('实际组件：拖动只在释放时保存、取消不保存、失败回�
     },
   }
   const root = createRoot(document.getElementById('root'))
+
   const click = async (element) => {
     await act(async () => element.click())
   }
+
   const key = async (element, key) => {
     await act(async () =>
       element.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true })),
     )
   }
+
   const pointer = async (element, type, x) => {
     const event = new MouseEvent(type, { bubbles: true, clientX: x, button: 0 })
     Object.defineProperty(event, 'pointerId', { value: 1 })
     await act(async () => element.dispatchEvent(event))
   }
+
   await act(async () => root.render(React.createElement(ModelSelector, props)))
   await click(document.querySelector('.rong-model-trigger'))
   assert.equal(document.querySelector('.rong-fast').disabled, true)
   assert.equal(document.querySelector('.rong-fast svg').getAttribute('fill'), 'none')
+
   // 已经过的圆点保留布局占位但隐藏，只显示圆钮右侧的未经过档位。
   assert.equal(document.querySelectorAll('.rong-effort-ticks i').length, 5)
   assert.equal(document.querySelectorAll('.rong-effort-ticks i:not([data-passed])').length, 2)
@@ -345,8 +375,10 @@ test('Fast 菜单：按支持档位显示、键盘选择、实心状态、写入
       }),
     ),
   )
+
   const click = async (element) =>
     act(async () => element.dispatchEvent(new MouseEvent('click', { bubbles: true })))
+
   await click(document.querySelector('.rong-model-trigger'))
   const fast = document.querySelector('.rong-fast')
   assert.equal(fast.disabled, false)
@@ -407,13 +439,16 @@ test('主弹层与 Fast 退场：结束后卸载；快速重开保留同一面�
     error: null,
   }
   const root = createRoot(document.getElementById('root'))
+
   const click = async (element) => act(async () => element.click())
+
   const finish = async (element) =>
     act(async () => {
       const event = new window.Event('transitionend', { bubbles: true })
       Object.defineProperty(event, 'propertyName', { value: 'transform' })
       element.dispatchEvent(event)
     })
+
   try {
     await act(async () =>
       root.render(
@@ -524,11 +559,13 @@ test('输入框 Fast 提示：不打开弹层也读取持久化状态，切换�
     select() {},
   }
   const root = createRoot(document.getElementById('root'))
+
   const change = async (provider, model) =>
     act(async () => {
       state = { ...state, current: { provider, model, reasoningEffort: 'high' } }
       for (const notify of subscribers) notify()
     })
+
   await act(async () => root.render(React.createElement(ModelSelector, props)))
   assert.equal(document.querySelector('[role="dialog"]'), null)
   assert.equal(

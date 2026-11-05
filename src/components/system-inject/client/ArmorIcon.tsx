@@ -1,3 +1,5 @@
+/** 破甲状态图标：关闭使用完整盾牌，开启使用同轮廓裂盾，颜色由调用处控制。 */
+
 import { IconShieldOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 
 /** 裂盾沿用官方盾牌轮廓、16px 画布与 1px 描边，裂缝贯穿两片盾面。 */

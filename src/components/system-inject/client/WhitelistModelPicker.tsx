@@ -1,3 +1,5 @@
+/** 待授权模型菜单：只返回精确路由，不调用会话选模或模型选择器组件。 */
+
 import {
   useEffect,
   useId,
@@ -30,11 +32,22 @@ export function WhitelistModelPicker({
   onClose,
   onSelect,
 }: {
+  /** 新增按钮锚点，用于菜单定位及关闭后的焦点恢复。 */
   anchor: RefObject<HTMLButtonElement>
+
+  /** 宿主公开模型目录，仅用于待授权选项。 */
   routes: CatalogRoute[]
+
+  /** 已授权精确路由，匹配选项置灰且方向键跳过。 */
   whitelist: Route[]
+
+  /** 设置保存期间禁止再次提交新增。 */
   disabled: boolean
+
+  /** 关闭新增菜单，由外层释放菜单实例。 */
   onClose: () => void
+
+  /** 只返回 provider/model，不执行会话模型切换。 */
   onSelect: (route: Route) => void
 }) {
   const panel = useRef<HTMLDivElement>(null)
@@ -42,6 +55,8 @@ export function WhitelistModelPicker({
   const id = useId()
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState<string>()
+
+  // 身份、搜索和分组都由公开目录派生；显示名称绝不作为授权键。
   const authorized = useMemo(() => new Set(whitelist.map(routeKey)), [whitelist])
   const matches = useMemo(() => matchingRoutes(routes, query), [routes, query])
   const groups = useMemo(() => {
@@ -56,6 +71,8 @@ export function WhitelistModelPicker({
   const enabled = matches.filter((route) => !authorized.has(routeKey(route)))
   const active = enabled.find((route) => routeKey(route) === highlight) ?? enabled[0]
   const activeIndex = active ? matches.indexOf(active) : -1
+
+  // 官方定位和模态层负责可见性与焦点；首帧未定位时不抢焦点。
   const position = useAnchoredPosition({
     open: true,
     anchorRef: anchor,
@@ -66,6 +83,7 @@ export function WhitelistModelPicker({
     margin: 12,
   })
   useDismissOnOutsidePointer(anchor, true, onClose, panel)
+
   // 首帧等待定位时 visibility:hidden；此时聚焦会被浏览器忽略，必须等可见后注册焦点层。
   useModalLayer(panel, position !== null, onClose)
   useEffect(() => {
@@ -74,12 +92,17 @@ export function WhitelistModelPicker({
         ?.querySelector(`[data-route-index="${activeIndex}"]`)
         ?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex])
+
+  /** 忽略已授权或禁用项；先收起浮层，再提交精确路由，保存结果由外层接受。 */
   const select = (route: CatalogRoute) => {
     if (disabled || authorized.has(routeKey(route))) return
+
     // 先收起浮层，再提交；保存失败由设置页呈现，不能遮住错误或提前显示已授权。
     onClose()
     onSelect({ provider: route.provider, model: route.model })
   }
+
+  /** 跳过中文输入法与组合快捷键；方向键只遍历可新增项，Enter 选择，Tab 约束焦点。 */
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey) return
     if (['ArrowDown', 'ArrowUp'].includes(event.key)) {
@@ -106,6 +129,7 @@ export function WhitelistModelPicker({
       }
     }
   }
+
   return createPortal(
     <MenuSurface
       ref={panel}

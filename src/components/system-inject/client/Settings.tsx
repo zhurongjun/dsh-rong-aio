@@ -1,3 +1,5 @@
+/** 设置编排：组织模板编辑、引用确认和白名单保存；范围由传入 store 固定。 */
+
 import { useEffect, useId, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import {
@@ -18,17 +20,32 @@ import { Whitelist } from './Whitelist.tsx'
 import { routeKey } from './whitelist-models.ts'
 import type { Route } from '../shared/protocol.ts'
 
+/** 编辑草稿与打开时的内容版本；显式保存前不写磁盘，已有文件保持原保存范围。 */
 interface Editor {
+  /** 可编辑的破甲词正文和元信息副本。 */
   prompt: Prompt
+
+  /** 新建文件的目标范围；已有文件不允许更改。 */
   scope: Scope
+
+  /** 已有文件的绝对路径，缺省表示新建/导入草稿。 */
   file?: string
+
+  /** 开始编辑时的设置组合指纹，防止外部修改被覆盖。 */
   revision: string
 }
+
+/**
+ * 模板库与白名单共用的管理界面。store 的范围不可变，页面只维护尚未保存的编辑草稿。
+ * 保存结果以宿主响应为准；改名/删除引用确认、放弃编辑确认均不提前改变文件。
+ */
 export function Settings({ store }: { store: InjectStore }) {
   const data = useStore(store, (state) => state.data)
   const error = useStore(store, (state) => state.error)
   const saving = useStore(store, (state) => state.saving)
   const verified = useStore(store, (state) => state.verified)
+
+  // 页面局部状态：标签页和库视图保留，编辑器及确认窗按一次编辑过程管理。
   const [tab, setTab] = useState<'templates' | 'whitelist'>('templates')
   const [library, setLibrary] = useState<LibraryView>({
     query: '',
@@ -43,7 +60,11 @@ export function Settings({ store }: { store: InjectStore }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const uid = useId()
   useEffect(() => store.retain(), [store])
+
+  // 权威文件投影与编辑动作：操作使用响应版本，禁止用本地猜测补齐保存结果。
   const config = data?.config
+
+  /** 读取最新权威版本后新增/移除精确路由，避免快速点击基于旧渲染覆盖新授权。 */
   const updateWhitelist = (route: Route, adding: boolean) => {
     // 从权威 store 取最新版本，阻止快速连点或迟到渲染覆盖已确认授权。
     const current = store.getState()
@@ -59,6 +80,8 @@ export function Settings({ store }: { store: InjectStore }) {
         : latest.whitelist.filter((item) => routeKey(item) !== routeKey(route)),
     })
   }
+
+  /** 从模板投影创建独立编辑草稿，并记住原值供退出/改名检测。 */
   const edit = (prompt: Prompt, file?: CatalogPrompt) => {
     const value: Editor = {
       prompt: {
@@ -75,16 +98,22 @@ export function Settings({ store }: { store: InjectStore }) {
     setEditor(value)
     setLocalError('')
   }
+
+  /** 清理编辑器及相关确认窗；不重置模板库搜索和折叠状态。 */
   const closeEditor = () => {
     setEditor(undefined)
     setDiscarding(false)
     setRenaming(false)
     setLocalError('')
   }
+
+  /** 仅在草稿相对原值发生变化时要求放弃确认，否则直接返回库。 */
   const back = () => {
     if (JSON.stringify(editor) !== JSON.stringify(original.current)) setDiscarding(true)
     else closeEditor()
   }
+
+  /** 校验草稿，再对影响已知引用的改名请求确认；宿主保存成功后才关闭编辑器。 */
   const save = async (confirmed = false) => {
     if (!editor) return
     const parsed = promptSchema.safeParse(editor.prompt)
@@ -115,6 +144,8 @@ export function Settings({ store }: { store: InjectStore }) {
       closeEditor()
     else setRenaming(false)
   }
+
+  /** 生成受支持的 Markdown 文件并触发浏览器下载；临时对象 URL 随后释放。 */
   const download = (template: Prompt) => {
     const url = URL.createObjectURL(
       new Blob([exportMarkdown(template)], { type: 'text/markdown;charset=utf-8' }),
@@ -125,6 +156,8 @@ export function Settings({ store }: { store: InjectStore }) {
     anchor.click()
     setTimeout(() => URL.revokeObjectURL(url), 0)
   }
+
+  /** 读取用户选择的 Markdown 并打开草稿；导入不会直接保存、授权或开启破甲。 */
   const importFile = async (file?: File) => {
     if (!file) return
     try {
@@ -134,6 +167,8 @@ export function Settings({ store }: { store: InjectStore }) {
       setLocalError(failure instanceof Error ? failure.message : '导入失败')
     }
   }
+
+  // 首次读取与诊断：未取得有效设置投影时只提供加载/重试，不显示可保存空配置。
   if (!config || !data)
     return (
       <div className="rong-inject-settings">

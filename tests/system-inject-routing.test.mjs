@@ -1,3 +1,5 @@
+/** 实际路由回归：预览不得捕获模型，最终分发的模型与辅助请求必须经过相同护栏。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { hostFixture } from './helpers/system-inject-host.mjs'

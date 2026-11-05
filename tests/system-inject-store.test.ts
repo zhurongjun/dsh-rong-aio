@@ -1,3 +1,5 @@
+/** 客户端传输回归：固定范围、迟到读取、通知确认与明确拒绝保持已确认状态。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createInjectStore } from '../src/components/system-inject/client/store.ts'
@@ -6,6 +8,8 @@ import {
   isInjectSelectionError,
 } from '../src/components/system-inject/shared/selection-error.ts'
 import { sessionState } from '../src/components/system-inject/client/session-state.ts'
+
+/** 为设置接口提供最小有效空配置；每次返回新对象，避免测试互相共享可变状态。 */
 const emptyConfig = () => ({
   revision: 'initial',
   templates: [],
@@ -15,6 +19,7 @@ const emptyConfig = () => ({
   whitelist: [],
 })
 
+/** 使用生产视图投影读取当前可见通知，而不是在测试中重写 Toast 判定规则。 */
 function currentNotice(store: ReturnType<typeof createInjectStore>) {
   const current = store.getState()
   return sessionState(
@@ -33,12 +38,14 @@ test('全局和项目设置范围固定且实例隔离，迟到项目响应不�
   const project = createInjectStore(undefined, workspace)
   const delayed = Promise.withResolvers<Response>()
   const requests: { workspace: string; method: string }[] = []
+
   const response = (scope: string) => ({
     config: { ...emptyConfig(), workspace: scope },
     routes: [],
     references: {},
     catalogErrors: [],
   })
+
   try {
     globalThis.fetch = async (input, options) => {
       const scope = new URL(String(input), 'http://localhost/').searchParams.get('workspace') ?? ''
@@ -76,6 +83,7 @@ test('草稿通知确认跨界面挂载与轮询保留，迟到确认响应不�
   const original = globalThis.fetch
   const store = createInjectStore('draft')
   const resolved = { state: { name: null }, status: 'off', source: 'none', editable: true }
+
   const response = (id: number) => ({
     session: {
       sessionId: 'draft',
@@ -83,6 +91,7 @@ test('草稿通知确认跨界面挂载与轮询保留，迟到确认响应不�
       error: { id, message: '模型未授权' },
     },
   })
+
   let server = response(1)
   const acknowledgement = Promise.withResolvers<Response>()
   try {
@@ -101,6 +110,7 @@ test('草稿通知确认跨界面挂载与轮询保留，迟到确认响应不�
     assert.equal(currentNotice(store)?.failureId, 1)
     store.dismissNotice()
     assert.equal(currentNotice(store), undefined)
+
     // 同一个 DSH 草稿会被重新挂载。新 UI 读取同一 store，不能依赖已卸载组件的 useState。
     const unsubscribe = store.subscribe(() => {})
     unsubscribe()

@@ -1,3 +1,5 @@
+/** 会话生命周期回归：资格标记、恢复隔离、独立快照、并发选模/选词与关闭旁路。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { readFile, writeFile, rm, access, mkdir } from 'node:fs/promises'

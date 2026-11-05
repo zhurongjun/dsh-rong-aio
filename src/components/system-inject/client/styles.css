@@ -1,3 +1,6 @@
+/* 组件局部样式：颜色与材质消费 DSH token，以下分区保持既有级联顺序。 */
+
+/* 设置整体布局与编辑器：密度跟随官方控件，正文优先分配空间。 */
 .rong-inject-settings {
   container-type: inline-size;
   display: flex;
@@ -8,39 +11,46 @@
   font-size: 13px;
   line-height: 20px;
 }
+
 .rong-inject-panel {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
 }
+
 .rong-inject-editor-layout {
   display: grid;
   grid-template-columns: 220px minmax(0, 1fr);
   align-items: start;
   gap: 16px;
 }
+
 .rong-inject-editor-meta {
   display: flex;
   flex-direction: column;
   gap: 12px;
   min-width: 0;
 }
+
 .rong-inject-body-heading {
   font-weight: 600;
   color: var(--dsw-alias-label-primary);
 }
+
 .rong-inject-editor-header {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
+
 .rong-inject-editor-header > button:first-child {
   flex: none;
   width: 28px;
   padding: 0;
 }
+
 .rong-inject-editor-title {
   flex: 1;
   min-width: 0;
@@ -48,22 +58,26 @@
   line-height: 20px;
   font-weight: 600;
 }
+
 .rong-inject-toolbar {
   display: flex;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
+
 .rong-inject-toolbar > :first-child {
   flex: 1;
   min-width: 0;
   height: 36px;
   box-sizing: border-box;
 }
+
 .rong-inject-toolbar input {
   font-size: 13px;
   line-height: 20px;
 }
+
 .rong-inject-field {
   display: flex;
   flex-direction: column;
@@ -71,9 +85,11 @@
   min-width: 0;
   color: var(--dsw-alias-label-secondary);
 }
+
 .rong-inject-field > span:has(input) {
   min-width: 0;
 }
+
 .rong-inject-body,
 .rong-inject-snapshot textarea {
   font: inherit;
@@ -86,10 +102,13 @@
   max-width: 100%;
   box-sizing: border-box;
 }
+
 .rong-inject-choice {
   min-width: 0;
   width: 100%;
 }
+
+/* 保存位置菜单触发器：只调整布局，不覆盖宿主材质。 */
 .rong-inject-choice-trigger {
   width: 100%;
   height: 32px;
@@ -99,6 +118,7 @@
   font-size: 13px;
   line-height: 20px;
 }
+
 .rong-inject-choice-value {
   flex: 1;
   min-width: 0;
@@ -107,14 +127,17 @@
   white-space: nowrap;
   text-align: left;
 }
+
 .rong-inject-choice-trigger > svg {
   flex: none;
 }
+
 .rong-inject-body:focus-visible,
 .rong-inject-snapshot textarea:focus-visible {
   outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color);
   outline-offset: 2px;
 }
+
 .rong-inject-body {
   height: clamp(320px, 58vh, 560px);
   min-height: 260px;
@@ -122,6 +145,7 @@
   font-size: 14px;
   line-height: 1.6;
 }
+
 .rong-inject-muted,
 .rong-inject-settings small,
 .rong-inject-snapshot small {
@@ -129,6 +153,7 @@
   font-size: 12px;
   line-height: 18px;
 }
+
 /* rc.5 内置插件目录：36px 分组行、10px 卡片间距、两列/520px 单列。 */
 .rong-inject-library,
 .rong-inject-library-group {
@@ -137,16 +162,21 @@
   gap: 10px;
   min-width: 0;
 }
+
+/* 模板库：分组标题、卡片网格、简介与文件索引。 */
 .rong-inject-library {
   gap: 12px;
 }
+
 .rong-inject-library-group + .rong-inject-library-group {
   border-top: 0.5px solid var(--dsw-alias-border-l2);
   padding-top: 14px;
 }
+
 .rong-inject-library-heading {
   margin: 0;
 }
+
 .rong-inject-library-toggle {
   width: 100%;
   justify-content: flex-start;
@@ -157,17 +187,21 @@
   font-weight: 400;
   line-height: 22px;
 }
+
 .rong-inject-library-toggle > svg {
   flex: none;
   color: var(--dsw-alias-label-tertiary);
   transform: rotate(-90deg);
 }
+
 .rong-inject-library-toggle[aria-expanded='true'] > svg {
   transform: none;
 }
+
 .rong-inject-library-toggle small {
   font-variant-numeric: tabular-nums;
 }
+
 .rong-inject-template-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -176,6 +210,7 @@
   padding: 0;
   list-style: none;
 }
+
 .rong-inject-template-card {
   position: relative;
   display: flex;
@@ -184,6 +219,7 @@
   border-radius: var(--dsw-radius-xl);
   background: var(--dsw-alias-settings-card-fill);
 }
+
 .rong-inject-template-content {
   display: flex;
   flex-direction: column;
@@ -198,6 +234,7 @@
   border-radius: inherit;
   text-align: left;
 }
+
 .rong-inject-template-title {
   min-width: 0;
   padding-right: 26px;
@@ -208,6 +245,7 @@
   line-height: 20px;
   font-weight: 500;
 }
+
 .rong-inject-template-description {
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -219,6 +257,7 @@
   font-size: 12px;
   line-height: 18px;
 }
+
 .rong-inject-template-meta {
   display: flex;
   flex-wrap: wrap;
@@ -228,6 +267,7 @@
   padding-top: 6px;
   min-width: 0;
 }
+
 .rong-inject-template-identity {
   min-width: 0;
   max-width: 100%;
@@ -243,38 +283,45 @@
   font-size: 12px;
   line-height: 18px;
 }
+
 .rong-inject-template-actions {
   position: absolute;
   top: 8px;
   right: 8px;
 }
+
 .rong-inject-template-actions > button {
   width: 28px;
   padding: 0;
   color: var(--dsw-alias-label-tertiary);
 }
+
 .rong-inject-library-empty {
   padding: 0 4px 8px;
   color: var(--dsw-alias-label-tertiary);
   font-size: 13px;
   line-height: 20px;
 }
+
 @media (prefers-reduced-motion: no-preference) {
   .rong-inject-library-toggle > svg {
     transition: transform 140ms var(--ds-ease-in-out);
   }
 }
+
 @container (width <= 520px) {
   .rong-inject-template-grid {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
 .rong-inject-truncate {
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   max-width: 100%;
 }
+
 .rong-inject-error {
   color: var(--dsw-alias-state-error-primary);
   font-size: 12px;
@@ -282,11 +329,14 @@
   padding: 8px;
   overflow-wrap: anywhere;
 }
+
 /* rc.5 composer 的常规/紧凑 gap 分别为 12px/8px，仅收紧本入口左侧至 4px。 */
+/* 输入框入口：与权限按钮对齐；开启状态使用同一语义强调色。 */
 .rong-inject-control {
   min-width: 0;
   margin-inline-start: -8px;
 }
+
 /* 与原生 PermissionSelect 的 28px 控件密度及 13/20/500 排版一致。 */
 .rong-inject-trigger {
   display: inline-flex;
@@ -307,6 +357,7 @@
   line-height: 20px;
   cursor: pointer;
 }
+
 .rong-inject-trigger[data-active='true'] {
   color: color-mix(
     in srgb,
@@ -314,39 +365,48 @@
     var(--dsw-alias-state-warn-primary)
   );
 }
+
 .rong-inject-trigger:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
+
 .rong-inject-trigger:focus-visible {
   box-shadow: 0 0 0 2px var(--dsw-focus-ring-color);
 }
+
 .rong-inject-trigger-label {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 .rong-inject-trigger-icon,
 .rong-inject-trigger-chevron {
   display: inline-flex;
   flex: none;
 }
+
 .rong-inject-trigger-icon svg {
   width: 14px;
   height: 14px;
 }
+
 .rong-inject-trigger-chevron {
   color: var(--dsw-alias-label-caption);
   transition: transform 120ms;
 }
+
 .rong-inject-trigger[aria-expanded='true'] .rong-inject-trigger-chevron {
   transform: rotate(180deg);
 }
+
 @container (width <= 560px) {
   .rong-inject-control {
     margin-inline-start: -4px;
   }
 }
+
 .rong-inject-menu,
 .rong-inject-choice-menu {
   width: max-content;
@@ -355,11 +415,13 @@
   max-height: min(480px, 70vh);
   overflow-x: hidden;
 }
+
 .rong-inject-menu > [role='presentation'],
 .rong-inject-choice-menu > [role='presentation'] {
   min-width: 0;
   overflow-x: hidden;
 }
+
 .rong-inject-menu-label {
   display: flex;
   align-items: center;
@@ -367,6 +429,7 @@
   width: 100%;
   min-width: 0;
 }
+
 .rong-inject-menu-name {
   flex: 1 1 auto;
   min-width: 2em;
@@ -374,12 +437,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 .rong-inject-snapshot {
   display: flex;
   flex-direction: column;
   gap: 8px;
   min-width: 0;
 }
+
 .rong-inject-snapshot textarea {
   height: clamp(300px, 58vh, 560px);
   min-height: 220px;
@@ -387,12 +452,15 @@
   font-size: 14px;
   line-height: 1.6;
 }
+
+/* 模态内容布局：标题/操作固定，正文占主要阅读区域。 */
 .rong-inject-dialog {
   width: min(440px, 100%);
   max-height: 100%;
   gap: 12px;
   padding: 16px;
 }
+
 .rong-inject-dialog-content {
   display: flex;
   flex-direction: column;
@@ -405,6 +473,7 @@
   line-height: 22px;
   color: var(--dsw-alias-label-primary);
 }
+
 .rong-inject-dialog-header,
 .rong-inject-dialog-actions {
   display: flex;
@@ -412,6 +481,7 @@
   gap: 8px;
   flex: none;
 }
+
 .rong-inject-dialog-header h2 {
   flex: 1;
   min-width: 0;
@@ -421,64 +491,80 @@
   font-weight: 500;
   color: var(--dsw-alias-label-primary);
 }
+
 .rong-inject-dialog-close {
   width: 28px;
   padding: 0;
   flex: none;
 }
+
 .rong-inject-dialog-actions {
   justify-content: flex-end;
 }
+
 .rong-inject-dialog-content p,
 .rong-inject-settings p {
   margin: 0;
 }
+
 .rong-inject-dialog-content small {
   color: var(--dsw-alias-label-tertiary);
   font-size: 12px;
   line-height: 18px;
 }
+
 .rong-inject-dialog-content > .rong-inject-muted {
   font-size: 12px;
   line-height: 18px;
 }
+
 .rong-inject-dialog-content .rong-inject-error {
   padding: 0;
 }
+
 .rong-inject-dialog-content .rong-inject-impact {
   padding: 10px 12px;
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: var(--dsw-radius-sm);
   background: var(--dsw-specific-input-major);
 }
+
 .rong-inject-impact ul {
   max-height: 180px;
   overflow-y: auto;
   margin: 6px 0 0;
   padding-inline-start: 20px;
 }
+
 .rong-inject-impact li + li {
   margin-top: 4px;
 }
+
 .rong-inject-summary {
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
   gap: 4px 12px;
 }
+
 .rong-inject-summary strong {
   font-size: 14px;
   font-weight: 600;
 }
+
 .rong-inject-dialog-size-content {
   width: min(680px, 100%);
 }
+
 .rong-inject-dialog:has(.rong-inject-editor-layout) {
   width: min(860px, 100%);
 }
+
+/* 输入框状态标记：DOM 标记本身不可见，只限定光晕作用范围。 */
 .rong-inject-marker {
   display: none;
 }
+
 .rong-inject-menu-detail {
   flex: 0 1 auto;
   min-width: 0;
@@ -489,6 +575,7 @@
   font: inherit;
   color: var(--dsw-alias-label-tertiary);
 }
+
 .rong-inject-menu-hint {
   padding: 6px 8px;
   color: var(--dsw-alias-label-tertiary);
@@ -496,6 +583,7 @@
   line-height: 18px;
   overflow-wrap: anywhere;
 }
+
 /* rc.5 的公开 composer DOM 锚点；::after 留给宿主的工作区状态描边。 */
 [data-composer-card]:has(.rong-inject-marker)::before {
   content: '';
@@ -509,15 +597,18 @@
   opacity: 0;
   transition: opacity var(--ds-transition-duration) var(--ds-ease-in-out);
 }
+
 [data-composer-card]:has([data-rong-inject-active='true'])::before {
   opacity: 1;
 }
+
 @media (prefers-reduced-motion: reduce) {
   [data-composer-card]:has(.rong-inject-marker)::before,
   .rong-inject-trigger-chevron {
     transition: none;
   }
 }
+
 @media (max-width: 540px) {
   .rong-inject-trigger {
     max-width: 100px;
@@ -526,6 +617,7 @@
     flex-wrap: wrap;
   }
 }
+
 @container (width <= 600px) {
   .rong-inject-editor-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -540,6 +632,7 @@
     height: 320px;
   }
 }
+
 @container (width <= 360px) {
   .rong-inject-editor-meta {
     grid-template-columns: minmax(0, 1fr);
@@ -553,11 +646,13 @@
   height: 16px;
   flex: none;
 }
+
 .rong-inject-settings-icon + svg {
   display: none;
 }
 
 /* 授权条目使用更低的双行卡片和 12px 圆角，与模板库的内容卡片区分。 */
+/* 白名单卡片：精确模型身份与删除操作，几何区别于模板卡片。 */
 .rong-inject-whitelist-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -566,6 +661,7 @@
   margin: 0;
   padding: 0;
 }
+
 .rong-inject-whitelist-card {
   display: flex;
   align-items: center;
@@ -576,29 +672,35 @@
   border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-1);
 }
+
 .rong-inject-whitelist-info {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-width: 0;
 }
+
 .rong-inject-whitelist-info > * {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
 .rong-inject-whitelist-info strong {
   font-size: 13px;
   line-height: 20px;
   font-weight: 500;
 }
+
 .rong-inject-whitelist-remove {
   flex: none;
   width: 28px;
   padding: 0;
   color: var(--dsw-alias-state-error-primary);
 }
+
 /* 与模型选择器的二级列表保持相同宽度、搜索行和条目密度，独立于其组件启停。 */
+/* 新增授权模型浮层：独立于模型选择器组件，复用宿主表面与焦点工具。 */
 .rong-inject-model-picker {
   position: fixed;
   z-index: 1100;
@@ -613,12 +715,14 @@
   font-family: inherit;
   font-size: var(--dsw-font-xs-13-font-size);
 }
+
 .rong-inject-picker-content {
   display: flex;
   flex-direction: column;
   min-height: 0;
   padding: 10px 10px 8px;
 }
+
 .rong-inject-picker-toolbar {
   display: grid;
   grid-template-columns: 26px minmax(0, 1fr);
@@ -627,11 +731,13 @@
   gap: 6px;
   margin-bottom: 8px;
 }
+
 .rong-inject-picker-back {
   width: 26px;
   height: 26px;
   padding: 4px;
 }
+
 .rong-inject-picker-search {
   min-width: 0;
   height: 26px;
@@ -645,12 +751,15 @@
   color: var(--dsw-alias-label-tertiary);
   background: var(--dsw-alias-interactive-bg-hover);
 }
+
 .rong-inject-picker-search > svg {
   flex: none;
 }
+
 .rong-inject-picker-search:focus-within {
   border-color: var(--dsw-alias-state-business-primary);
 }
+
 .rong-inject-picker-search input {
   min-width: 0;
   width: 100%;
@@ -662,19 +771,23 @@
   font: inherit;
   line-height: 18px;
 }
+
 .rong-inject-picker-search input::placeholder {
   color: var(--dsw-alias-label-tertiary);
 }
+
 .rong-inject-picker-list {
   overflow-y: auto;
   overscroll-behavior: contain;
   min-height: 0;
 }
+
 .rong-inject-picker-list > div + div {
   border-top: 1px solid var(--dsw-alias-border-l1);
   margin-top: 5px;
   padding-top: 5px;
 }
+
 .rong-inject-picker-provider {
   padding: 5px 8px;
   overflow: hidden;
@@ -683,6 +796,7 @@
   color: var(--dsw-alias-label-tertiary);
   font-size: var(--dsw-font-xxs-12-font-size);
 }
+
 .rong-inject-picker-option {
   width: 100%;
   border: 0;
@@ -699,23 +813,28 @@
   font: inherit;
   cursor: pointer;
 }
+
 .rong-inject-picker-option > span {
   min-width: 0;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
 .rong-inject-picker-option > svg {
   flex: none;
 }
+
 .rong-inject-picker-option:disabled {
   cursor: default;
   color: var(--dsw-alias-label-dimmed);
 }
+
 .rong-inject-picker-option[data-highlighted],
 .rong-inject-picker-option:hover:not(:disabled) {
   background: var(--dsw-alias-interactive-bg-hover);
 }
+
 .rong-inject-picker-empty {
   margin: 6px 0;
   padding: 5px 0;
@@ -723,6 +842,7 @@
   color: var(--dsw-alias-label-tertiary);
   font-size: var(--dsw-font-xxs-12-font-size);
 }
+
 @container (width <= 520px) {
   .rong-inject-whitelist-grid {
     grid-template-columns: minmax(0, 1fr);

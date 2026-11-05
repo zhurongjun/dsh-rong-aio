@@ -1,3 +1,5 @@
+/** rc.5 选模前置适配：装饰公开 selectModel 方法，校验失败时不调用原生保存。 */
+
 import { symbols, type Context } from '@deepseek-ai/cordis'
 import type { SessionSelectModelRequest } from '@deepseek-ai/dsh-api-session-controller'
 import type { Controller } from './controller.ts'
@@ -10,15 +12,20 @@ export function installSelectionGuard(
 ): void {
   const service = ctx.sessionController
   const target = Reflect.get(service, symbols.original) ?? service
+
+  // 保存原有属性描述符；停用时既能恢复实例方法，也能还原继承的方法查找。
   const descriptor = Object.getOwnPropertyDescriptor(target, 'selectModel')
   const original: typeof service.selectModel = target.selectModel
   if (typeof original !== 'function') throw new Error('当前 DSH 不支持选模前置校验')
   let active = true
+
+  // 保留调用者 this，先确保会话已恢复，再进入与选词共用的串行校验队列。
   const guarded = async function (this: typeof service, request: SessionSelectModelRequest) {
     if (!active) return original.call(this, request)
     await initialize(request.sessionId)
     return controller.selectModel(request.sessionId, request, () => original.call(this, request))
   }
+
   Object.defineProperty(target, 'selectModel', {
     configurable: true,
     writable: true,
@@ -26,6 +33,7 @@ export function installSelectionGuard(
   })
   ctx.effect(() => () => {
     active = false
+
     // 其他插件若在我们之后装饰此方法，不覆盖其引用；它保留的本层引用将直接放行。
     if (target.selectModel !== guarded) return
     if (descriptor) Object.defineProperty(target, 'selectModel', descriptor)

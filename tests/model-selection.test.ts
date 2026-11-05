@@ -1,3 +1,5 @@
+/** 纯模型规则回归：明确 effort、读取与重置的不同语义、精确模型查找和多词搜索。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import {

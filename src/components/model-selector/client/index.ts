@@ -1,3 +1,5 @@
+/** 客户端接入：复用宿主模型目录，在模型插槽挂载选择器并托管样式生命周期。 */
+
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
@@ -8,6 +10,7 @@ import css from './model-selector/styles.css'
 
 export const inject = ['slots', 'modelDirectories', 'sessions', 'remote', 'remote.session']
 
+/** 注册模型输入框插槽与样式；模型目录由宿主管理，组件只委托读取与提交。 */
 export function apply(ctx: Context): void {
   ctx.effect(() => {
     const style = document.createElement('style')

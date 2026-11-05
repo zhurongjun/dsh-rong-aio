@@ -1,3 +1,5 @@
+/** 模板保存位置控件：全局始终可选，只有入口绑定工程时才提供工程选项。 */
+
 import { useEffect, useId, useState } from 'react'
 import {
   Button,
@@ -15,10 +17,19 @@ export function ScopeChoice({
   path,
   onChange,
 }: {
+  /** 当前编辑草稿选择的保存范围。 */
   value: Scope
+
+  /** 入口固定工作区；为空时不能新增工程选项。 */
   workspace: string
+
+  /** 编辑既有文件或保存中时禁用范围修改。 */
   disabled?: boolean
+
+  /** 当前文件或目标 prompts 目录，用官方 PathLabel 展示。 */
   path: string
+
+  /** 将合法范围写回草稿，实际落盘由设置页保存。 */
   onChange: (value: Scope) => void
 }) {
   const [open, setOpen] = useState(false)

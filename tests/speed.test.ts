@@ -1,9 +1,12 @@
+/** Fast 型号规则回归：允许列表、规范化别名、日期后缀与未知型号拒绝。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { speedRuleFor, speedKey } from '../src/components/model-selector/shared/speed.ts'
 import { createSpeedTransport } from '../src/components/model-selector/host/speed-transport.ts'
 
 const openai = speedRuleFor('gpt-6-astra')!
+
 const anthropic = speedRuleFor('claude-opus-5')!
 
 test('名称白名单：大小写、显示别名、日期后缀；不误开未知或不支持的型号', () => {
@@ -39,6 +42,7 @@ test('传输：并发隔离、真实 JSON 字段、beta 合并、取消信号、
   const delegate = globalThis.fetch
   const transport = createSpeedTransport()
   const signal = new AbortController()
+
   const generate = (model: string, path: string) =>
     async function* () {
       await new Promise((resolve) => setTimeout(resolve, model === 'gpt-6-astra' ? 3 : 1))
@@ -56,11 +60,13 @@ test('传输：并发隔离、真实 JSON 字段、beta 合并、取消信号、
         })
       ).json()
     }
+
   const consume = async (stream: AsyncIterable<unknown>) => {
     const result = []
     for await (const item of stream) result.push(item)
     return result as { body: Record<string, unknown>; beta: string }[]
   }
+
   try {
     const [fast, standard, ultra, claude, untouched] = await Promise.all([
       consume(

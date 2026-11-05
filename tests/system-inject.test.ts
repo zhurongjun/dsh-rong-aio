@@ -1,3 +1,5 @@
+/** 破甲文件与事务回归：Markdown、目录冲突、显式选择、版本校验、冻结及跨进程写入。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { mkdir, writeFile, readFile, rename, rm } from 'node:fs/promises'

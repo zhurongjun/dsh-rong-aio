@@ -1,3 +1,5 @@
+/** 真实宿主服务接入回归：配置范围、提示词装配、选择适配、冻结护栏及继承。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createSystemMessage } from '@deepseek-ai/dsh-llm'

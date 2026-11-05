@@ -1,3 +1,5 @@
+/** 宿主拒绝结果：以 DSH RemoteError 传递通知身份，调用者决定如何呈现。 */
+
 import { RemoteError } from '@deepseek-ai/dsh-typert-protocol'
 import { INJECT_SELECTION_ERROR } from '../shared/selection-error.ts'
 

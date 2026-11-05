@@ -1,9 +1,15 @@
+/** UI 契约正反例：颜色语法、token、精确例外、主题所有权与源码静态样式。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { checkCss, checkSource, contract } from '../scripts/check-ui-contract.mjs'
 
 const file = 'src/components/model-selector/client/model-selector/styles.css'
+
+/** 断言 CSS 正例没有任何契约诊断。 */
 const valid = (source) => assert.deepEqual(checkCss(source, file), [])
+
+/** 断言 CSS 反例包含指定错误，保留完整诊断便于失败定位。 */
 const invalid = (source, pattern) => assert.match(checkCss(source, file).join('\n'), pattern)
 
 test('UI 契约：语义 token、组件布局、字符串和 URL 不误报', () => {

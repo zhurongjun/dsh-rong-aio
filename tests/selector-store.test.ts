@@ -1,3 +1,5 @@
+/** 瞬时 store 回归：快速开合、Toast 序号，以及 Fast 迟到请求和重复写入防护。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createSelectorStore } from '../src/components/model-selector/client/model-selector/selector-store.ts'
@@ -59,10 +61,12 @@ test('Fast 请求：路由切换与卸载取消旧写入，迟到结果不污染
   const store = createSpeedStore((error) => errors.push(error))
   const first = { sessionId: 'session', provider: 'first', model: 'gpt-6-astra' }
   const second = { ...first, provider: 'second' }
+
   const reply = async (index: number, mode: string) => {
     requests[index]!.resolve(Response.json({ mode, modes: ['standard', 'fast'] }))
     await new Promise<void>((resolve) => setImmediate(resolve))
   }
+
   store.sync(first, false)
   await reply(0, 'standard')
   store.sync(first, false)
@@ -89,6 +93,7 @@ test('Fast 请求：路由切换与卸载取消旧写入，迟到结果不污染
   assert.deepEqual(errors, [])
   await store.select(speedKey(second), 'fast')
   assert.equal(requests.length, 4, '卸载后禁止写入')
+
   // React StrictMode 的 effect 清理/重建允许复用实例，不能卡在 saving。
   store.sync(second, true)
   await reply(4, 'fast')

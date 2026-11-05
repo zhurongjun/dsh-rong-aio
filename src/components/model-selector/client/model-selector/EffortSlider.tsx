@@ -1,16 +1,29 @@
+/** 滑杆手势层：指针拖动只预览，释放才提交；键盘直接选择，取消手势不提交。 */
+
 import { memo, useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 import type { ModelReasoningEffort } from '@deepseek-ai/dsh-api-session-controller/types'
 import { clamp, detentAt } from '../../shared/slider-motion.ts'
 import { useSliderMotion } from './useSliderMotion.ts'
 
+/** 本视图所需的输入契约；数据保存与宿主副作用由外层负责。 */
 interface Props {
+  /** 模型目录提供的明确档位，顺序即滑杆方向。 */
   efforts: readonly ModelReasoningEffort[]
+
+  /** 宿主确认的 effort ID；undefined 表示没有明确选择。 */
   selected: string | undefined
+
+  /** 保存中、锁定或弹层关闭时禁止提交手势。 */
   disabled: boolean
+
+  /** 仅同步拖动标题；undefined 清理预览，不发请求。 */
   onPreview: (id: string | undefined) => void
+
+  /** 指针释放或键盘选择时提交一个明确 ID。 */
   onCommit: (id: string) => void
 }
 
+/** 可访问的离散档位滑杆；视觉位置由连续动画驱动，但提交值始终是目录 ID。 */
 export const EffortSlider = memo(function EffortSlider({
   efforts,
   selected,
@@ -36,12 +49,16 @@ export const EffortSlider = memo(function EffortSlider({
 
   useEffect(() => {
     const media = window.matchMedia('(prefers-reduced-motion: reduce)')
+
+    /** 同步系统动态效果偏好；首帧读取和后续媒体查询变化使用同一处理。 */
     const update = () => setReduced(media.matches)
+
     update()
     media.addEventListener('change', update)
     return () => media.removeEventListener('change', update)
   }, [])
 
+  /** 取消正在进行的拖动并清理预览；不提交未完成选择。 */
   const cancel = useCallback(() => {
     drag.current = null
     setPreview(null)
@@ -53,14 +70,19 @@ export const EffortSlider = memo(function EffortSlider({
     return () => window.removeEventListener('blur', cancel)
   }, [cancel])
 
+  /** 把屏幕横坐标换算为滑块圆心在有效轨道中的 0–1 位置。 */
   const point = (clientX: number) => {
     const rect = root.current!.getBoundingClientRect()
     return clamp((clientX - rect.left - 14) / Math.max(1, rect.width - 28), 0, 1)
   }
+
+  /** 同步局部档位和标题预览，持久化留到手势结束。 */
   const show = (next: number) => {
     setPreview(next)
     onPreview(efforts[next]?.id)
   }
+
+  /** Escape 取消拖动；方向键和 Home/End 直接提交合法档位。 */
   const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape' && drag.current) {
       event.preventDefault()

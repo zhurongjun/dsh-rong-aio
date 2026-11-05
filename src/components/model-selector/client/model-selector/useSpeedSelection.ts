@@ -1,3 +1,5 @@
+/** Fast 视图订阅：渲染阶段核对路由身份，避免 effect 清理前闪现上一模型的状态。 */
+
 import { useCallback } from 'react'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'

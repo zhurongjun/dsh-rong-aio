@@ -1,3 +1,5 @@
+/** 滑杆纯计算回归：档位阈值、端点钳制、方向反转及最终收敛。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { advanceMotion, detentAt } from '../src/components/model-selector/shared/slider-motion.ts'

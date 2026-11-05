@@ -1,3 +1,5 @@
+/** 速度宿主回归：按会话/路由持久化、HTTP 字段改写、并发作用域隔离及卸载恢复。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import type { Context } from '@deepseek-ai/cordis'
@@ -60,6 +62,7 @@ test('宿主接口：验证型号与协议、按会话隔离、持久化后回�
     },
     on() {},
   }
+
   const call = async (mode?: string, sessionId = 'a', model = 'gpt-6-astra') => {
     const identity = { sessionId, provider: 'fixture', model }
     const response = await route!.fetch(
@@ -74,6 +77,7 @@ test('宿主接口：验证型号与协议、按会话隔离、持久化后回�
     )
     return { status: response.status, data: await response.json() }
   }
+
   try {
     await apply(ctx as unknown as Context)
     assert.deepEqual((await call()).data.modes, ['standard', 'fast', 'ultrafast'])

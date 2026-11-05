@@ -1,3 +1,5 @@
+/** 设置导航图标适配：在本组件挂载范围内追加裂盾装饰，卸载恢复宿主导航。 */
+
 import { useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ArmorIcon } from './ArmorIcon.tsx'
@@ -17,6 +19,8 @@ export function SettingsNavIcon() {
     const nav = anchor.current?.closest('[data-shortcut-modal="settings"]')?.querySelector('nav')
     if (!nav) return
     let marker: HTMLSpanElement | undefined
+
+    /** 在当前设置面板内精确定位唯一导航项；节点变化时重新挂载装饰，结构不匹配则撤销。 */
     const update = () => {
       const matches = [...nav.querySelectorAll('button')].filter(
         (button) => button.textContent?.trim() === SETTINGS_LABEL,
@@ -33,6 +37,7 @@ export function SettingsNavIcon() {
       }
       setTarget(marker)
     }
+
     update()
     const observer = new MutationObserver(update)
     observer.observe(nav, { childList: true, subtree: true })

@@ -1,3 +1,5 @@
+/** Fast 菜单视图：独立控制展开、退场和焦点，速度数据与保存交给 speed store。 */
+
 import {
   memo,
   useEffect,
@@ -14,17 +16,27 @@ import { FastIcon } from './SelectorIcons.tsx'
 import { useSpeedSelection } from './useSpeedSelection.ts'
 import type { SpeedStore } from './speed-store.ts'
 
+/** 本视图所需的输入契约；数据保存与宿主副作用由外层负责。 */
 interface Props {
+  /** 独立速度 store，读写生命周期由外层选择器持有。 */
   store: SpeedStore
+
+  /** 当前完整路由；变化时重建菜单局部状态。 */
   identityKey: string
+
+  /** 主选择器是否打开；主弹层关闭同时关闭 Fast 菜单。 */
   open: boolean
+
+  /** 选模保存或会话锁定时暂时禁止速度操作。 */
   disabled: boolean
 }
 
+/** 按完整速度身份隔离 Fast 菜单实例，模型切换不会沿用上一菜单展开状态。 */
 export const SpeedControl = memo(function SpeedControl(props: Props) {
   return <Control key={props.identityKey} {...props} />
 })
 
+/** 维护 Fast 菜单的局部可见性、定位与退场；展开不等于宿主速度已经改变。 */
 function Control({ store, identityKey, open, disabled }: Props) {
   const { state, loading, saving, select } = useSpeedSelection(store, identityKey)
   const [expanded, setExpanded] = useState(false)
@@ -50,6 +62,7 @@ function Control({ store, identityKey, open, disabled }: Props) {
       setMounted(false)
       return
     }
+
     // 正常由 transitionend 卸载；取消过渡、隐藏页面等情况由这个兜底清理。
     const timer = window.setTimeout(() => setMounted(false), 180)
     return () => window.clearTimeout(timer)
@@ -57,6 +70,8 @@ function Control({ store, identityKey, open, disabled }: Props) {
 
   useLayoutEffect(() => {
     if (!visible || !mounted) return
+
+    /** 按闪电按钮锚点选择左右侧并夹紧到视口；缩放原点始终靠近锚点。 */
     const place = () => {
       const anchor = button.current?.getBoundingClientRect()
       const surface = menu.current
@@ -93,10 +108,13 @@ function Control({ store, identityKey, open, disabled }: Props) {
           : next,
       )
     }
+
     place()
     const observer = new ResizeObserver(place)
     if (menu.current) observer.observe(menu.current)
     if (button.current) observer.observe(button.current)
+
+    /** 点击按钮和独立门户以外的位置时关闭；不影响主模型面板的事件处理。 */
     const outside = (event: PointerEvent) => {
       if (
         !menu.current?.contains(event.target as Node) &&
@@ -104,6 +122,7 @@ function Control({ store, identityKey, open, disabled }: Props) {
       )
         setExpanded(false)
     }
+
     document.addEventListener('pointerdown', outside)
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true)
@@ -126,6 +145,7 @@ function Control({ store, identityKey, open, disabled }: Props) {
       ?.focus({ preventScroll: true })
   }, [visible, mounted, position.visibility])
 
+  /** 先收起菜单并恢复按钮焦点，再让 store 保存速度；不提前改写显示值。 */
   function choose(mode: SpeedMode) {
     if (!visible) return
     setExpanded(false)

@@ -1,3 +1,5 @@
+/** 验证输入框展示忠实读取 resolved，通知与发送阶段不会重新推断破甲状态。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { fixture } from './helpers/system-inject.ts'

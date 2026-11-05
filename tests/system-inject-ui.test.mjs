@@ -1,3 +1,5 @@
+/** 设置视图 DOM 回归：裂盾导航、模板分组、白名单卡片与新增菜单的键盘行为。 */
+
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { mkdir } from 'node:fs/promises'
@@ -6,12 +8,18 @@ import { JSDOM } from 'jsdom'
 import React, { act } from 'react'
 
 const dom = new JSDOM('<!doctype html><html><body></body></html>')
+
 const { document } = dom.window
+
 for (const name of ['window', 'document', 'HTMLElement', 'MutationObserver'])
   globalThis[name] = dom.window[name]
+
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
+
 const { createRoot } = await import('react-dom/client')
+
 await mkdir('agent_temp/tests', { recursive: true })
+
 await build({
   entryPoints: ['src/components/system-inject/client/SettingsNavIcon.tsx'],
   outfile: 'agent_temp/tests/inject-settings-icon.mjs',
@@ -35,6 +43,7 @@ await build({
     },
   ],
 })
+
 const { SettingsNavIcon } = await import('../agent_temp/tests/inject-settings-icon.mjs')
 
 test('设置裂盾适配只作用于本分类，支持导航重挂载，停用还原原 SVG', async () => {
@@ -99,6 +108,7 @@ await build({
     },
   ],
 })
+
 const { TemplateLibrary } = await import('../agent_temp/tests/inject-template-library.mjs')
 
 test('模板卡片按入口范围分组，独立折叠、筛选与操作不会跨来源', async () => {
@@ -118,6 +128,7 @@ test('模板卡片按入口范围分组，独立折叠、筛选与操作不会�
   let workspace = '/project'
   let disabled = false
   const operations = []
+
   const render = () =>
     root.render(
       React.createElement(TemplateLibrary, {
@@ -134,9 +145,13 @@ test('模板卡片按入口范围分组，独立折叠、筛选与操作不会�
         onDelete: (prompt) => operations.push(['delete', prompt.file]),
       }),
     )
+
   const buttons = () => [...document.querySelectorAll('button')]
+
   const group = (index) => document.querySelectorAll('.rong-inject-library-toggle')[index]
+
   const body = (index) => document.getElementById(group(index).getAttribute('aria-controls'))
+
   try {
     await act(async () => render())
     assert.equal(document.querySelectorAll('section').length, 2)
@@ -236,7 +251,9 @@ await build({
     },
   ],
 })
+
 const { Whitelist } = await import('../agent_temp/tests/inject-whitelist.mjs')
+
 // jsdom 没有布局；滚动定位不参与本测试，只检查可选路由与提交行为。
 dom.window.HTMLElement.prototype.scrollIntoView = () => {}
 
@@ -254,6 +271,7 @@ test('白名单菜单保留并禁用已添加项，键盘跳过授权项，同�
   ]
   let disabled = false
   const operations = []
+
   const render = () =>
     root.render(
       React.createElement(Whitelist, {
@@ -265,9 +283,12 @@ test('白名单菜单保留并禁用已添加项，键盘跳过授权项，同�
         onRemove: (route) => operations.push(['remove', route]),
       }),
     )
+
   const addButton = () =>
     [...document.querySelectorAll('button')].find((button) => button.textContent === '新增')
+
   const options = () => [...document.querySelectorAll('[role="option"]')]
+
   const key = (value, composing = false) =>
     document.activeElement.dispatchEvent(
       new dom.window.KeyboardEvent('keydown', {
@@ -277,6 +298,7 @@ test('白名单菜单保留并禁用已添加项，键盘跳过授权项，同�
         cancelable: true,
       }),
     )
+
   try {
     await act(async () => render())
     assert.equal(document.querySelectorAll('.rong-inject-whitelist-card').length, 2)
@@ -284,6 +306,7 @@ test('白名单菜单保留并禁用已添加项，键盘跳过授权项，同�
     assert.ok(document.body.textContent.includes('old'))
     await act(async () => document.querySelector('.rong-inject-whitelist-remove').click())
     assert.deepEqual(operations.pop(), ['remove', { provider: 'p1', model: 'same' }])
+
     // 保留原始白名单直到服务端确认，不能由点击乐观删除。
     assert.equal(document.querySelectorAll('.rong-inject-whitelist-card').length, 2)
     await act(async () => {

@@ -1,3 +1,5 @@
+/** 白名单视图：已授权卡片与独立新增菜单；显示名不参与授权身份比较。 */
+
 import { useMemo, useRef, useState } from 'react'
 import {
   Button,
@@ -19,11 +21,22 @@ export function Whitelist({
   onAdd,
   onRemove,
 }: {
+  /** 用户配置中已确认的精确授权条目。 */
   whitelist: Route[]
+
+  /** 模型目录，给卡片补充可读名称，不增加授权。 */
   routes: CatalogRoute[]
+
+  /** 部分提供商目录加载失败的可读诊断。 */
   catalogErrors: string[]
+
+  /** 宿主结果未确认或保存中时阻止授权编辑。 */
   disabled: boolean
+
+  /** 保存新增精确路由；本视图不乐观插入卡片。 */
   onAdd: (route: Route) => void
+
+  /** 保存移除授权；已有会话的后续请求会重新检查。 */
   onRemove: (route: Route) => void
 }) {
   const [query, setQuery] = useState('')
