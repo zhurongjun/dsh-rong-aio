@@ -1,10 +1,10 @@
-/** rc.5 会话目录适配：从公开 Loader 的活动后端配置定位 root，再编码路径。 */
+/** 会话目录适配：从公开 Loader 的活动后端配置定位 root，再编码路径。 */
 
 import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 
-/** 与 rc.5 JSONL format.ts 的磁盘编码一致；不访问后端私有 root/locate。 */
+/** 与支持版本的 JSONL 磁盘编码一致；不访问后端私有 root/locate。 */
 export function encodeSessionSegment(value: string): string {
   if (!value) throw new Error('会话 ID 不能为空')
   if (value === '.' || value === '..') return '~002E'.repeat(value.length)
@@ -18,7 +18,7 @@ export function encodeSessionSegment(value: string): string {
   return result
 }
 
-/** 把原生 cwd 编码为 rc.5 工程分区键，保留官方截断和分隔符折叠规则。 */
+/** 把原生 cwd 编码为工程分区键，保留官方截断和分隔符折叠规则。 */
 export function projectKey(cwd: string): string {
   if (!cwd) throw new Error('工作区路径不能为空')
   let result = ''
@@ -59,7 +59,13 @@ export function sessionRoot(ctx: Context): string {
       !entry.disabled,
   )
   if (entries.length !== 1) throw new Error('无法唯一定位活动会话存储，请检查 JSONL 后端配置')
-  const root: unknown = entries[0].fiber?.config?.root
+  const fiber = entries[0].fiber
+  // Cordis 4.1 的 config 保留原始表达式，只有 effectiveConfig 是活动实例使用的值。
+  // Cordis 4.0 将已求值配置保存在 config 中。
+  const config: unknown =
+    fiber && 'effectiveConfig' in fiber ? fiber.effectiveConfig : fiber?.config
+  const root =
+    typeof config === 'object' && config !== null && 'root' in config ? config.root : undefined
   if (typeof root !== 'string' || !root) throw new Error('会话存储缺少已解析的 root 配置')
   return resolve(root)
 }

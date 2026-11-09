@@ -1,6 +1,6 @@
 # 安装与维护
 
-兼容基线为 **DeepSeek Harness `0.2.1-rc.5`**。Desktop 与 Web 使用各自的 profile，安装来源、构建许可和启用状态分别管理。
+支持 **DeepSeek Harness `0.2.1-rc.5` 和 `0.2.2-rc.1`**。插件清单逐个列出支持的版本，DSH 会在加载组件前核对 `engines.dsh`。Desktop 与 Web 使用各自的 profile，安装来源、构建许可和启用状态分别管理。
 
 ## Git 安装入口
 
@@ -41,7 +41,7 @@ macOS Desktop 会在启动时读取登录 shell 的环境；若安装工具或�
 
 ## Web
 
-以下命令中的 `dsh` 必须来自 `0.2.1-rc.5`。没有全局命令时，将 `dsh` 替换为 `pnpm dlx @deepseek-ai/dsh@0.2.1-rc.5`。
+以下命令中的 `dsh` 须使用上文列出的版本。没有全局命令时，可用 `pnpm dlx @deepseek-ai/dsh@0.2.2-rc.1` 代替 `dsh`。
 
 ```sh
 dsh plugin --profile web add 'github:zhurongjun/dsh-rong-aio#<完整提交 SHA>'
@@ -126,7 +126,7 @@ Desktop 可在“添加插件”中填写本地包绝对路径。安装包只包
 | Fast 灰色                                  | 检查型号允许列表、连接协议与宿主速度接口；未支持的组合保持禁用                               |
 | 保存失败                                   | 检查会话锁、连接与模型路由，再重试；界面会回退原值                                           |
 | 模型目录加载失败                           | 点击“重新加载”，检查 DSH 提供商设置                                                          |
-| 版本不兼容                                 | 当前只验证 rc.5，不启用兼容豁免                                                              |
+| 版本不兼容                                 | 核对宿主版本和已安装副本的 `engines.dsh`；宿主升级后须安装支持该版本的插件包                 |
 
 各组件的宿主入口分别提供速度适配与破甲模式服务；浏览器代码通过 DSH `__ModuleLoader__` 模块工厂加载，每个内部组件使用自己的模块身份；React、UI primitives、Cordis 与 Loader 由 DSH 提供。修改宿主代码、包清单或配置层后需重启 DSH，仅刷新 Web 页面不会重新载入宿主模块。Zod 随宿主产物打包。
 

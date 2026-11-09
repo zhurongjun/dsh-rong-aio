@@ -2,14 +2,25 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { setImmediate } from 'node:timers/promises'
 import { Context } from '@deepseek-ai/cordis'
 import Loader from '@deepseek-ai/cordis-plugin-loader'
+import { evaluatePluginCompatibility } from '@deepseek-ai/dsh-app-boot'
 import ClientModules from '@deepseek-ai/dsh-client-modules'
 import { defineComponent } from '../src/runtime/host/component.ts'
+
+test('安装清单：两个已验证的 DSH 版本均通过原生检查，未验证的版本仍被拦截', async () => {
+  const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  for (const version of ['0.2.1-rc.5', '0.2.2-rc.1']) {
+    assert.equal(evaluatePluginCompatibility(manifest, {}, version), undefined)
+  }
+  const unsupported = evaluatePluginCompatibility(manifest, {}, '0.2.2-rc.2')
+  assert.equal(unsupported?.requirements['engines.dsh'], manifest.engines.dsh)
+  assert.equal(unsupported?.exempted, false)
+})
 
 test('真实 Loader：组件独立客户端身份、单独启停、总包重载及异步资源清理', async () => {
   await mkdir('agent_temp/tests', { recursive: true })

@@ -183,6 +183,18 @@ test('无法唯一识别活动存储时禁止冻结；不能回退猜测默认�
   assert.equal(f.calls(), 0)
 })
 
+test('Cordis 4.1 使用生效配置定位快照，忽略原始 root 表达式', async (t) => {
+  const f = await hostFixture(t)
+  const fiber = f.entries[0].fiber
+  fiber.effectiveConfig = fiber.config
+  fiber.config = { root: { expression: "dshHomePath('sessions')" } }
+
+  await f.reload()
+  await f.api({ type: 'select', sessionId: f.agent.id, state: { name: f.prompt.name } })
+  await f.stream()
+  assert.equal((await f.frozen()).state.name, f.prompt.name)
+})
+
 test('公共选模方法在保存前拒绝不合法模型，停用还原；子快照可脱离父会话恢复', async (t) => {
   const f = await hostFixture(t)
   await f.api({ type: 'select', sessionId: f.agent.id, state: { name: f.prompt.name } })

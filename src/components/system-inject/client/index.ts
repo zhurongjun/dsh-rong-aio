@@ -5,11 +5,26 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
+import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import { ArmorIcon } from './ArmorIcon.tsx'
 import { Composer } from './Composer.tsx'
 import { Settings } from './Settings.tsx'
 import { createInjectStore } from './store.ts'
 import { SETTINGS_LABEL, SettingsNavIcon } from './SettingsNavIcon.tsx'
 import css from './styles.css'
+
+// 开发类型以 rc.5 为基线，补齐 rc.1 设置外壳公开的图标插槽契约。
+declare module '@deepseek-ai/dsh-client-ui-slots' {
+  interface SlotMap {
+    'settings.section.icon': {
+      kind: 'list'
+      scope: 'root'
+      owner: { size: number; active: boolean }
+    }
+  }
+}
+
+const SETTINGS_ID = 'rong-aio-system-inject'
 
 export const inject = ['slots', 'sessions', 'conversation']
 
@@ -74,8 +89,15 @@ export function apply(ctx: Context): void {
   )
   ctx.slots.inject('settings.section', () =>
     ctx.slots.register(
-      { name: 'settings.section', id: 'rong-aio-system-inject', order: 60, label: SETTINGS_LABEL },
+      { name: 'settings.section', id: SETTINGS_ID, order: 60, label: SETTINGS_LABEL },
       () => createElement(Settings, { store: settingsFor() }),
+    ),
+  )
+
+  // 新版由设置外壳按分类 ID 渲染图标。旧版没有声明该插槽，注册等待随组件一并释放。
+  ctx.slots.inject('settings.section.icon', () =>
+    ctx.slots.register({ name: 'settings.section.icon', id: SETTINGS_ID }, ({ size }) =>
+      createElement(ArmorIcon, { active: true, size }),
     ),
   )
   ctx.slots.inject('settings.action', () =>
