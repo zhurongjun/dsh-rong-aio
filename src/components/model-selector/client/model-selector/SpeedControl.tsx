@@ -58,11 +58,6 @@ function Control({ store, identityKey, open, disabled }: Props) {
       return
     }
     if (!mounted) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      setMounted(false)
-      return
-    }
-
     // 正常由 transitionend 卸载；取消过渡、隐藏页面等情况由这个兜底清理。
     const timer = window.setTimeout(() => setMounted(false), 180)
     return () => window.clearTimeout(timer)

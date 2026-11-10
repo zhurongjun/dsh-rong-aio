@@ -15,15 +15,12 @@ interface Props {
   /** 是否存在真实/预览档位；没有时不显示粒子和经过标记。 */
   hasSelection: boolean
 
-  /** 系统减少动态效果偏好；启用时直接到位并停用粒子。 */
-  reduced: boolean
-
   /** 档位圆点数量，用于计算经过状态。 */
   count: number
 }
 
 /** 动画拥有这些 DOM 样式和粒子节点；逐帧位移不进入 React / Immer 状态。 */
-export function useSliderMotion({ root, target, hasSelection, reduced, count }: Props) {
+export function useSliderMotion({ root, target, hasSelection, count }: Props) {
   const sparkles = useRef<HTMLDivElement>(null)
   const ticks = useRef<HTMLDivElement>(null)
   const motion = useRef({ position: target, velocity: 0 })
@@ -37,7 +34,7 @@ export function useSliderMotion({ root, target, hasSelection, reduced, count }: 
       const container = sparkles.current
       if (!container) return
       container.style.opacity = String(0.6 + 0.4 * (hasSelection ? energyFor(position) : 0))
-      const particles = reduced || !hasSelection ? [] : particlesFor(position)
+      const particles = hasSelection ? particlesFor(position) : []
       while (container.childElementCount > particles.length) container.lastElementChild!.remove()
       particles.forEach((particle, index) => {
         let star = container.children[index] as HTMLSpanElement | undefined
@@ -70,9 +67,7 @@ export function useSliderMotion({ root, target, hasSelection, reduced, count }: 
     /** 计算秒级帧间隔并推进运动；静止后停止循环，目标变化会由 effect 重启。 */
     const step = () => {
       const now = performance.now()
-      motion.current = reduced
-        ? { position: target, velocity: 0 }
-        : advanceMotion(motion.current, target, (now - last) / 1000)
+      motion.current = advanceMotion(motion.current, target, (now - last) / 1000)
       last = now
       paint(motion.current.position)
       if (motion.current.position !== target || motion.current.velocity !== 0)
@@ -81,7 +76,7 @@ export function useSliderMotion({ root, target, hasSelection, reduced, count }: 
 
     frame = requestAnimationFrame(step)
     return () => cancelAnimationFrame(frame)
-  }, [root, target, hasSelection, reduced, count])
+  }, [root, target, hasSelection, count])
 
   return { sparkles, ticks }
 }

@@ -303,10 +303,8 @@
   line-height: 20px;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .rong-inject-library-toggle > svg {
-    transition: transform 140ms var(--ds-ease-in-out);
-  }
+.rong-inject-library-toggle > svg {
+  transition: transform 140ms var(--ds-ease-in-out);
 }
 
 @container (width <= 520px) {
@@ -600,13 +598,6 @@
 
 [data-composer-card]:has([data-rong-inject-active='true'])::before {
   opacity: 1;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  [data-composer-card]:has(.rong-inject-marker)::before,
-  .rong-inject-trigger-chevron {
-    transition: none;
-  }
 }
 
 @media (max-width: 540px) {

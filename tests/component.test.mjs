@@ -336,6 +336,110 @@ test('实际组件：拖动只在释放时保存、取消不保存、失败回�
   assert.equal(document.querySelector('[role="dialog"]'), null)
 })
 
+test('档位提交等待宿主时保留预览；失焦不回跳、成功平滑交接、拒绝才回退', async (t) => {
+  let time = 0
+  let sequence = 0
+  const frames = new Map()
+  t.mock.method(globalThis.performance, 'now', () => time)
+  t.mock.method(globalThis, 'requestAnimationFrame', (callback) => {
+    frames.set(++sequence, callback)
+    return sequence
+  })
+  t.mock.method(globalThis, 'cancelAnimationFrame', (id) => frames.delete(id))
+  let state = {
+    current: { provider: 'p', model: 'first', reasoningEffort: 'medium' },
+    groups: [{ id: 'p', name: 'Provider', models }],
+    failures: [],
+    pending: null,
+    status: 'ready',
+    error: null,
+  }
+  const subscribers = new Set()
+  const requests = []
+  const update = (patch) => {
+    state = { ...state, ...patch }
+    for (const notify of subscribers) notify()
+  }
+  const root = createRoot(document.getElementById('root'))
+  const pointer = async (slider, type, x) => {
+    const event = new MouseEvent(type, { bubbles: true, clientX: x, button: 0 })
+    Object.defineProperty(event, 'pointerId', { value: 1 })
+    await act(async () => slider.dispatchEvent(event))
+  }
+  const tick = () => {
+    time += 1000 / 60
+    const callbacks = [...frames.values()]
+    frames.clear()
+    for (const callback of callbacks) callback(time)
+  }
+  try {
+    await act(async () =>
+      root.render(
+        React.createElement(ModelSelector, {
+          sessionId: 'pending-effort',
+          available: true,
+          locked: false,
+          directory: {
+            getSnapshot: () => state,
+            subscribe: (notify) => {
+              subscribers.add(notify)
+              return () => subscribers.delete(notify)
+            },
+          },
+          load() {},
+          select(selection) {
+            const request = Promise.withResolvers()
+            requests.push({ ...request, selection })
+            update({ pending: selection })
+            return request.promise
+          },
+        }),
+      ),
+    )
+    await act(async () => document.querySelector('.rong-model-trigger').click())
+    const slider = document.querySelector('[role="slider"]')
+    slider.getBoundingClientRect = () => ({ left: 0, width: 260 })
+    await pointer(slider, 'pointerdown', 245)
+    for (let frame = 0; frame < 30; frame++) tick()
+    const stars = [...slider.querySelectorAll('.rong-effort-star')]
+    assert.ok(stars.length > 0)
+    await pointer(slider, 'pointerup', 245)
+    await act(async () => window.dispatchEvent(new window.Event('blur')))
+    assert.equal(requests.length, 1)
+    assert.equal(state.current.reasoningEffort, 'medium', '预览不能提前改写宿主确认值')
+    assert.equal(slider.getAttribute('aria-valuetext'), 'max')
+    assert.equal(slider.getAttribute('aria-busy'), 'true')
+    assert.equal(document.querySelector('.rong-effort-title').textContent, 'max')
+    for (let frame = 0; frame < 10; frame++) {
+      tick()
+      assert.equal(slider.style.getPropertyValue('--rong-position'), '1', '等待中不能退回旧档')
+    }
+    assert.deepEqual([...slider.querySelectorAll('.rong-effort-star')], stars)
+    await act(async () => {
+      update({ current: requests[0].selection, pending: null })
+      requests[0].resolve({ ok: true })
+    })
+    assert.equal(slider.getAttribute('aria-valuetext'), 'max')
+    assert.equal(slider.getAttribute('aria-busy'), null)
+    assert.equal(document.querySelector('[role="slider"]'), slider)
+    await act(async () =>
+      slider.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true })),
+    )
+    assert.equal(slider.getAttribute('aria-valuetext'), 'off', '键盘提交同样保留待确认预览')
+    assert.equal(state.current.reasoningEffort, 'max')
+    await act(async () => {
+      update({ pending: null })
+      requests[1].resolve({ ok: false, error: { message: '拒绝档位修改' } })
+    })
+    assert.equal(slider.getAttribute('aria-valuetext'), 'max')
+    assert.equal(document.querySelector('.rong-effort-title').textContent, 'max')
+    assert.equal(document.querySelectorAll('[data-test-toast]').length, 1)
+  } finally {
+    await act(async () => root.unmount())
+  }
+  assert.equal(frames.size, 0)
+})
+
 test('Fast 菜单：按支持档位显示、键盘选择、实心状态、写入失败不冒充成功', async () => {
   let mode = 'standard'
   let fail = false
@@ -420,9 +524,9 @@ test('Fast 菜单：按支持档位显示、键盘选择、实心状态、写入
   assert.equal(document.querySelector('[role="menu"]'), null)
 })
 
-test('主弹层与 Fast 退场：结束后卸载；快速重开保留同一面板并取消旧清理', async () => {
+test('系统减少动态效果开启时仍完成主弹层与 Fast 退场，快速重开保留同一面板', async () => {
   const originalMatchMedia = window.matchMedia
-  window.matchMedia = () => ({ matches: false, addEventListener() {}, removeEventListener() {} })
+  window.matchMedia = () => ({ matches: true, addEventListener() {}, removeEventListener() {} })
   globalThis.fetch = async () => Response.json({ mode: 'standard', modes: ['standard', 'fast'] })
   const state = {
     current: { provider: 'p', model: 'gpt-6-astra', reasoningEffort: 'high' },
@@ -586,7 +690,7 @@ test('输入框 Fast 提示：不打开弹层也读取持久化状态，切换�
   await act(async () => root.unmount())
 })
 
-test('动画帧直接绘制且不触发 React 提交；目录订阅稳定、卸载取消动画', async (t) => {
+test('系统减少动态效果开启时滑块与粒子仍连续绘制；目录订阅稳定、卸载取消动画', async (t) => {
   const { advanceMotion } = await import('../src/components/model-selector/shared/slider-motion.ts')
   const { particlesFor, energyFor } =
     await import('../src/components/model-selector/shared/particle-motion.ts')
@@ -603,7 +707,7 @@ test('动画帧直接绘制且不触发 React 提交；目录订阅稳定、卸�
   })
   t.mock.method(globalThis, 'cancelAnimationFrame', (id) => frames.delete(id))
   t.mock.method(window, 'matchMedia', () => ({
-    matches: false,
+    matches: true,
     addEventListener() {},
     removeEventListener() {},
   }))

@@ -146,11 +146,6 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
 
   useEffect(() => {
     if (open || !mounted) return
-    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-      actions.unmount()
-      return
-    }
-
     // 正常在 transform 退场完成后卸载；页面隐藏或过渡被取消时仍能清理。
     const timer = window.setTimeout(actions.unmount, 180)
     return () => window.clearTimeout(timer)
@@ -277,10 +272,10 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
 
   /** 只提交当前模型目录中的明确档位；相同选择不产生重复写入。 */
   const chooseEffort = useCallback(
-    (value: string) => {
-      if (!current || !efforts.some((entry) => entry.id === value)) return
-      if (current.reasoningEffort === value) return
-      void submit({ provider: current.provider, model: current.model, reasoningEffort: value })
+    async (value: string): Promise<boolean> => {
+      if (!current || !efforts.some((entry) => entry.id === value)) return false
+      if (current.reasoningEffort === value) return true
+      return submit({ provider: current.provider, model: current.model, reasoningEffort: value })
     },
     [current, efforts, submit],
   )

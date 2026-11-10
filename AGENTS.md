@@ -70,7 +70,7 @@
 - 以 DSH `0.2.1-rc.5` 为基线，遵守 [UI 消费契约](docs/ui-contract.md) 与 `scripts/ui-contract.json`。直接使用宿主提供的语义 CSS 变量和 `@deepseek-ai/dsh-client-ui-primitives` 公开组件；不复制全量 token、主题 CSS 或组件库，不建立重复的主题状态管理或逐项转发层。
 - 中性文字、图标、背景、边框、hover、focus、disabled 和强调色必须使用官方语义 token，不用相近 hex 猜测，不直接消费原始色板，不自行写 `light-dark()`、系统明暗媒体查询或宿主明暗属性分支。DeepSeek 蓝使用 `--dsw-alias-state-business-primary`；`brand-primary` 是中性色。
 - 菜单使用 `MenuSurface`，由官方管理填充、模糊、圆角与平台 backing；不得覆盖 `--dsw-menu-surface-fill`、`--dsw-menu-backdrop-filter` 或主题圆角。其他宿主命名空间变量默认只读，仅允许消费契约中精确登记的局部 elevation/scrollbar 重绑。
-- 普通控件优先使用官方 public export；先核对布局密度、可访问性、键盘和生命周期语义再替换。统一样式不等于改成官方模型选择流程；保留当前单层入口、明确 effort、Fast、SVG、滑杆几何、向左运动粒子、已过圆点隐藏与 reduced-motion。
+- 普通控件优先使用官方 public export；先核对布局密度、可访问性、键盘和生命周期语义再替换。统一样式不等于改成官方模型选择流程；保留当前单层入口、明确 effort、Fast、SVG、滑杆几何、向左运动粒子与已过圆点隐藏。本插件自有动画独立于系统减少动态效果配置，不读取该媒体查询或修改系统设置，不改动宿主其他控件的动画偏好。
 - 字体继承宿主字体偏好；字号、行高、字重等值时才映射官方排版角色。组件几何、14/20/600 标题和特色运动可保留局部数值，不为消除字面量误用 token。Fast/Reset hover 只改变背景，不改变图标颜色、亮度或形状。
 - 新增 token 必须核对固定版本官方声明与语义，并更新消费清单的来源。装饰色例外需登记文件、选择器、属性、完整值与原因；不得使用整文件豁免，也不得把例外扩展到中性控件。
 - 运行 `pnpm check:ui` 验证 CSS AST 与 TSX/SVG 静态样式；动态颜色写入 CSS 语义类，不能用字符串注入绕过检查。检查器不代替实际主题、字体、窄视口、键盘与平台材质验证。

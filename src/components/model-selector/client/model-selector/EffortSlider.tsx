@@ -19,8 +19,8 @@ interface Props {
   /** 仅同步拖动标题；undefined 清理预览，不发请求。 */
   onPreview: (id: string | undefined) => void
 
-  /** 指针释放或键盘选择时提交一个明确 ID。 */
-  onCommit: (id: string) => void
+  /** 提交明确 ID；宿主完成确认或拒绝后结束 Promise，再清理待确认预览。 */
+  onCommit: (id: string) => Promise<boolean>
 }
 
 /** 可访问的离散档位滑杆；视觉位置由连续动画驱动，但提交值始终是目录 ID。 */
@@ -33,9 +33,10 @@ export const EffortSlider = memo(function EffortSlider({
 }: Props) {
   const selectedIndex = efforts.findIndex((effort) => effort.id === selected)
   const [preview, setPreview] = useState<number | null>(null)
-  const [reduced, setReduced] = useState(false)
   const root = useRef<HTMLDivElement>(null)
   const drag = useRef<{ pointer: number; index: number } | null>(null)
+  const pending = useRef(false)
+  const alive = useRef(true)
   const index = preview ?? selectedIndex
   const target = Math.max(0, index) / Math.max(1, efforts.length - 1)
 
@@ -43,23 +44,20 @@ export const EffortSlider = memo(function EffortSlider({
     root,
     target,
     hasSelection: index >= 0,
-    reduced,
     count: efforts.length,
   })
 
   useEffect(() => {
-    const media = window.matchMedia('(prefers-reduced-motion: reduce)')
-
-    /** 同步系统动态效果偏好；首帧读取和后续媒体查询变化使用同一处理。 */
-    const update = () => setReduced(media.matches)
-
-    update()
-    media.addEventListener('change', update)
-    return () => media.removeEventListener('change', update)
+    alive.current = true
+    return () => {
+      alive.current = false
+    }
   }, [])
 
   /** 取消正在进行的拖动并清理预览；不提交未完成选择。 */
   const cancel = useCallback(() => {
+    // 松手后的 blur / lostpointercapture 不得取消正在等待宿主确认的预览。
+    if (!drag.current) return
     drag.current = null
     setPreview(null)
     onPreview(undefined)
@@ -82,6 +80,27 @@ export const EffortSlider = memo(function EffortSlider({
     onPreview(efforts[next]?.id)
   }
 
+  /**
+   * 松手与键盘共用提交边界；等待期间保留目标位置，避免先回旧档再跳到新档。
+   * 已确认值始终来自 selected；失败后回退一次，卸载后的迟到结果不能清理新面板预览。
+   */
+  const commit = async (next: number) => {
+    if (disabled || pending.current) return
+    const effort = efforts[next]
+    if (!effort) return
+    pending.current = true
+    show(next)
+    try {
+      await onCommit(effort.id)
+    } finally {
+      pending.current = false
+      if (alive.current) {
+        setPreview(null)
+        onPreview(undefined)
+      }
+    }
+  }
+
   /** Escape 取消拖动；方向键和 Home/End 直接提交合法档位。 */
   const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape' && drag.current) {
@@ -90,7 +109,7 @@ export const EffortSlider = memo(function EffortSlider({
       cancel()
       return
     }
-    if (disabled || efforts.length < 2) return
+    if (disabled || pending.current || efforts.length < 2) return
     const base = Math.max(0, selectedIndex)
     const next =
       event.key === 'Home'
@@ -104,7 +123,7 @@ export const EffortSlider = memo(function EffortSlider({
               : null
     if (next === null) return
     event.preventDefault()
-    onCommit(efforts[clamp(next, 0, efforts.length - 1)]!.id)
+    void commit(clamp(next, 0, efforts.length - 1))
   }
 
   return (
@@ -120,10 +139,11 @@ export const EffortSlider = memo(function EffortSlider({
       aria-valuetext={efforts[index]?.name ?? '尚未选择强度'}
       aria-disabled={disabled || efforts.length < 2}
       data-unset={index < 0 || undefined}
-      data-dragging={preview !== null || undefined}
+      data-dragging={!!drag.current || undefined}
+      aria-busy={pending.current || undefined}
       onKeyDown={keyDown}
       onPointerDown={(event) => {
-        if (disabled || efforts.length < 2 || event.button !== 0) return
+        if (disabled || pending.current || efforts.length < 2 || event.button !== 0) return
         event.preventDefault()
         event.currentTarget.focus()
         event.currentTarget.setPointerCapture(event.pointerId)
@@ -141,10 +161,13 @@ export const EffortSlider = memo(function EffortSlider({
       }}
       onPointerUp={(event) => {
         if (drag.current?.pointer !== event.pointerId) return
-        const next = efforts[drag.current.index]
-        cancel()
+        const next = drag.current.index
+        if (disabled) cancel()
+        else {
+          drag.current = null
+          void commit(next)
+        }
         event.currentTarget.releasePointerCapture(event.pointerId)
-        if (next && !disabled) onCommit(next.id)
       }}
       onPointerCancel={cancel}
       onLostPointerCapture={() => {

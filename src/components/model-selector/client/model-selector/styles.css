@@ -541,18 +541,6 @@
   }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .rong-model-popover,
-  .rong-model-popover *,
-  .rong-chevron {
-    animation: none !important;
-    transition: none !important;
-  }
-  .rong-effort-sparkles {
-    display: none;
-  }
-}
-
 /* Fast 子菜单：官方 compact 表面与独立退场，关闭时不响应选项。 */
 .rong-speed-menu {
   position: fixed;
@@ -632,12 +620,4 @@
 .rong-speed-menu button:focus-visible {
   outline: none;
   background: var(--dsw-alias-interactive-bg-hover);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .rong-speed-menu,
-  .rong-speed-menu > [aria-hidden='true']:first-child,
-  .rong-speed-items {
-    transition: none;
-  }
 }
