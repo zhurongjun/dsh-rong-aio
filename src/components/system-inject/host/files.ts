@@ -47,7 +47,7 @@ export async function readVersion(path: string, limit = 1_000_000): Promise<File
   }
 }
 
-/** 同目录暂存、fsync 后原子提交；新文件用 link 防止覆盖并发创建者。 */
+/** 同目录暂存、同步文件后原子提交；新文件用 link 防止覆盖并发创建者，IO 失败向上传播。 */
 export async function writeVersion(path: string, text: string, expected: string): Promise<void> {
   await mkdir(dirname(path), { recursive: true })
   if ((await readVersion(path)).revision !== expected)
@@ -64,11 +64,18 @@ export async function writeVersion(path: string, text: string, expected: string)
     if ((await readVersion(path)).revision !== expected) throw new Error('文件已修改，请刷新后重试')
     if (expected === 'missing') await link(temp, path)
     else await rename(temp, path)
-    const directory = await open(dirname(path), 'r')
-    try {
-      await directory.sync()
-    } finally {
-      await directory.close()
+    /*
+     * Windows 不支持通过 Node 的只读目录句柄执行 fsync；提交后再调用会误报保存失败。
+     * 所有平台都同步文件内容并原子提交；仅 POSIX 额外同步目录项，失败仍向上传播。
+     * Windows 不承诺与 POSIX 目录同步相同的断电持久性。
+     */
+    if (process.platform !== 'win32') {
+      const directory = await open(dirname(path), 'r')
+      try {
+        await directory.sync()
+      } finally {
+        await directory.close()
+      }
     }
   } finally {
     await unlink(temp).catch((error: unknown) => {

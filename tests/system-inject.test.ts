@@ -228,7 +228,7 @@ test('rc.5 会话路径对点号、中文、分隔符和无工作区保持一致
   assert.equal(encodeSessionSegment('../x'), '..~002Fx')
   assert.equal(encodeSessionSegment('..'), '~002E~002E')
   assert.equal(projectKey('C:\\a\\b'), '--C-a-b--')
-  assert.equal(sessionDirectory('/custom', { id: 's' }), '/custom/_no-cwd/s')
+  assert.equal(sessionDirectory('/custom', { id: 's' }), join('/custom', '_no-cwd', 's'))
   assert.match(projectKey('/项目'), /~9879~76EE/)
 })
 
