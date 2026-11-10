@@ -16,9 +16,9 @@ test('选择器状态：实例隔离、原子切换、重复操作不通知、�
   assert.equal(snapshots.length, 1)
   assert.equal(snapshots[0]!.mounted, true)
   assert.equal(second.getState().open, false)
-  actions.preview('high')
+  actions.preview('first', 'high')
   const before = first.getState()
-  actions.preview('high')
+  actions.preview('first', 'high')
   assert.equal(first.getState(), before)
   actions.close()
   assert.equal(first.getState().preview, undefined)
@@ -26,13 +26,34 @@ test('选择器状态：实例隔离、原子切换、重复操作不通知、�
   actions.show('effort')
   actions.unmount() // 已重新打开时，旧退出计时器不能卸载弹层。
   assert.equal(first.getState().mounted, true)
-  assert.equal(actions.startSaving(), true)
-  assert.equal(actions.startSaving(), false)
-  actions.finishSaving()
-  assert.equal(actions.startSaving(), true)
-  assert.equal(before.preview, 'high')
+  const request = { kind: 'effort' as const, routeKey: 'first', effort: 'max' }
+  const firstId = actions.startSelection(request)!
+  assert.equal(typeof firstId, 'number')
+  assert.equal(actions.startSelection(request), null)
+  actions.finishSelection(firstId)
+  const secondId = actions.startSelection(request)!
+  assert.ok(secondId > firstId)
+  actions.finishSelection(firstId)
+  assert.equal(first.getState().operation?.id, secondId, '迟到结束不能释放新操作')
+  assert.deepEqual(before.preview, { routeKey: 'first', effort: 'high' })
   assert.equal(first.getState().actions, actions)
   unsubscribe()
+})
+
+test('预览只属于当前路由；保存接管预览，关开面板不丢失进行中操作', () => {
+  const store = createSelectorStore()
+  const actions = store.getState().actions
+  actions.preview('new', 'high')
+  actions.preview('old', undefined)
+  assert.deepEqual(store.getState().preview, { routeKey: 'new', effort: 'high' })
+  const id = actions.startSelection({ kind: 'reset', routeKey: 'new', effort: 'medium' })!
+  actions.preview('new', 'off')
+  assert.equal(store.getState().preview, undefined)
+  actions.close()
+  actions.show('effort')
+  assert.equal(store.getState().operation?.effort, 'medium')
+  actions.finishSelection(id)
+  assert.equal(store.getState().operation, null)
 })
 
 test('重复拒绝重新启动 toast，旧退出回调不能清掉新通知', () => {

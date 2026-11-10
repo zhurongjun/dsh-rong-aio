@@ -15,6 +15,7 @@ import { SPEED_LABELS, type SpeedMode } from '../../shared/speed.ts'
 import { FastIcon } from './SelectorIcons.tsx'
 import { useSpeedSelection } from './useSpeedSelection.ts'
 import type { SpeedStore } from './speed-store.ts'
+import { SelectionButton } from './SelectionButton.tsx'
 
 /** 本视图所需的输入契约；数据保存与宿主副作用由外层负责。 */
 interface Props {
@@ -27,8 +28,11 @@ interface Props {
   /** 主选择器是否打开；主弹层关闭同时关闭 Fast 菜单。 */
   open: boolean
 
-  /** 选模保存或会话锁定时暂时禁止速度操作。 */
+  /** 会话锁定属于不可用状态。 */
   disabled: boolean
+
+  /** 选模/档位提交期间仅阻止速度操作，不改变能力与图标颜色。 */
+  busy: boolean
 }
 
 /** 按完整速度身份隔离 Fast 菜单实例，模型切换不会沿用上一菜单展开状态。 */
@@ -37,7 +41,7 @@ export const SpeedControl = memo(function SpeedControl(props: Props) {
 })
 
 /** 维护 Fast 菜单的局部可见性、定位与退场；展开不等于宿主速度已经改变。 */
-function Control({ store, identityKey, open, disabled }: Props) {
+function Control({ store, identityKey, open, disabled, busy }: Props) {
   const { state, loading, saving, select } = useSpeedSelection(store, identityKey)
   const [expanded, setExpanded] = useState(false)
   const [mounted, setMounted] = useState(false)
@@ -45,7 +49,9 @@ function Control({ store, identityKey, open, disabled }: Props) {
   const button = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
   const id = useId()
-  const enabled = state.modes.length > 1 && !loading && !saving && !disabled
+  const unavailable = disabled || state.modes.length < 2
+  const pending = loading || saving || busy
+  const enabled = open && !unavailable && !pending
   const visible = expanded && open && enabled
 
   useEffect(() => {
@@ -150,11 +156,12 @@ function Control({ store, identityKey, open, disabled }: Props) {
 
   return (
     <>
-      <button
+      <SelectionButton
         ref={button}
         className="rong-icon-button rong-header-action rong-fast"
-        type="button"
-        disabled={!enabled}
+        disabled={unavailable}
+        inactive={!open}
+        busy={pending}
         aria-label={
           state.modes.length > 1
             ? `速度：${SPEED_LABELS[state.mode]}`
@@ -184,7 +191,7 @@ function Control({ store, identityKey, open, disabled }: Props) {
         onClick={() => setExpanded((previous) => !previous)}
       >
         <FastIcon active={state.mode !== 'standard' && state.modes.length > 1} />
-      </button>
+      </SelectionButton>
       {mounted &&
         createPortal(
           <MenuSurface

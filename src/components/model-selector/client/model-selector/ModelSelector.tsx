@@ -8,7 +8,6 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  useSyncExternalStore,
   type CSSProperties,
   type KeyboardEvent,
 } from 'react'
@@ -21,29 +20,15 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import type {
-  ModelCatalogModel,
-  ModelSelection,
-} from '@deepseek-ai/dsh-api-session-controller/types'
-import {
-  currentEffortOf,
-  currentModelOf,
-  defaultEffortOf,
-  effortsOf,
-  filterModels,
-  selectionFor,
-} from '../../shared/model-selection.ts'
-import { EffortSlider } from './EffortSlider.tsx'
-import { ResetIcon } from './SelectorIcons.tsx'
-
-import { SpeedControl } from './SpeedControl.tsx'
+import { filterModels } from '../../shared/model-selection.ts'
 import { speedKey } from '../../shared/speed.ts'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
 import { createSelectorStore } from './selector-store.ts'
 import { createSpeedStore } from './speed-store.ts'
 import { SelectorTrigger } from './SelectorTrigger.tsx'
-import { EffortHeading } from './EffortHeading.tsx'
+import { EffortPanel } from './EffortPanel.tsx'
+import { useModelSelection } from './useModelSelection.ts'
 import { ModelList } from './ModelList.tsx'
 
 /** 复用 DSH 模型插槽契约；available 区分本地会话与独立运行时，locked 控制交互。 */
@@ -56,56 +41,47 @@ export function ModelSelector(props: Props) {
 }
 
 /**
- * 单会话选择器实例。先派生宿主已确认数据，再绑定生命周期、定位、提交与键盘事件。
- * 局部 store 只保存交互状态；不将目录数据写进 Immer，也不把 pending 模型展示为已选。
+ * 单会话外壳负责菜单生命周期、定位和键盘导航；数据与提交由控制器负责。
+ * 子视图只订阅各自需要的投影，粒子逐帧运动与请求刷新互不驱动。
  */
 function Selector({ locked, available, directory, load, select, sessionId }: Props) {
   const [store] = useState(createSelectorStore)
   const actions = store.getState().actions
   const [speedStore] = useState(() => createSpeedStore(actions.reportError))
-  const { open, mounted, pane, query, saving, error, errorSequence } = useStore(
+  const { open, mounted, pane, query, error, errorSequence } = useStore(
     store,
     useShallow((state) => ({
       open: state.open,
       mounted: state.mounted,
       pane: state.pane,
       query: state.query,
-      saving: state.saving,
       error: state.error,
       errorSequence: state.errorSequence,
     })),
   )
 
-  // 宿主目录只读订阅：稳定 subscribe/getSnapshot，避免重建模型数据或冻结宿主对象。
-  const source = useMemo(
-    () => ({
-      subscribe: (notify: () => void) => directory.subscribe(notify),
-      getSnapshot: () => directory.getSnapshot(),
-    }),
-    [directory],
-  )
-  const state = useSyncExternalStore(source.subscribe, source.getSnapshot)
-
-  // 与原生选择器一致：目录读取错误留在菜单提供重试，操作拒绝只显示 toast。
-  const lastAction = useRef<'load' | 'select'>('load')
-  const visibleError = lastAction.current === 'load' ? state.error : null
+  const {
+    state,
+    current,
+    model,
+    efforts,
+    selected,
+    routeKey,
+    chooseEffort,
+    chooseModel,
+    preview,
+    refresh,
+    selecting,
+    visibleError,
+  } = useModelSelection({ directory, select, load, available, locked, store })
   const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' })
   const trigger = useRef<HTMLButtonElement>(null)
   const menu = useRef<HTMLDivElement>(null)
   const search = useRef<HTMLInputElement>(null)
   const header = useRef<HTMLButtonElement>(null)
-  const alive = useRef(true)
   const id = useId()
 
-  // 宿主确认之前保持已接受的模型，避免被拒绝的候选短暂改写文字、effort 与 Fast 状态。
-  // 数据派生：实际模型、明确档位、过滤列表及速度身份都只基于已确认选择。
-  const current = state.current
-  const model = useMemo(
-    () => currentModelOf(state.groups, current),
-    [state.groups, current?.provider, current?.model],
-  )
-  const efforts = useMemo(() => effortsOf(model), [model])
-  const selected = useMemo(() => currentEffortOf(model, current), [model, current?.reasoningEffort])
+  // 搜索只过滤目录；速度身份只依赖已确认的会话/provider/model，不随 effort 刷新。
   const catalog = useMemo(() => {
     const filtered = filterModels(state.groups, query)
     const rows = filtered.flatMap((group) => group.models.map((model) => ({ group, model })))
@@ -118,12 +94,8 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     return { groups, rows }
   }, [state.groups, query])
   const { groups, rows } = catalog
-  const busy = saving || state.pending !== null || locked
+  const busy = selecting || locked
   const modelName = model?.name ?? current?.model ?? '选择模型'
-  const routeKey = useMemo(
-    () => JSON.stringify([current?.provider, current?.model, efforts.map((entry) => entry.id)]),
-    [current?.provider, current?.model, efforts],
-  )
   const identity = useMemo(
     () =>
       available && current
@@ -136,13 +108,6 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   // 资源生命周期：路由读取、异步结果归属、弹层退场和外部事件成对清理。
   useEffect(() => speedStore.sync(identity, open), [speedStore, identity, open])
   useEffect(() => () => speedStore.dispose(), [speedStore])
-
-  useEffect(() => {
-    alive.current = true
-    return () => {
-      alive.current = false
-    }
-  }, [])
 
   useEffect(() => {
     if (open || !mounted) return
@@ -242,56 +207,6 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     else header.current?.focus({ preventScroll: true })
   }, [open, mounted, pane, position.visibility])
 
-  useEffect(() => {
-    actions.preview(undefined)
-  }, [routeKey, actions])
-
-  /**
-   * 串行提交原生 ModelSelection，失败保持目录已确认值并显示 Toast。
-   * 卸载后忽略结果；finally 释放本实例保存标记。
-   */
-  const submit = useCallback(
-    async (selection: ModelSelection): Promise<boolean> => {
-      if (locked || directory.getSnapshot().pending !== null || !actions.startSaving()) return false
-      lastAction.current = 'select'
-      try {
-        const result = await select(selection)
-        if (!result?.ok) throw new Error(result ? result.error.message : '当前会话无法切换模型')
-        return true
-      } catch (reason) {
-        // toast 属于本会话，菜单关闭后仍可反馈；卸载后不向另一会话写入迟到结果。
-        if (alive.current)
-          actions.reportError(reason instanceof Error ? reason.message : '保存失败，请重试')
-        return false
-      } finally {
-        if (alive.current) actions.finishSaving()
-      }
-    },
-    [locked, directory, actions, select],
-  )
-
-  /** 只提交当前模型目录中的明确档位；相同选择不产生重复写入。 */
-  const chooseEffort = useCallback(
-    async (value: string): Promise<boolean> => {
-      if (!current || !efforts.some((entry) => entry.id === value)) return false
-      if (current.reasoningEffort === value) return true
-      return submit({ provider: current.provider, model: current.model, reasoningEffort: value })
-    },
-    [current, efforts, submit],
-  )
-
-  /** 按新模型的明确默认档构造选择，宿主确认成功后回到强度面板。 */
-  const chooseModel = useCallback(
-    async (provider: string, next: ModelCatalogModel) => {
-      const result = await submit(selectionFor(provider, next))
-      if (result && alive.current) {
-        actions.setPane('effort')
-        actions.preview(undefined)
-      }
-    },
-    [submit, actions],
-  )
-
   /** 进入模型列表并以当前模型在扁平结果中的位置初始化键盘高亮。 */
   const showModels = useCallback(() => {
     actions.showModels(
@@ -308,11 +223,10 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
   const toggle = useCallback(() => {
     if (store.getState().open) close(true)
     else {
-      lastAction.current = 'load'
       actions.show(model ? 'effort' : 'models')
-      load()
+      refresh()
     }
-  }, [store, close, actions, model, load])
+  }, [store, close, actions, model, refresh])
 
   /** 处理主面板层级：Escape 返回/关闭、方向键切换高亮、Enter 提交和 Tab 焦点循环。 */
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -362,6 +276,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
       <SelectorTrigger
         ref={trigger}
         store={store}
+        routeKey={routeKey}
         speedStore={speedStore}
         speedKey={speedRoute}
         modelName={modelName}
@@ -379,7 +294,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
             role="dialog"
             aria-label="模型与推理强度"
             aria-hidden={!open || undefined}
-            aria-busy={saving || state.status === 'loading'}
+            aria-busy={selecting || state.status === 'loading'}
             className="rong-model-popover"
             data-open={open}
             data-pane={pane}
@@ -403,51 +318,23 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
           >
             <div className="rong-model-content">
               {pane === 'effort' ? (
-                <div className="rong-effort-pane" key="effort">
-                  <div className="rong-effort-header">
-                    <SpeedControl
-                      store={speedStore}
-                      identityKey={speedRoute}
-                      open={open && !!current}
-                      disabled={busy}
-                    />
-                    <EffortHeading
-                      ref={header}
-                      store={store}
-                      efforts={efforts}
-                      selected={selected}
-                      modelName={modelName}
-                      disabled={busy}
-                      onClick={showModels}
-                    />
-                    <button
-                      className="rong-icon-button rong-header-action"
-                      type="button"
-                      aria-label="重置当前模型的推理强度"
-                      title="重置强度"
-                      disabled={busy || !model || !defaultEffortOf(model)}
-                      onClick={() => {
-                        if (model) chooseEffort(defaultEffortOf(model)!)
-                      }}
-                    >
-                      <ResetIcon />
-                    </button>
-                  </div>
-                  {efforts.length ? (
-                    <EffortSlider
-                      key={routeKey}
-                      efforts={efforts}
-                      selected={selected?.id}
-                      disabled={busy || !open}
-                      onPreview={actions.preview}
-                      onCommit={chooseEffort}
-                    />
-                  ) : (
-                    <p className="rong-empty">
-                      {model ? '此模型未提供可选推理强度' : '当前模型不可用，请重新选择'}
-                    </p>
-                  )}
-                </div>
+                <EffortPanel
+                  ref={header}
+                  store={store}
+                  speedStore={speedStore}
+                  routeKey={routeKey}
+                  speedRoute={speedRoute}
+                  model={model}
+                  modelName={modelName}
+                  efforts={efforts}
+                  selected={selected}
+                  open={open}
+                  locked={locked}
+                  selecting={selecting}
+                  onPreview={preview}
+                  chooseEffort={chooseEffort}
+                  showModels={showModels}
+                />
               ) : (
                 <ModelList
                   ref={search}
@@ -456,7 +343,8 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
                   rowCount={rows.length}
                   query={query}
                   current={current}
-                  busy={busy}
+                  busy={selecting}
+                  locked={locked}
                   hasModel={!!model}
                   status={state.status}
                   id={id}
@@ -469,20 +357,13 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
                     {visibleError ??
                       `部分模型未能加载：${state.failures.map((failure) => failure.name).join('、')}`}
                   </span>
-                  <button
-                    type="button"
-                    disabled={busy}
-                    onClick={() => {
-                      lastAction.current = 'load'
-                      load()
-                    }}
-                  >
+                  <button type="button" disabled={busy} onClick={refresh}>
                     重新加载
                   </button>
                 </div>
               )}
               <span className="rong-sr-only" role="status" aria-live="polite">
-                {saving ? '正在保存选择' : ''}
+                {selecting ? '正在保存选择' : ''}
               </span>
             </div>
           </MenuSurface>,

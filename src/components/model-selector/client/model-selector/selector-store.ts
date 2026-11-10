@@ -5,6 +5,13 @@ import { immer } from 'zustand/middleware/immer'
 
 type Pane = 'effort' | 'models'
 
+/** 操作归属当前模型及档位目录；effort 只是待确认预览，不是宿主已保存值。 */
+export interface SelectionOperation {
+  kind: 'model' | 'effort' | 'reset'
+  routeKey: string
+  effort?: string
+}
+
 /** 每个会话实例的瞬时 UI 状态；持久化模型和速度不在这里复制。 */
 interface SelectorState {
   /** 用户期望弹层打开；关闭时可以仍挂载以完成退场。 */
@@ -22,11 +29,11 @@ interface SelectorState {
   /** 过滤后扁平模型列表中的键盘高亮索引。 */
   highlight: number
 
-  /** 拖动中的 effort ID；不是已保存档位，手势结束清除。 */
-  preview: string | undefined
+  /** 仅拖动中的预览；路由隔离防止模型切换时闪现旧档位。 */
+  preview: { routeKey: string; effort: string } | undefined
 
-  /** 会话选模/强度提交互斥标记。 */
-  saving: boolean
+  /** 会话选模/强度/重置的唯一进行中操作；序号防止迟到清理误伤后续操作。 */
+  operation: (SelectionOperation & { id: number }) | null
 
   /** 当前操作 Toast 文本；模型目录读取错误仍由宿主目录保存。 */
   error: string | null
@@ -57,14 +64,14 @@ interface SelectorState {
     /** 记录键盘/鼠标所指向的扁平列表索引。 */
     highlight(index: number): void
 
-    /** 设置或清理拖动预览。 */
-    preview(id: string | undefined): void
+    /** 设置拖动预览；清理只影响指定路由，保存期间不接受新手势。 */
+    preview(routeKey: string, effort: string | undefined): void
 
-    /** 原子检查是否正在提交；成功取得保存资格时返回 true。 */
-    startSaving(): boolean
+    /** 原子取得提交资格并把手势预览交给操作；失败返回 null。 */
+    startSelection(operation: SelectionOperation): number | null
 
-    /** 释放提交资格并清除手势预览。 */
-    finishSaving(): void
+    /** 仅结束对应序号的操作；已确认显示仍由宿主目录决定。 */
+    finishSelection(id: number): void
 
     /** 生成操作提示；null 只清理文本，不产生新的通知序号。 */
     reportError(message: string | null): void
@@ -76,6 +83,7 @@ interface SelectorState {
 
 /** 每个选择器实例独立持有；DSH 目录仍是模型选择的唯一持久化来源。 */
 export function createSelectorStore() {
+  let operationSequence = 0
   return createStore<SelectorState>()(
     immer((set, get) => ({
       open: false,
@@ -84,7 +92,7 @@ export function createSelectorStore() {
       query: '',
       highlight: 0,
       preview: undefined,
-      saving: false,
+      operation: null,
       error: null,
       errorSequence: 0,
       actions: {
@@ -125,22 +133,28 @@ export function createSelectorStore() {
           set((state) => {
             state.highlight = index
           }),
-        preview: (id) =>
+        preview: (routeKey, effort) =>
           set((state) => {
-            state.preview = id
+            if (effort === undefined) {
+              if (state.preview?.routeKey === routeKey) state.preview = undefined
+            } else if (!state.operation) {
+              if (state.preview?.routeKey !== routeKey || state.preview.effort !== effort)
+                state.preview = { routeKey, effort }
+            }
           }),
-        startSaving: () => {
-          if (get().saving) return false
+        startSelection: (operation) => {
+          if (get().operation) return null
+          const id = ++operationSequence
           set((state) => {
-            state.saving = true
+            state.operation = { ...operation, id }
+            state.preview = undefined
             state.error = null
           })
-          return true
+          return id
         },
-        finishSaving: () =>
+        finishSelection: (id) =>
           set((state) => {
-            state.saving = false
-            state.preview = undefined
+            if (state.operation?.id === id) state.operation = null
           }),
         reportError: (message) =>
           set((state) => {

@@ -337,6 +337,12 @@ test('实际组件：拖动只在释放时保存、取消不保存、失败回�
 })
 
 test('档位提交等待宿主时保留预览；失焦不回跳、成功平滑交接、拒绝才回退', async (t) => {
+  let speedReads = 0
+  let modelReads = 0
+  t.mock.method(globalThis, 'fetch', async () => {
+    speedReads++
+    return Response.json({ mode: 'fast', modes: ['standard', 'fast'] })
+  })
   let time = 0
   let sequence = 0
   const frames = new Map()
@@ -386,7 +392,9 @@ test('档位提交等待宿主时保留预览；失焦不回跳、成功平滑�
               return () => subscribers.delete(notify)
             },
           },
-          load() {},
+          load() {
+            modelReads++
+          },
           select(selection) {
             const request = Promise.withResolvers()
             requests.push({ ...request, selection })
@@ -398,6 +406,9 @@ test('档位提交等待宿主时保留预览；失焦不回跳、成功平滑�
     )
     await act(async () => document.querySelector('.rong-model-trigger').click())
     const slider = document.querySelector('[role="slider"]')
+    const fast = document.querySelector('.rong-fast')
+    const reset = document.querySelector('[aria-label="重置当前模型的推理强度"]')
+    const readsBeforeSelection = speedReads
     slider.getBoundingClientRect = () => ({ left: 0, width: 260 })
     await pointer(slider, 'pointerdown', 245)
     for (let frame = 0; frame < 30; frame++) tick()
@@ -410,6 +421,18 @@ test('档位提交等待宿主时保留预览；失焦不回跳、成功平滑�
     assert.equal(slider.getAttribute('aria-valuetext'), 'max')
     assert.equal(slider.getAttribute('aria-busy'), 'true')
     assert.equal(document.querySelector('.rong-effort-title').textContent, 'max')
+    for (const button of [fast, reset]) {
+      assert.equal(button.disabled, false, '保存不进入真正不可用的 disabled 样式')
+      assert.equal(button.getAttribute('aria-disabled'), 'true')
+      assert.equal(button.getAttribute('aria-busy'), 'true')
+      await act(async () => button.click())
+    }
+    await act(async () =>
+      fast.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowDown', bubbles: true })),
+    )
+    assert.equal(requests.length, 1, '忙碌保护仍阻止重复提交')
+    assert.equal(document.querySelector('[role="menu"]'), null)
+    assert.equal(fast.querySelector('svg').getAttribute('fill'), 'currentColor')
     for (let frame = 0; frame < 10; frame++) {
       tick()
       assert.equal(slider.style.getPropertyValue('--rong-position'), '1', '等待中不能退回旧档')
@@ -422,6 +445,9 @@ test('档位提交等待宿主时保留预览；失焦不回跳、成功平滑�
     assert.equal(slider.getAttribute('aria-valuetext'), 'max')
     assert.equal(slider.getAttribute('aria-busy'), null)
     assert.equal(document.querySelector('[role="slider"]'), slider)
+    assert.equal(fast.getAttribute('aria-busy'), null)
+    assert.equal(reset.getAttribute('aria-disabled'), null)
+    assert.equal(speedReads, readsBeforeSelection, 'effort 保存不触发速度重新读取')
     await act(async () =>
       slider.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true })),
     )
@@ -434,10 +460,180 @@ test('档位提交等待宿主时保留预览；失焦不回跳、成功平滑�
     assert.equal(slider.getAttribute('aria-valuetext'), 'max')
     assert.equal(document.querySelector('.rong-effort-title').textContent, 'max')
     assert.equal(document.querySelectorAll('[data-test-toast]').length, 1)
+    await act(async () => {
+      reset.focus()
+      reset.click()
+    })
+    assert.equal(requests[2].selection.reasoningEffort, 'medium')
+    assert.equal(slider.getAttribute('aria-valuetext'), 'medium', 'Reset 与滑杆共用待确认投影')
+    assert.equal(document.querySelector('.rong-effort-title').textContent, 'medium')
+    assert.equal(document.activeElement, reset, 'Reset 保存期间保留焦点')
+    await act(async () => document.querySelector('.rong-model-trigger').click())
+    await act(async () => document.querySelector('.rong-model-trigger').click())
+    assert.equal(modelReads, 1, '保存期间重开不额外加载目录或改写操作错误的归属')
+    assert.equal(
+      document.querySelector('[role="slider"]').getAttribute('aria-valuetext'),
+      'medium',
+      '重开面板仍显示同一操作',
+    )
+    await act(async () => {
+      update({ current: requests[2].selection, pending: null })
+      requests[2].resolve({ ok: true })
+    })
+    assert.equal(document.querySelector('[role="slider"]').getAttribute('aria-valuetext'), 'medium')
   } finally {
     await act(async () => root.unmount())
   }
   assert.equal(frames.size, 0)
+})
+
+test('外部 pending 不冒充已选档位；切换路由与会话隔离预览和迟到拒绝', async (t) => {
+  t.mock.method(globalThis, 'fetch', async () =>
+    Response.json({ mode: 'fast', modes: ['standard', 'fast'] }),
+  )
+  let state = {
+    current: { provider: 'p', model: 'first', reasoningEffort: 'medium' },
+    groups: [{ id: 'p', name: 'Provider', models }],
+    failures: [],
+    pending: null,
+    status: 'ready',
+    error: null,
+  }
+  const subscribers = new Set()
+  const update = (patch) => {
+    state = { ...state, ...patch }
+    for (const notify of subscribers) notify()
+  }
+  const request = Promise.withResolvers()
+  let selections = 0
+  const props = {
+    sessionId: 'old',
+    available: true,
+    locked: false,
+    directory: {
+      getSnapshot: () => state,
+      subscribe: (notify) => {
+        subscribers.add(notify)
+        return () => subscribers.delete(notify)
+      },
+    },
+    load() {},
+    select(selection) {
+      selections++
+      update({ pending: selection })
+      return request.promise
+    },
+  }
+  const root = createRoot(document.getElementById('root'))
+  try {
+    await act(async () => root.render(React.createElement(ModelSelector, props)))
+    await act(async () => document.querySelector('.rong-model-trigger').click())
+    let slider = document.querySelector('[role="slider"]')
+    await act(async () =>
+      update({ pending: { provider: 'p', model: 'second', reasoningEffort: 'high' } }),
+    )
+    assert.equal(slider.getAttribute('aria-valuetext'), 'medium')
+    assert.match(document.querySelector('.rong-model-trigger').textContent, /First/)
+    await act(async () =>
+      slider.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })),
+    )
+    assert.equal(selections, 0)
+    await act(async () => update({ pending: null }))
+    slider.getBoundingClientRect = () => ({ left: 0, width: 260 })
+    const down = new MouseEvent('pointerdown', { bubbles: true, clientX: 245, button: 0 })
+    Object.defineProperty(down, 'pointerId', { value: 1 })
+    await act(async () => slider.dispatchEvent(down))
+    assert.equal(slider.getAttribute('aria-valuetext'), 'max')
+    await act(async () =>
+      update({ current: { provider: 'p', model: 'second', reasoningEffort: 'low' } }),
+    )
+    slider = document.querySelector('[role="slider"]')
+    assert.equal(slider.getAttribute('aria-valuetext'), 'low')
+    assert.equal(document.querySelector('.rong-effort-title').textContent, 'low')
+    await act(async () =>
+      slider.dispatchEvent(new KeyboardEvent('keydown', { key: 'End', bubbles: true })),
+    )
+    assert.equal(selections, 1)
+    await act(async () => {
+      update({ pending: null })
+      root.render(React.createElement(ModelSelector, { ...props, sessionId: 'new' }))
+    })
+    await act(async () => document.querySelector('.rong-model-trigger').click())
+    await act(async () => request.resolve({ ok: false, error: { message: '旧会话拒绝' } }))
+    assert.equal(document.querySelector('[data-test-toast]'), null)
+    assert.equal(document.querySelector('[role="slider"]').getAttribute('aria-valuetext'), 'low')
+    assert.equal(document.querySelector('.rong-fast').getAttribute('aria-busy'), null)
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
+
+test('Fast 同路由刷新和写入保留确认值，只阻止速度控件，不联动禁用 Reset', async (t) => {
+  const requests = []
+  t.mock.method(globalThis, 'fetch', (_url, init) => {
+    const request = Promise.withResolvers()
+    requests.push({ ...request, method: init.method ?? 'GET' })
+    return request.promise
+  })
+  const reply = async (index, ok = true) =>
+    act(async () =>
+      requests[index].resolve(
+        ok
+          ? Response.json({ mode: 'fast', modes: ['standard', 'fast'] })
+          : Response.json({ error: '速度拒绝' }, { status: 409 }),
+      ),
+    )
+  const state = {
+    current: { provider: 'p', model: 'first', reasoningEffort: 'high' },
+    groups: [{ id: 'p', name: 'Provider', models }],
+    failures: [],
+    pending: null,
+    status: 'ready',
+    error: null,
+  }
+  const root = createRoot(document.getElementById('root'))
+  try {
+    await act(async () =>
+      root.render(
+        React.createElement(ModelSelector, {
+          sessionId: 'speed-refresh',
+          available: true,
+          locked: false,
+          directory: { getSnapshot: () => state, subscribe: () => () => {} },
+          load() {},
+          select() {},
+        }),
+      ),
+    )
+    await reply(0)
+    await act(async () => document.querySelector('.rong-model-trigger').click())
+    const fast = document.querySelector('.rong-fast')
+    const reset = document.querySelector('[aria-label="重置当前模型的推理强度"]')
+    const assertWaiting = () => {
+      assert.equal(fast.disabled, false)
+      assert.equal(fast.getAttribute('aria-busy'), 'true')
+      assert.equal(fast.querySelector('svg').getAttribute('fill'), 'currentColor')
+      assert.equal(reset.disabled, false)
+      assert.equal(reset.getAttribute('aria-disabled'), null)
+      assert.equal(document.querySelector('[role="slider"]').getAttribute('aria-disabled'), 'false')
+    }
+    assertWaiting()
+    await act(async () => fast.click())
+    assert.equal(document.querySelector('[role="menu"]'), null)
+    assert.equal(requests.length, 2)
+    await reply(1)
+    await act(async () => fast.click())
+    await act(async () => document.querySelector('[role="menuitemradio"]').click())
+    assert.equal(requests[2].method, 'PUT')
+    assertWaiting()
+    assert.equal(document.activeElement, fast)
+    await reply(2, false)
+    assert.equal(fast.getAttribute('aria-label'), '速度：快速')
+    assert.equal(fast.getAttribute('aria-busy'), null)
+    assert.equal(document.querySelectorAll('[data-test-toast]').length, 1)
+  } finally {
+    await act(async () => root.unmount())
+  }
 })
 
 test('Fast 菜单：按支持档位显示、键盘选择、实心状态、写入失败不冒充成功', async () => {

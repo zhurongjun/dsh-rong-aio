@@ -69,6 +69,24 @@ Fast 菜单只展示档位名称和固定宽度的勾选列，最小宽 96px、�
 ## 代码职责
 
 - `shared/model-selection.ts` 处理模型与明确 effort，`shared/speed.ts` 维护速度规则；运动和粒子数学计算分别集中在 `slider-motion.ts`、`particle-motion.ts`。改编来源与许可见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
-- `client/model-selector/selector-store.ts` 管理每个会话的弹层、搜索、预览与操作通知；DSH `modelDirectories` 是已确认模型的唯一来源。`speed-store.ts` 按路由读取和保存速度，迟到响应不能覆盖新路由。
+- `ModelSelector.tsx` 只组合控制器和子视图，管理菜单定位、焦点、退场与键盘导航；`useModelSelection.ts` 只读订阅宿主目录并协调模型、effort、Reset 的串行提交。DSH `modelDirectories` 是已确认模型的唯一来源。
+- `selector-store.ts` 管理每个会话的弹层、搜索、手势预览、进行中操作和 Toast。操作具有序号、种类和路由；只有对应序号可释放操作，不复制宿主模型目录。`speed-store.ts` 按会话/provider/model 路由独立读取和保存速度，迟到响应不能覆盖新路由。
+- `EffortPanel.tsx` 组合 Fast、标题、Reset 和受控滑杆；`useEffortPreview.ts` 为面板和输入框入口提供同一档位投影。`EffortSlider.tsx` 只持有手势与运动资源，不另存待确认档位或保存请求。
+- `SelectionButton.tsx` 统一鼠标、键盘激活保护。能力缺失或会话锁定使用原生 `disabled`；短暂请求等待使用 `aria-disabled`/`aria-busy` 并拦截激活，保留颜色、形状、hover 背景和焦点。Escape、Tab 仍由外层处理。
 - React 负责结构与可访问性；`useSliderMotion.ts` 的 RAF 只更新运动样式、粒子节点和经过状态，不逐帧更新 React store。同一运动属性不能同时由 JSX 写入。
 - `host/index.ts` 装配速度接口、storageDomain 和 `llm/stream`；`host/speed-transport.ts` 在限定请求作用域内适配 HTTP 字段，停用恢复 fetch。
+
+## 状态依赖与刷新
+
+| 状态来源                           | 影响范围                                                        | 不产生的副作用                                    |
+| ---------------------------------- | --------------------------------------------------------------- | ------------------------------------------------- |
+| 宿主 `current` 与模型目录          | 模型名、明确档位目录、Reset 默认档；模型身份变化后重新读取 Fast | 不使用宿主 `pending` 冒充已确认模型               |
+| 手势预览、进行中 effort/Reset 操作 | 滑杆目标、标题、输入框 effort；操作按模型及档位目录隔离         | 不改写宿主 `current`，不刷新 Fast，不重挂载工具栏 |
+| 本实例选模操作、宿主 `pending`     | 暂时阻止模型、effort、Reset 和 Fast 操作                        | 不将正常按钮置灰，不改变已确认速度或 SVG 轮廓     |
+| Fast 能力、最近确认速度            | Fast 是否真正可用、空心/实心图标、速度菜单勾选                  | 不依赖 effort 预览或档位值                        |
+| Fast GET/PUT 状态                  | 只阻止 Fast 自身操作，保留最近确认显示                          | 不禁用 Reset，不改写模型或 effort                 |
+| 搜索、列表高亮、粒子运动           | 各自视图；粒子帧直接写动画 DOM                                  | 不触发宿主选模和速度请求                          |
+
+档位展示优先级为：**同路由待确认操作 → 同路由手势预览 → 宿主确认值**。拖动只写手势预览；松手、键盘和 Reset 由控制器原子取得操作资格并接管预览。成功后交接给宿主确认值，失败后回退并显示一次 Toast。关闭只丢弃未提交手势；进行中操作在面板重新挂载后仍可投影。会话更换建立新实例，旧实例的完成或拒绝不写入新实例。
+
+打开菜单时加载模型目录；保存期间重开复用目录，避免额外加载改写拒绝结果的归属。Fast 在首次挂载、已确认模型身份变化和菜单重开时读取；更换路由中止旧请求，同路由刷新保留已确认速度。仅修改 effort、拖动、搜索和 RAF 运动都不重新读取 Fast。

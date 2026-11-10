@@ -147,6 +147,11 @@
   color: var(--dsw-alias-label-dimmed);
 }
 
+/* 请求等待只阻止激活；能力不可用才进入 :disabled 的中性色，避免保存时图标闪灰。 */
+.rong-model-popover button[aria-busy='true'] {
+  cursor: default;
+}
+
 .rong-model-popover button:focus-visible,
 .rong-effort-slider:focus-visible,
 .rong-model-trigger:focus-visible {

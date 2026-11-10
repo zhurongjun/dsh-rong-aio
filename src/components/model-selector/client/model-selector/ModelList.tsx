@@ -14,6 +14,7 @@ import type {
 } from '@deepseek-ai/dsh-api-session-controller/types'
 import type { ModelDirectoryState } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { SelectorStore } from './selector-store.ts'
+import { SelectionButton } from './SelectionButton.tsx'
 
 /** 本视图所需的输入契约；数据保存与宿主副作用由外层负责。 */
 interface Props {
@@ -32,8 +33,11 @@ interface Props {
   /** 宿主已接受的精确模型选择，用于勾选。 */
   current: ModelSelection | null
 
-  /** 保存或会话锁定中时禁止选择行。 */
+  /** 保存期间阻止选行，保留目录与勾选的视觉状态。 */
   busy: boolean
+
+  /** 宿主会话锁，属于真正不可用状态。 */
+  locked: boolean
 
   /** 当前是否有可返回的强度面板。 */
   hasModel: boolean
@@ -51,7 +55,7 @@ interface Props {
 /** 分组模型列表；ref 指向搜索框，焦点和整体键盘移动由外层选择器协调。 */
 export const ModelList = memo(
   forwardRef<HTMLInputElement, Props>(function ModelList(
-    { store, groups, rowCount, query, current, busy, hasModel, status, id, chooseModel },
+    { store, groups, rowCount, query, current, busy, locked, hasModel, status, id, chooseModel },
     ref,
   ) {
     const highlight = useStore(store, (state) => state.highlight)
@@ -106,8 +110,7 @@ export const ModelList = memo(
                 const rowIndex = offset + modelIndex
                 const selected = current?.provider === group.id && current.model === entry.id
                 return (
-                  <button
-                    type="button"
+                  <SelectionButton
                     role="option"
                     key={entry.id}
                     id={`${id}-option-${rowIndex}`}
@@ -115,14 +118,15 @@ export const ModelList = memo(
                     data-model-index={rowIndex}
                     data-highlighted={rowIndex === highlight || undefined}
                     aria-selected={selected}
-                    disabled={busy}
+                    disabled={locked}
+                    busy={busy}
                     className="rong-model-option"
                     onPointerMove={() => actions.highlight(rowIndex)}
                     onClick={() => void chooseModel(group.id, entry)}
                   >
                     <span title={entry.name}>{entry.name}</span>
                     {selected && <IconCheckOutlineRegular size={18} />}
-                  </button>
+                  </SelectionButton>
                 )
               })}
             </div>

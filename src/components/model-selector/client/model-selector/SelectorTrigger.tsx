@@ -1,8 +1,7 @@
-/** 输入框模型入口：显示已确认模型、effort 和 Fast 标记；不发起持久化请求。 */
+/** 输入框模型入口：模型和 Fast 来自确认值，effort 共用面板预览投影；不发起请求。 */
 
 import { forwardRef, memo } from 'react'
 import { useStore } from 'zustand'
-import { useShallow } from 'zustand/react/shallow'
 import {
   IconDataOutlineRegular,
   IconChevronDownOutlineRegular,
@@ -12,11 +11,15 @@ import { FastIcon } from './SelectorIcons.tsx'
 import { SPEED_LABELS } from '../../shared/speed.ts'
 import type { SelectorStore } from './selector-store.ts'
 import type { SpeedStore } from './speed-store.ts'
+import { useEffortPreview } from './useEffortPreview.ts'
 
 /** 本视图所需的输入契约；数据保存与宿主副作用由外层负责。 */
 interface Props {
   /** 读取主弹层开关与拖动预览。 */
   store: SelectorStore
+
+  /** 档位预览所属模型与目录，不与 Fast 的速度身份混用。 */
+  routeKey: string
 
   /** 读取宿主已确认速度，避免加载状态引起无关渲染。 */
   speedStore: SpeedStore
@@ -46,13 +49,11 @@ interface Props {
 /** 输入框入口的窄订阅视图；Fast 图标只显示当前路由已经确认的速度。 */
 export const SelectorTrigger = memo(
   forwardRef<HTMLButtonElement, Props>(function SelectorTrigger(
-    { store, speedStore, speedKey, modelName, efforts, selected, locked, id, onToggle },
+    { store, routeKey, speedStore, speedKey, modelName, efforts, selected, locked, id, onToggle },
     ref,
   ) {
-    const { open, preview } = useStore(
-      store,
-      useShallow((state) => ({ open: state.open, preview: state.preview })),
-    )
+    const open = useStore(store, (state) => state.open)
+    const preview = useEffortPreview(store, routeKey, selected?.id)
 
     // 输入框只关心确认过的速度，不因 GET/PUT 的 loading 状态重新渲染。
     const mode = useStore(speedStore, (state) =>
