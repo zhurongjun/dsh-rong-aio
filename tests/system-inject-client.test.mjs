@@ -85,6 +85,7 @@ test('仅启用破甲组件：切换破甲只用 toast，选模拒绝交调用�
   const cleanups = []
   let registration
   let composer
+  let settingsIcon
   let reads = 0
   globalThis.fetch = (url, options) => {
     if (!options?.method) reads++
@@ -95,6 +96,10 @@ test('仅启用破甲组件：切换破甲只用 toast，选模拒绝交调用�
     slots: {
       inject: (_slot, register) => register(),
       register: (options, component) => {
+        if (options.name === 'settings.section.icon') {
+          assert.equal(options.id, 'rong-aio-system-inject')
+          settingsIcon = component
+        }
         if (options.name === 'conversation.input.left') {
           registration = options
           composer = component
@@ -106,6 +111,9 @@ test('仅启用破甲组件：切换破甲只用 toast，选模拒绝交调用�
   })
   const props = { sessionId: f.agent.id, ...registration.inject(f.agent.id) }
   const root = createRoot(document.getElementById('root'))
+  await act(async () => root.render(React.createElement(settingsIcon, { size: 19, active: true })))
+  assert.equal(document.querySelector('svg').getAttribute('width'), '19')
+  assert.equal(document.querySelectorAll('svg path').length, 2)
 
   const select = (model) =>
     f.ctx.sessionController.selectModel({

@@ -1,5 +1,6 @@
 /** 模型选择器宿主入口：注册速度设置接口、profile 存储及实际请求的速度适配。 */
 
+import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-storage-domain'
@@ -23,27 +24,6 @@ const spec = {
   name: 'rong_aio_speed',
   version: 1,
   tables: { selections: { valueSchema: modeSchema } },
-}
-
-/** 速度接口所需的最小公开连接契约；注册资源由宿主连接服务随插件清理。 */
-interface Connection {
-  /** 经过 DSH 连接层管理的 HTTP 路由注册表。 */
-  fetch: {
-    /** 注册当前插件拥有的路由；卸载时由连接服务移除。 */
-    register(route: {
-      /** HTTP 绝对路径，不包含域名和查询参数。 */
-      path: string
-
-      /** 允许的 HTTP 方法；本组件仅读取或覆盖一条速度选择。 */
-      methods: string[]
-
-      /** 由连接层缓冲请求体，处理函数再进行 JSON 解析。 */
-      requestBody: 'buffered'
-
-      /** 处理输入并返回完整 HTTP 响应，业务失败通过状态码表达。 */
-      fetch(request: Request): Promise<Response>
-    }): void
-  }
 }
 
 /** 只接管已验证的 HTTP 协议；Codex OAuth、Bedrock 等协议不冒充可用。 */
@@ -82,10 +62,10 @@ export async function apply(ctx: Context): Promise<void> {
   const table = domain.table('selections')
   const transport = createSpeedTransport()
   ctx.effect(() => () => transport.dispose())
-  const connection = Reflect.get(ctx, 'connection') as Connection
+  const connection = Reflect.get(ctx, 'connection') as unknown as HostConnectionHandle
   connection.fetch.register({
     path: '/api/rong-aio.speed',
-    methods: ['GET', 'PUT'],
+    methods: ['GET', 'POST'],
     requestBody: 'buffered',
 
     /** 校验完整身份和当前能力；读取返回确认状态，写入落盘后才返回成功。 */
@@ -105,7 +85,7 @@ export async function apply(ctx: Context): Promise<void> {
         const key = speedKey(identity)
 
         // 写入前同时核验档位语法和实际协议能力，不能让客户端自报支持。
-        if (request.method === 'PUT') {
+        if (request.method === 'POST') {
           const requested = modeSchema.safeParse((input as Record<string, unknown>).mode)
           if (!requested.success || !modes.includes(requested.data)) {
             return Response.json({ error: '当前模型不支持此速度档位' }, { status: 400 })

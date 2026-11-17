@@ -96,7 +96,7 @@ for (const entry of components.sort((a, b) => a.name.localeCompare(b.name))) {
     if (component.exports['./client'] !== './client.js')
       throw new Error(`${id} 的 ./client 必须指向 ./client.js`)
 
-    // rc.5 使用模块工厂；每个组件的 factory ID 与内部清单完全一致。
+    // 0.2.2-rc.3 使用模块工厂；每个组件的 factory ID 与内部清单完全一致。
     await build({
       absWorkingDir: root,
       entryPoints: [`${source}/client/index.ts`],

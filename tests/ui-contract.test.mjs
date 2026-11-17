@@ -2,9 +2,24 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
+import { readFile } from 'node:fs/promises'
 import { checkCss, checkSource, contract } from '../scripts/check-ui-contract.mjs'
 
 const file = 'src/components/model-selector/client/model-selector/styles.css'
+
+test('消费 token 的来源行与已安装固定版官方声明一致', async () => {
+  const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
+  assert.equal(contract.baseline.version, manifest.engines.dsh)
+  for (const [name, entry] of Object.entries(contract.tokens)) {
+    const [source, line] = entry.source.split('#L')
+    const target = source.replace(
+      /^packages\/client\/([^/]+)\//,
+      'node_modules/@deepseek-ai/dsh-client-$1/',
+    )
+    const text = await readFile(new URL('../' + target, import.meta.url), 'utf8')
+    assert.ok(text.split('\n')[Number(line) - 1].includes(name), `${name}: ${entry.source}`)
+  }
+})
 
 /** 断言 CSS 正例没有任何契约诊断。 */
 const valid = (source) => assert.deepEqual(checkCss(source, file), [])

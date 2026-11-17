@@ -14,7 +14,7 @@ import {
 export const EMPTY_SPEED: SpeedState = { mode: 'standard', modes: [] }
 
 /**
- * 读取或保存完整路由的速度。mode 省略时为 GET，否则 PUT。
+ * 读取或保存完整路由的速度。mode 省略时为 GET，否则 POST。
  * 校验响应档位后返回，HTTP 或格式错误抛出，由 store 决定是否仍需呈现。
  */
 async function requestSpeed(
@@ -27,7 +27,7 @@ async function requestSpeed(
     signal,
     ...(mode
       ? {
-          method: 'PUT',
+          method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ ...identity, mode }),
         }
@@ -58,7 +58,7 @@ interface State {
   /** 当前路由 GET 进行中。 */
   loading: boolean
 
-  /** 当前路由 PUT 进行中。 */
+  /** 当前路由 POST 进行中。 */
   saving: boolean
 }
 

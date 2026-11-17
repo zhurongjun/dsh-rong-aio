@@ -154,7 +154,7 @@
   line-height: 18px;
 }
 
-/* rc.5 内置插件目录：36px 分组行、10px 卡片间距、两列/520px 单列。 */
+/* 0.2.2-rc.3 内置插件目录：36px 分组行、10px 卡片间距、两列/520px 单列。 */
 .rong-inject-library,
 .rong-inject-library-group {
   display: flex;
@@ -328,7 +328,7 @@
   overflow-wrap: anywhere;
 }
 
-/* rc.5 composer 的常规/紧凑 gap 分别为 12px/8px，仅收紧本入口左侧至 4px。 */
+/* 0.2.2-rc.3 composer 的常规/紧凑 gap 分别为 12px/8px，仅收紧本入口左侧至 4px。 */
 /* 输入框入口：与权限按钮对齐；开启状态使用同一语义强调色。 */
 .rong-inject-control {
   min-width: 0;
@@ -582,7 +582,7 @@
   overflow-wrap: anywhere;
 }
 
-/* rc.5 的公开 composer DOM 锚点；::after 留给宿主的工作区状态描边。 */
+/* 0.2.2-rc.3 的公开 composer DOM 锚点；::after 留给宿主的工作区状态描边。 */
 [data-composer-card]:has(.rong-inject-marker)::before {
   content: '';
   position: absolute;
@@ -628,18 +628,6 @@
   .rong-inject-editor-meta {
     grid-template-columns: minmax(0, 1fr);
   }
-}
-
-/* 只隐藏带本组件装饰标记的原生齿轮；移除标记即恢复，无须修改宿主 SVG。 */
-.rong-inject-settings-icon {
-  display: inline-flex;
-  width: 16px;
-  height: 16px;
-  flex: none;
-}
-
-.rong-inject-settings-icon + svg {
-  display: none;
 }
 
 /* 授权条目使用更低的双行卡片和 12px 圆角，与模板库的内容卡片区分。 */

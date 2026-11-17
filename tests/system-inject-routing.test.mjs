@@ -18,16 +18,17 @@ test('Astra 预览不拦截；切换为白名单模型后仅按原生最终路�
   assert.equal(f.calls(), 1)
 })
 
-test('轮询不改写原生捕获的模型；下一步骤重新装配时换模经过护栏', async (t) => {
+test('轮询不改写装配上下文的模型；下一步骤重新捕获时换模经过护栏', async (t) => {
   const f = await hostFixture(t)
   await f.api({ type: 'select', sessionId: f.agent.id, state: { name: f.prompt.name } })
-  await f.ctx.systemPrompt.assemble({ agent: f.agent, scope: f.agent })
-  assert.deepEqual(f.selection.assembled, f.route)
+  const captured = f.agent.model.current()
+  await f.ctx.systemPrompt.assemble({ agent: f.agent, scope: f.agent, modelSelection: captured })
+  assert.deepEqual(captured, f.route)
   f.selection.current = { provider: 'fixture', model: 'denied' }
   for (let i = 0; i < 4; i++) {
     const view = await f.api()
     assert.equal(view.session.resolved.status, 'on')
-    assert.deepEqual(f.selection.assembled, f.route)
+    assert.deepEqual(captured, f.route)
   }
   await assert.rejects(f.stream(), /denied/)
   assert.equal(f.calls(), 0)

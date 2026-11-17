@@ -55,7 +55,7 @@ export const SelectorTrigger = memo(
     const open = useStore(store, (state) => state.open)
     const preview = useEffortPreview(store, routeKey, selected?.id)
 
-    // 输入框只关心确认过的速度，不因 GET/PUT 的 loading 状态重新渲染。
+    // 输入框只关心确认过的速度，不因 GET/POST 的 loading 状态重新渲染。
     const mode = useStore(speedStore, (state) =>
       state.key === speedKey && state.value.modes.includes(state.value.mode)
         ? state.value.mode

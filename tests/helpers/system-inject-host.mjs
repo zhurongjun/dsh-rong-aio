@@ -5,7 +5,7 @@ import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import SystemPrompt, { renderPrompt } from '@deepseek-ai/dsh-system-prompt'
-import { installModelSelection } from '@deepseek-ai/dsh-agent'
+import { AgentModel, modelSelectionProjectionDefinition } from '@deepseek-ai/dsh-agent'
 import { createSystemMessage } from '@deepseek-ai/dsh-llm'
 import * as component from '../../src/components/system-inject/host/index.ts'
 import { fixture, prompt, route } from './system-inject.ts'
@@ -19,7 +19,7 @@ export async function hostFixture(t) {
   await f.put()
   await f.configure()
   const ctx = new Context()
-  const selection = { current: route, assembled: undefined }
+  let modelState = modelSelectionProjectionDefinition.init()
   const agent = {
     id: 'native-s',
     ctx,
@@ -28,7 +28,20 @@ export async function hostFixture(t) {
       header: { id: 'native-s', cwd: f.workspace },
       requestHeader: () => undefined,
       snapshotEvents: () => [],
+      append: (type, data) => {
+        modelState = modelSelectionProjectionDefinition.apply(modelState, { type, data })
+      },
     },
+  }
+  agent.model = new AgentModel(() => modelState, agent.session, agent.options)
+  const selection = {
+    get current() {
+      return agent.model.current()
+    },
+    set current(value) {
+      agent.model.select(value)
+    },
+    assembled: undefined,
   }
   const agents = [agent]
   let fiber
@@ -38,7 +51,7 @@ export async function hostFixture(t) {
   let failApi = false
 
   // 原生服务替身：只实现组件依赖的公开面，副作用与失败均由测试显式控制。
-  ctx.provide('agents', { list: () => agents, isOwnedBy: () => false })
+  ctx.provide('agents', { list: () => agents })
   ctx.provide('dshHomePath', (path) => join(f.root, 'home', path))
   ctx.provide('sessions', {
     get: (id) => agents.find((a) => a.id === id)?.session,
@@ -57,7 +70,9 @@ export async function hostFixture(t) {
   }
 
   ctx.provide('sessionController', { selectModel: nativeSelect })
-  ctx.provide('sessionProjections', { stateOf: () => ({ pending: selection.current }) })
+  ctx.provide('sessionQuery', {
+    inspectSession: async (id, read) => read(agents.find((a) => a.id === id).session),
+  })
   ctx.provide('agentDefaultModel', { currentSelection: () => route })
   ctx.provide('sessionPersistence', {
     name: 'session-persistence-jsonl',
@@ -67,7 +82,7 @@ export async function hostFixture(t) {
     {
       options: { name: '@deepseek-ai/dsh-session-persistence-jsonl' },
       disabled: false,
-      fiber: { state: 2, config: { root: join(f.root, 'sessions') } },
+      fiber: { state: 2, effectiveConfig: { root: join(f.root, 'sessions') } },
     },
   ]
   ctx.provide('loader', {
@@ -94,7 +109,6 @@ export async function hostFixture(t) {
   // 装配真实中间件；固定基础段用于核验注入保留 DSH 原有系统提示词。
   await ctx.plugin(SystemPrompt, {})
   ctx.systemPrompt.section({ name: 'base', order: 1, text: 'KEEP ORIGINAL DSH RULES' })
-  const release = installModelSelection(ctx, selection)
   fiber = ctx.plugin(component)
   await fiber
 
@@ -115,11 +129,18 @@ export async function hostFixture(t) {
   /** 执行真实提示词装配与事件瀑布，模拟最终适配器；无论成功失败都发出 idle 释放候选。 */
   const stream = async (options = {}) => {
     try {
-      const assembly = await ctx.systemPrompt.assemble({ agent, scope: agent })
-      const actualRoute = await ctx.waterfall('agent/request', { agent }, async () => ({
-        provider: 'fixture',
-        model: 'seed',
-      }))
+      // rc.3 在装配前从 AgentModel 捕获模型，并把它作为 agent/request 的终端默认值。
+      selection.assembled = agent.model.current()
+      const assembly = await ctx.systemPrompt.assemble({
+        agent,
+        scope: agent,
+        modelSelection: selection.assembled,
+      })
+      const actualRoute = await ctx.waterfall(
+        'agent/request',
+        { agent },
+        async () => selection.assembled,
+      )
       const request = {
         ...actualRoute,
         sessionId: agent.id,
@@ -141,7 +162,6 @@ export async function hostFixture(t) {
 
   /** 释放模型安装钩子、组件 fiber 与根 Context，避免测试间泄漏方法包装。 */
   const dispose = async () => {
-    release()
     await fiber.dispose()
     await ctx.fiber.dispose()
   }

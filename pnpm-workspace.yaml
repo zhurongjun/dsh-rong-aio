@@ -1,6 +1,8 @@
 # 仅用于根包的包管理器配置；内部组件清单不作为 workspace 安装。
 allowBuilds:
   esbuild: true
+  # 原生 JSONL 集成测试在 Windows 上使用此固定版本的文件锁/原子替换绑定。
+  koffi: true
 
 # 本地依赖缓存统一归入忽略的工作目录。
 storeDir: agent_temp/pnpm-store

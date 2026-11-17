@@ -15,7 +15,7 @@ interface SpeedCall {
   mode: SpeedMode
 }
 
-/** rc.5 没有 payload 扩展口；只在 llm/stream 的异步作用域内处理 HTTP JSON。 */
+/** 0.2.2-rc.3 没有 payload 扩展口；只在 llm/stream 的异步作用域内处理 HTTP JSON。 */
 export function createSpeedTransport() {
   const scope = new AsyncLocalStorage<SpeedCall>()
   const original = globalThis.fetch

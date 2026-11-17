@@ -1,10 +1,10 @@
-/** rc.5 选模前置适配：装饰公开 selectModel 方法，校验失败时不调用原生保存。 */
+/** 0.2.2-rc.3 选模前置适配：装饰公开 selectModel 方法，校验失败时不调用原生保存。 */
 
 import { symbols, type Context } from '@deepseek-ai/cordis'
 import type { SessionSelectModelRequest } from '@deepseek-ai/dsh-api-session-controller'
 import type { Controller } from './controller.ts'
 
-/** rc.5 无选模前置事件。仅装饰公开方法，保留 Remote/调用作用域及原方法的所有副作用。 */
+/** 0.2.2-rc.3 无选模前置事件。仅装饰公开方法，保留 Remote/调用作用域及原方法的所有副作用。 */
 export function installSelectionGuard(
   ctx: Context,
   controller: Controller,

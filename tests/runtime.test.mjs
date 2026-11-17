@@ -12,9 +12,9 @@ import { evaluatePluginCompatibility } from '@deepseek-ai/dsh-app-boot'
 import ClientModules from '@deepseek-ai/dsh-client-modules'
 import { defineComponent } from '../src/runtime/host/component.ts'
 
-test('安装清单：两个已验证的 DSH 版本均通过原生检查，未验证的版本仍被拦截', async () => {
+test('安装清单：当前 DSH 基线通过原生检查，其他版本不会误报兼容', async () => {
   const manifest = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'))
-  for (const version of ['0.2.1-rc.5', '0.2.2-rc.1']) {
+  for (const version of ['0.2.2-rc.3']) {
     assert.equal(evaluatePluginCompatibility(manifest, {}, version), undefined)
   }
   const unsupported = evaluatePluginCompatibility(manifest, {}, '0.2.2-rc.2')

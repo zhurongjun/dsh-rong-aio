@@ -30,10 +30,15 @@ import { SelectorTrigger } from './SelectorTrigger.tsx'
 import { EffortPanel } from './EffortPanel.tsx'
 import { useModelSelection } from './useModelSelection.ts'
 import { ModelList } from './ModelList.tsx'
+import { useTeamSelection, type TeamSelection } from './useTeamSelection.ts'
+import { TeamDisableDialog } from './TeamControl.tsx'
 
 /** 复用 DSH 模型插槽契约；available 区分本地会话与独立运行时，locked 控制交互。 */
-type Props = ModelSelectInjected &
-  Pick<PropsRuntime<'conversation.input.model'>, 'locked' | 'sessionId'>
+type Props = Omit<ModelSelectInjected, 'resolveText'> &
+  Pick<PropsRuntime<'conversation.input.model'>, 'locked' | 'sessionId'> & {
+    /** 原生能力与根会话投影均可用时提供。 */
+    team?: TeamSelection
+  }
 
 /** 让会话切换重新建立瞬时 UI 状态；持久化状态始终由 DSH 目录持有。 */
 export function ModelSelector(props: Props) {
@@ -44,7 +49,7 @@ export function ModelSelector(props: Props) {
  * 单会话外壳负责菜单生命周期、定位和键盘导航；数据与提交由控制器负责。
  * 子视图只订阅各自需要的投影，粒子逐帧运动与请求刷新互不驱动。
  */
-function Selector({ locked, available, directory, load, select, sessionId }: Props) {
+function Selector({ locked, available, directory, load, select, sessionId, team }: Props) {
   const [store] = useState(createSelectorStore)
   const actions = store.getState().actions
   const [speedStore] = useState(() => createSpeedStore(actions.reportError))
@@ -124,16 +129,25 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
     },
     [actions],
   )
+  const teamInteraction = useTeamSelection(
+    team,
+    locked,
+    () => {
+      close(true)
+      actions.unmount()
+    },
+    actions.reportError,
+  )
 
   useEffect(() => {
     if (!open) return
 
-    /** 忽略主面板、触发按钮及独立 Fast 门户内部的指针事件，其余位置关闭。 */
+    /** 忽略主面板、触发按钮及共享选项门户内部的指针事件，其余位置关闭。 */
     const outside = (event: PointerEvent) => {
       if (
         menu.current?.contains(event.target as Node) ||
         trigger.current?.contains(event.target as Node) ||
-        (event.target instanceof Element && event.target.closest('[data-rong-speed-menu]'))
+        (event.target instanceof Element && event.target.closest('[data-rong-option-menu]'))
       )
         return
       close()
@@ -322,6 +336,8 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
                   ref={header}
                   store={store}
                   speedStore={speedStore}
+                  team={team}
+                  teamInteraction={teamInteraction}
                   routeKey={routeKey}
                   speedRoute={speedRoute}
                   model={model}
@@ -369,6 +385,7 @@ function Selector({ locked, available, directory, load, select, sessionId }: Pro
           </MenuSurface>,
           document.body,
         )}
+      <TeamDisableDialog interaction={teamInteraction} disabled={locked || !team?.ready} />
       {error && (
         <Toast
           key={errorSequence}

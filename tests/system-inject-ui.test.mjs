@@ -1,4 +1,4 @@
-/** 设置视图 DOM 回归：裂盾导航、模板分组、白名单卡片与新增菜单的键盘行为。 */
+/** 设置视图 DOM 回归：模板分组、白名单卡片、菜单键盘与定位边界。 */
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
@@ -20,59 +20,10 @@ const { createRoot } = await import('react-dom/client')
 
 await mkdir('agent_temp/tests', { recursive: true })
 
-await build({
-  entryPoints: ['src/components/system-inject/client/SettingsNavIcon.tsx'],
-  outfile: 'agent_temp/tests/inject-settings-icon.mjs',
-  bundle: true,
-  format: 'esm',
-  platform: 'node',
-  jsx: 'automatic',
-  external: ['react', 'react-dom'],
-  plugins: [
-    {
-      name: 'shield-primitive',
-      setup(builder) {
-        builder.onResolve({ filter: /^@deepseek-ai\/dsh-client-ui-primitives$/ }, () => ({
-          path: 'primitives',
-          namespace: 'fixture',
-        }))
-        builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
-          contents: 'export const IconShieldOutlineRegular = () => null',
-        }))
-      },
-    },
-  ],
-})
-
-const { SettingsNavIcon } = await import('../agent_temp/tests/inject-settings-icon.mjs')
-
-test('设置裂盾适配只作用于本分类，支持导航重挂载，停用还原原 SVG', async () => {
-  document.body.innerHTML =
-    '<button id="outside"><svg></svg>破甲模式</button><div data-shortcut-modal="settings"><nav><button><svg id="gear"></svg><span>破甲模式</span></button><button><svg id="other"></svg>模型</button></nav><div id="action"></div></div>'
-  const root = createRoot(document.getElementById('action'))
-  const gear = document.getElementById('gear')
-  try {
-    await act(async () => root.render(React.createElement(SettingsNavIcon)))
-    assert.equal(document.querySelectorAll('.rong-inject-settings-icon').length, 1)
-    assert.equal(gear.previousElementSibling?.className, 'rong-inject-settings-icon')
-    assert.equal(gear.previousElementSibling.querySelector('svg').getAttribute('width'), '16')
-    assert.equal(gear.previousElementSibling.querySelectorAll('path').length, 2)
-    assert.equal(document.getElementById('other').previousElementSibling, null)
-    assert.equal(document.getElementById('outside').children.length, 1)
-    await act(async () => {
-      document.querySelector('nav').innerHTML = '<button><svg id="new-gear"></svg>破甲模式</button>'
-    })
-    assert.equal(document.querySelectorAll('.rong-inject-settings-icon').length, 1)
-    assert.equal(
-      document.getElementById('new-gear').previousElementSibling?.className,
-      'rong-inject-settings-icon',
-    )
-  } finally {
-    await act(async () => root.unmount())
-  }
-  assert.equal(document.querySelector('.rong-inject-settings-icon'), null)
-  assert.equal(document.getElementById('new-gear').parentElement.firstElementChild.id, 'new-gear')
-})
+globalThis.ResizeObserver = class {
+  observe() {}
+  disconnect() {}
+}
 
 // 隔离宿主弹层实现，只验证业务分组、范围与操作分发；材质和键盘由原生 DSH 验证。
 await build({
@@ -222,7 +173,7 @@ await build({
         builder.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
           loader: 'tsx',
           contents: `
-          import {forwardRef, useLayoutEffect, useState} from 'react'
+          import {forwardRef, useLayoutEffect} from 'react'
           export const IconPlusOutlineRegular = () => <svg />
           export const IconSearchOutlineRegular = () => <svg />
           export const IconTrashOutlineRegular = () => <svg />
@@ -231,11 +182,6 @@ await build({
           export const Button = forwardRef(({icon, size, variant, ...props}, ref) => <button {...props} ref={ref} />)
           export const Input = forwardRef(({icon, ...props}, ref) => <input {...props} ref={ref} />)
           export const MenuSurface = forwardRef((props, ref) => <div {...props} ref={ref} />)
-          export const useAnchoredPosition = () => {
-            const [position, setPosition] = useState(null)
-            useLayoutEffect(() => {setPosition({left:0, top:0})}, [])
-            return position
-          }
           export const useDismissOnOutsidePointer = () => {}
           // 仅模拟挂载焦点；原生弹层定位、Tab/Escape 所有权另在实际 DSH 验证。
           export const useModalLayer = (ref, open) => useLayoutEffect(() => {
@@ -254,7 +200,7 @@ await build({
 
 const { Whitelist } = await import('../agent_temp/tests/inject-whitelist.mjs')
 
-// jsdom 没有布局；滚动定位不参与本测试，只检查可选路由与提交行为。
+// jsdom 没有布局，普通业务测试忽略滚动；定位测试显式提供尺寸。
 dom.window.HTMLElement.prototype.scrollIntoView = () => {}
 
 test('白名单菜单保留并禁用已添加项，键盘跳过授权项，同名不同路由精确增删', async () => {
@@ -348,5 +294,66 @@ test('白名单菜单保留并禁用已添加项，键盘跳过授权项，同�
     )
   } finally {
     await act(async () => root.unmount())
+  }
+})
+
+test('白名单定位适配：窄视口向上展开，锚点滚出视口仍可见，卸载断开尺寸观察', async () => {
+  const { window } = dom
+  document.body.innerHTML = '<div id="position"></div>'
+  const root = createRoot(document.getElementById('position'))
+  const Observer = globalThis.ResizeObserver
+  const viewport = { width: window.innerWidth, height: window.innerHeight }
+  let observing = 0
+  globalThis.ResizeObserver = class {
+    observe() {
+      observing++
+    }
+    disconnect() {
+      observing = 0
+    }
+  }
+  window.innerWidth = 320
+  window.innerHeight = 450
+  try {
+    await act(async () =>
+      root.render(
+        React.createElement(Whitelist, {
+          whitelist: [],
+          routes: [{ provider: 'p', model: 'm' }],
+          catalogErrors: [],
+          disabled: false,
+          onAdd() {},
+          onRemove() {},
+        }),
+      ),
+    )
+    const add = [...document.querySelectorAll('button')].find(
+      (button) => button.textContent === '新增',
+    )
+    let rect = { top: 400, bottom: 428, right: 340 }
+    add.getBoundingClientRect = () => rect
+    await act(async () => add.click())
+    const panel = document.querySelector('[role="dialog"]')
+    Object.defineProperties(panel, { offsetWidth: { value: 256 }, scrollHeight: { value: 500 } })
+    await act(async () => window.dispatchEvent(new dom.window.Event('resize')))
+    assert.equal(panel.style.top, '')
+    assert.ok(Number.parseFloat(panel.style.bottom) >= 12)
+    assert.ok(Number.parseFloat(panel.style.left) + panel.offsetWidth <= window.innerWidth - 12)
+    assert.ok(Number.parseFloat(panel.style.maxHeight) <= rect.top - 12)
+    rect = { top: -80, bottom: -52, right: 300 }
+    await act(async () => window.dispatchEvent(new dom.window.Event('scroll')))
+    assert.equal(panel.style.bottom, '')
+    assert.equal(panel.style.top, '12px')
+    rect = { top: 530, bottom: 558, right: 300 }
+    await act(async () => window.dispatchEvent(new dom.window.Event('scroll')))
+    assert.equal(panel.style.top, '')
+    assert.equal(panel.style.bottom, '12px')
+    assert.equal(observing, 2)
+  } finally {
+    await act(async () => root.unmount())
+    assert.equal(observing, 0)
+    globalThis.ResizeObserver = Observer
+    window.innerWidth = viewport.width
+    window.innerHeight = viewport.height
   }
 })

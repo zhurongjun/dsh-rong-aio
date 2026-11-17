@@ -1,6 +1,6 @@
 # 安装与维护
 
-支持 **DeepSeek Harness `0.2.1-rc.5` 和 `0.2.2-rc.1`**。插件清单逐个列出支持的版本，DSH 会在加载组件前核对 `engines.dsh`。Desktop 与 Web 使用各自的 profile，安装来源、构建许可和启用状态分别管理。
+支持 **DeepSeek Harness `0.2.2-rc.3`**。开发依赖与 API 验证均固定在该版本；插件清单仅声明当前维护基线，DSH 会在加载组件前核对 `engines.dsh`。Desktop 与 Web 使用各自的 profile，安装来源、构建许可和启用状态分别管理。
 
 ## Git 安装入口
 
@@ -37,11 +37,11 @@ macOS Desktop 会在启动时读取登录 shell 的环境；若安装工具或�
 
 若 Git 构建错误未被界面识别为可批准的包，关闭弹窗，按 pnpm 错误输出将**完整且精确的键**加入当前 Desktop profile 的 `pnpm-workspace.yaml` 中已有的 `allowBuilds` 映射，再重试同一个 spec。默认文件位置为 `$DSH_HOME/profiles/desktop/pnpm-workspace.yaml`，未设置 `DSH_HOME` 时为 `~/.dsh/profiles/desktop/pnpm-workspace.yaml`。保留该文件其他配置；不设置全局忽略限制或允许全部脚本，不用 CLI 绕过 Desktop 的 profile 管理。
 
-构建许可允许包以宿主用户权限运行构建代码，只批准信任的源码。Git 来源的键可能包含 URL 和提交号，必须以当前 pnpm 输出为准；升级到另一个提交可能需要再次许可。仓库内对 esbuild 的开发构建许可不代替 DSH profile 对本插件的许可。
+构建许可允许包以宿主用户权限运行构建代码，只批准信任的源码。Git 来源的键可能包含 URL 和提交号，必须以当前 pnpm 输出为准；升级到另一个提交可能需要再次许可。仓库内对 esbuild、koffi 的开发构建许可不代替 DSH profile 对本插件的许可。
 
 ## Web
 
-以下命令中的 `dsh` 须使用上文列出的版本。没有全局命令时，可用 `pnpm dlx @deepseek-ai/dsh@0.2.2-rc.1` 代替 `dsh`。
+以下命令中的 `dsh` 须使用上文列出的版本。没有全局命令时，可用 `pnpm dlx @deepseek-ai/dsh@0.2.2-rc.3` 代替 `dsh`。
 
 ```sh
 dsh plugin --profile web add 'github:zhurongjun/dsh-rong-aio#<完整提交 SHA>'
@@ -132,7 +132,7 @@ Desktop 可在“添加插件”中填写本地包绝对路径。安装包只包
 
 ## 官方依据
 
-- [目标版本的 Git 安装与 prepare 说明](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.1-rc.5/docs/user/develop/basic/publish.md#installing-from-github-the-build-script-catch)
-- [配置层加载规则](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.1-rc.5/packages/boot/app-boot/README.md)
+- [目标版本的 Git 安装与 prepare 说明](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/docs/user/develop/basic/publish.md#installing-from-github-the-build-script-catch)
+- [配置层加载规则](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/boot/app-boot/README.md)
 - [pnpm 生命周期](https://pnpm.io/scripts)
 - [pnpm pack 生命周期](https://pnpm.io/cli/pack#life-cycle-scripts)

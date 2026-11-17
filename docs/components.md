@@ -39,9 +39,9 @@ Host 与 Client 不相互导入；Shared 不依赖任一侧、Node 或 DOM；Cli
 | `dsh-rong-aio/system-inject`  | 破甲模式功能入口                      |
 | `dsh-rong-aio-system-inject`  | 破甲模式客户端工厂 ID，不单独安装     |
 
-DSH rc.5 的客户端扫描不处理包子路径。根配置层因此只声明业务条目；该条目通过 `EntryTree` 创建 `implementation` 子条目，以文件 URL 加载 `lib/components/<功能名>/index.js`。客户端扫描从附近的内部清单读取 `dsh.client` 和 `./client`，得到独立模块身份。
+DSH 0.2.2-rc.3 的客户端扫描不处理包子路径。根配置层因此只声明业务条目；该条目通过 `EntryTree` 创建 `implementation` 子条目，以文件 URL 加载 `lib/components/<功能名>/index.js`。客户端扫描从附近的内部清单读取 `dsh.client` 和 `./client`，得到独立模块身份。
 
-装配层使用 Cordis effect 管理异步加载和清理，即使加载途中停用，也会等待初始化结束后释放子条目。内部条目不写入根 bundle patch，因此原生“包含的组件”只显示业务功能。停用功能会同时清理其宿主服务、客户端插槽和样式；关闭总包停用全部组件。启停状态由 DSH profile 管理，插件不另行持久化。
+内部 EntryTree 的 `commit` 不持久化生成条目；装配层使用 Cordis effect 管理异步加载和清理，即使加载途中停用，也会等待初始化结束后释放子条目。内部条目不写入根 bundle patch，因此原生“包含的组件”只显示业务功能。停用功能会同时清理其宿主服务、客户端插槽和样式；关闭总包停用全部组件。启停状态由 DSH profile 管理，插件不另行持久化。
 
 `prepare` 统一生成 `lib/`，包括装配器、子路径入口、内部清单、locale、宿主和客户端产物。Zod、Zustand 和 Immer 随对应产物内嵌；Cordis、Loader、React 与 DSH 客户端模块使用宿主实例。安装方式见[安装说明](installation.md)。
 

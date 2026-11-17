@@ -186,7 +186,6 @@ test('无法唯一识别活动存储时禁止冻结；不能回退猜测默认�
 test('Cordis 4.1 使用生效配置定位快照，忽略原始 root 表达式', async (t) => {
   const f = await hostFixture(t)
   const fiber = f.entries[0].fiber
-  fiber.effectiveConfig = fiber.config
   fiber.config = { root: { expression: "dshHomePath('sessions')" } }
 
   await f.reload()
@@ -243,16 +242,15 @@ test('冷会话保持关闭，只有显式选词才通过历史投影读取模�
   const meta = f.agent.session.header
   const events = [{ type: 'model/selection', data: f.route, seq: 0 }]
   f.ctx.sessionPersistence.stat = async () => ({ header: meta })
-  f.ctx.sessionController.inspect = async () => ({ meta, events, inheritedEventCount: 0 })
+  f.ctx.sessionQuery.inspectSession = async (id, read) => {
+    assert.equal(id, meta.id)
+    return read({ snapshotEvents: () => events })
+  }
   let restores = 0
-  f.ctx.sessionProjections.restore = (checkpoint, log, base, header, inherited) => {
-    assert.deepEqual(checkpoint, {})
-    assert.equal(log, events)
-    assert.equal(base, 0)
-    assert.equal(header, meta)
-    assert.equal(inherited, 0)
+  f.ctx.sessionController.projections = async ({ sessionId }) => {
+    assert.equal(sessionId, meta.id)
     restores++
-    return { snapshot: { values: { modelSelection: { next: f.route } } } }
+    return { kind: 'sequenced', values: { modelSelection: { next: f.route } } }
   }
   f.agents.length = 0
   await f.reload()

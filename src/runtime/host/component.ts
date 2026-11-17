@@ -5,11 +5,11 @@ import { EntryTree } from '@deepseek-ai/cordis-plugin-loader'
 
 /**
  * 只读装配子树：内部 implementation 条目随外层功能创建与释放。
- * write 刻意为空，阻止生成条目污染用户覆盖文件；启停状态由外层 profile 保存。
+ * commit 刻意为空，阻止生成条目污染用户覆盖文件；启停状态由外层 profile 保存。
  */
 class ComponentTree extends EntryTree {
   /** 子树是装配产物，禁止写入用户覆盖层；启停持久化归外层功能条目。 */
-  write(): void {}
+  commit(): void {}
 }
 
 /**

@@ -1,18 +1,18 @@
 {
   "baseline": {
-    "version": "0.2.1-rc.5",
-    "commit": "b830ec950faba0a46dda564be3e2d854afed94f1",
-    "sourceBase": "https://github.com/deepseek-ai/deepseek-harness/blob/b830ec950faba0a46dda564be3e2d854afed94f1/"
+    "version": "0.2.2-rc.3",
+    "commit": "38a6a5c965aa99ab525161efb7cc5cf1fe62fced",
+    "sourceBase": "https://github.com/deepseek-ai/deepseek-harness/blob/38a6a5c965aa99ab525161efb7cc5cf1fe62fced/"
   },
   "tokens": {
     "--dsh-composer-model-icon-display": {
       "kind": "component-contract",
-      "source": "packages/client/ui-model-selection/src/client/ModelSelect.module.css#L67",
+      "source": "packages/client/ui-model-selection/src/client/ModelSelect.module.css#L71",
       "role": "输入框窄宽度下切换模型文字与图标；不是全局主题 token"
     },
     "--dsh-composer-model-text-display": {
       "kind": "component-contract",
-      "source": "packages/client/ui-model-selection/src/client/ModelSelect.module.css#L75",
+      "source": "packages/client/ui-model-selection/src/client/ModelSelect.module.css#L79",
       "role": "输入框窄宽度下切换模型文字与图标；不是全局主题 token"
     },
     "--dsh-scrollbar-thumb": {
@@ -27,57 +27,57 @@
     },
     "--dsw-alias-border-l1": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L185",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L195",
       "role": "语义颜色"
     },
     "--dsw-alias-border-l3": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L188",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L198",
       "role": "语义颜色"
     },
     "--dsw-alias-interactive-bg-hover": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L213",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L242",
       "role": "语义颜色"
     },
     "--dsw-alias-label-caption": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L214",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L250",
       "role": "语义颜色"
     },
     "--dsw-alias-label-dimmed": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L217",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L253",
       "role": "语义颜色"
     },
     "--dsw-alias-label-primary": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L222",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L259",
       "role": "语义颜色"
     },
     "--dsw-alias-label-secondary": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L223",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L260",
       "role": "语义颜色"
     },
     "--dsw-alias-label-tertiary": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L225",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L262",
       "role": "语义颜色"
     },
     "--dsw-alias-scrollbar-bg-l2": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L237",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L274",
       "role": "滚动条"
     },
     "--dsw-alias-scrollbar-hover-l2": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L239",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L276",
       "role": "滚动条"
     },
     "--dsw-alias-state-business-primary": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L240",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L277",
       "role": "语义颜色"
     },
     "--dsw-elevation-prominent": {
@@ -137,17 +137,17 @@
     },
     "--dsw-specific-input-major": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L269",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L314",
       "role": "正文编辑器背景"
     },
     "--dsw-alias-state-warn-primary": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L257",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L295",
       "role": "与错误语义色混合，表示破甲模式生效的橘红色警示"
     },
     "--dsw-alias-state-error-primary": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L250",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L288",
       "role": "注入警示与错误状态"
     },
     "--ds-font-family-code": {
@@ -157,12 +157,12 @@
     },
     "--dsw-alias-bg-module-platform": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L179",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L189",
       "role": "破甲词短标识底色"
     },
     "--dsw-alias-border-l2": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L187",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L197",
       "role": "破甲词来源分组间分隔线"
     },
     "--dsw-alias-settings-card-fill": {
@@ -187,7 +187,7 @@
     },
     "--dsw-alias-bg-layer-1": {
       "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/design-platform.css#L171",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L181",
       "role": "白名单紧凑卡片，与模板内容卡片区分"
     },
     "--dsw-radius-md": {

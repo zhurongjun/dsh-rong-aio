@@ -89,7 +89,7 @@
   flex: 1;
 }
 
-/* rc.5 MenuSurface 的首个子层是官方材质；与内容分别淡入，不修改材质本身。 */
+/* 0.2.2-rc.3 MenuSurface 的首个子层是官方材质；与内容分别淡入，不修改材质本身。 */
 .rong-model-popover > [aria-hidden='true']:first-child,
 .rong-model-content {
   opacity: 1;
@@ -160,7 +160,7 @@
   outline-offset: 2px;
 }
 
-/* 强度页头：Fast、标题和 Reset 的固定比例。 */
+/* 强度页头：Team 紧邻 Fast，标题保留剩余宽度，滑杆几何不变。 */
 .rong-effort-pane {
   padding: 10px 13px 14px;
   animation: rong-pane-in 150ms ease-out;
@@ -172,6 +172,11 @@
   align-items: start;
   gap: 4px;
   margin-bottom: 12px;
+}
+
+.rong-effort-header[data-has-team] {
+  grid-template-columns: 16px 16px minmax(0, 1fr) 16px;
+  column-gap: 10px;
 }
 
 .rong-icon-button {
@@ -201,7 +206,12 @@
   color: var(--dsw-alias-label-tertiary);
 }
 
-.rong-model-popover .rong-fast:disabled {
+.rong-model-popover .rong-team-enabled {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.rong-model-popover .rong-fast:disabled,
+.rong-model-popover .rong-team:disabled {
   color: var(--dsw-alias-label-dimmed);
 }
 
@@ -546,8 +556,8 @@
   }
 }
 
-/* Fast 子菜单：官方 compact 表面与独立退场，关闭时不响应选项。 */
-.rong-speed-menu {
+/* Fast/Team 共用子菜单：官方 compact 表面与独立退场，关闭时不响应选项。 */
+.rong-option-menu {
   position: fixed;
   z-index: 1101;
   width: max-content;
@@ -561,39 +571,39 @@
   transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* rc.5 MenuSurface 的首个 aria-hidden 子层是官方材质层。直接淡入该层，
+/* 0.2.2-rc.3 MenuSurface 的首个 aria-hidden 子层是官方材质层。直接淡入该层，
    避免祖先 opacity < 1 改变 backdrop root，最后一帧才突然采样到真实背景。 */
-.rong-speed-menu > [aria-hidden='true']:first-child,
-.rong-speed-items {
+.rong-option-menu > [aria-hidden='true']:first-child,
+.rong-option-items {
   opacity: 1;
   transition: opacity 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.rong-speed-menu[data-open='false'] {
+.rong-option-menu[data-open='false'] {
   transform: translate3d(0, 0, 0) scale(0.96);
   pointer-events: none;
   transition-duration: 110ms;
   transition-timing-function: ease-in;
 }
 
-.rong-speed-menu[data-open='false'] > [aria-hidden='true']:first-child,
-.rong-speed-menu[data-open='false'] > .rong-speed-items {
+.rong-option-menu[data-open='false'] > [aria-hidden='true']:first-child,
+.rong-option-menu[data-open='false'] > .rong-option-items {
   opacity: 0;
   transition-duration: 110ms;
   transition-timing-function: ease-in;
 }
 
 @starting-style {
-  .rong-speed-menu[data-open='true'] {
+  .rong-option-menu[data-open='true'] {
     transform: translate3d(0, 0, 0) scale(0.96);
   }
-  .rong-speed-menu[data-open='true'] > [aria-hidden='true']:first-child,
-  .rong-speed-menu[data-open='true'] > .rong-speed-items {
+  .rong-option-menu[data-open='true'] > [aria-hidden='true']:first-child,
+  .rong-option-menu[data-open='true'] > .rong-option-items {
     opacity: 0;
   }
 }
 
-.rong-speed-menu button {
+.rong-option-menu button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 16px;
   gap: 16px;
@@ -613,7 +623,7 @@
   cursor: pointer;
 }
 
-.rong-speed-check {
+.rong-option-check {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -621,8 +631,8 @@
   height: 16px;
 }
 
-.rong-speed-menu button:hover,
-.rong-speed-menu button:focus-visible {
+.rong-option-menu button:hover,
+.rong-option-menu button:focus-visible {
   outline: none;
   background: var(--dsw-alias-interactive-bg-hover);
 }

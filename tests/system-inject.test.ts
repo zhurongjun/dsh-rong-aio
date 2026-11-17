@@ -223,7 +223,7 @@ test('跨进程文件版本拒绝覆盖；改名和删除允许确认后产生�
   assert.equal((await f.controller.context(f.workspace)).config.templates.length, 0)
 })
 
-test('rc.5 会话路径对点号、中文、分隔符和无工作区保持一致', () => {
+test('0.2.2-rc.3 会话路径对点号、中文、分隔符和无工作区保持一致', () => {
   assert.equal(projectKey('/Users/a/project.test'), '--Users-a-project.test--')
   assert.equal(encodeSessionSegment('../x'), '..~002Fx')
   assert.equal(encodeSessionSegment('..'), '~002E~002E')

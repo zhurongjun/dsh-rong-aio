@@ -1,8 +1,8 @@
 # dsh-rong-aio
 
-自用、一个安装入口包含多个功能组件的 DeepSeek Harness 插件，支持 **DSH `0.2.1-rc.5` 和 `0.2.2-rc.1`** 的 Desktop 与 Web。
+自用、一个安装入口包含多个功能组件的 DeepSeek Harness 插件，支持 **DSH `0.2.2-rc.3`** 的 Desktop 与 Web。
 
-包含两个独立组件：**模型选择器**提供紧凑的模型、effort 与 Fast 控制；**破甲模式**提供文件破甲词库、新会话显式授权、冻结快照和精确模型白名单。界面使用 DSH 主题与公开控件，各组件独立启停。
+包含两个独立组件：**模型选择器**提供紧凑的模型、effort、Fast 与 Agent Team 控制；**破甲模式**提供文件破甲词库、新会话显式授权、冻结快照和精确模型白名单。界面使用 DSH 主题与公开控件，各组件独立启停。
 
 ## 安装
 
@@ -27,6 +27,7 @@ github:zhurongjun/dsh-rong-aio#<完整提交 SHA>
 - 切换模型与重置优先使用该模型明确配置的默认强度；未配置时选 Medium，否则首个非 Off 档。
 - 旧会话没有明确强度时显示“请选择强度”；无推理档位的模型显示说明，不虚构滑块。
 - Fast 和 reset 默认为灰色，悬停只增加圆角背景；闪电标准时空心、快速/超快时实心。速度选择按会话和模型保存，重启后保留。
+- Agent Team 位于 Fast 右侧，与原生会话状态同步；有请求历史时关闭需确认，子会话不显示。
 - Esc 从模型列表返回滑块，再按一次关闭；点击外部关闭。
 - 滑轨固定淡蓝填充，粒子向左流动；已经过的圆点隐藏，本插件动画独立于系统“减少动态效果”配置。
 
@@ -37,7 +38,7 @@ github:zhurongjun/dsh-rong-aio#<完整提交 SHA>
 ```text
 src/
 ├── components/
-│   ├── model-selector/           # 模型、effort 与 Fast
+│   ├── model-selector/           # 模型、effort、Fast 与 Agent Team
 │   └── system-inject/            # 破甲词、会话冻结与模型护栏
 └── runtime/host/                 # 组件装配与生命周期
 scripts/build.mjs                 # 统一生成组件入口与 DSH 模块工厂
@@ -50,7 +51,7 @@ Host 不导入 Client；Client 不导入 Host 或 Node；Shared 不依赖任一�
 
 界面直接消费 DSH 的语义 token 与公开控件；中性色、菜单材质和字体跟随宿主，保留选择器的布局与特色交互。新增界面遵守 [UI 消费契约](docs/ui-contract.md)，使用 `pnpm check:ui` 检查颜色、token 与局部例外。
 
-开发环境：Node.js `^22.19.0 || >=24.0.0`、pnpm `11.25.0`。依赖固定版本，锁文件随源码提交。`pnpm-workspace.yaml` 配置 esbuild 的开发安装脚本许可及本地依赖缓存位置，只有根包参与依赖安装。
+开发环境：Node.js `^22.19.0 || >=24.0.0`、pnpm `11.25.0`。依赖固定版本，锁文件随源码提交。`pnpm-workspace.yaml` 配置 esbuild 及原生 JSONL 集成测试所需 koffi 的开发安装脚本许可与本地依赖缓存位置，只有根包参与依赖安装。
 
 | 命令                                               | 用途                                                |
 | -------------------------------------------------- | --------------------------------------------------- |

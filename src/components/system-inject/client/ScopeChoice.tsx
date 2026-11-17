@@ -9,7 +9,7 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Scope } from '../shared/state.ts'
 
-/** rc.5 未公开独立 Select；设置选项由官方 Menu 和 Button 组合，不实现另一套弹层或键盘逻辑。 */
+/** 0.2.2-rc.3 未公开独立 Select；设置选项由官方 Menu 和 Button 组合，不实现另一套弹层或键盘逻辑。 */
 export function ScopeChoice({
   value,
   workspace,

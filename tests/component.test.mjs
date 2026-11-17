@@ -49,7 +49,7 @@ const { createRoot } = await import('react-dom/client')
 await mkdir('agent_temp/tests', { recursive: true })
 
 // 只替换 DSH 的视觉原子；被测组件、状态逻辑、React 与事件处理均使用实际实现。
-await build({
+const buildOptions = {
   entryPoints: ['src/components/model-selector/client/model-selector/ModelSelector.tsx'],
   outfile: 'agent_temp/tests/selector.mjs',
   bundle: true,
@@ -68,23 +68,43 @@ await build({
         build.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
           loader: 'js',
           contents: `
-      import React from 'react';
+      import React, {useLayoutEffect, useRef} from 'react';
       export const MenuSurface = React.forwardRef(({compact: _compact, ...props}, ref) => React.createElement('div', {...props, ref}));
+      export const Button = ({variant: _variant, ...props}) => React.createElement('button', props);
+      export const Modal = ({open, title, children, footer, onClose}) => {
+        const ref = useRef(null);
+        useLayoutEffect(() => {
+          if (!open) return;
+          const previous = document.activeElement;
+          ref.current?.querySelector('button')?.focus();
+          return () => previous?.focus();
+        }, [open]);
+        return open ? React.createElement('div', {ref, role:'dialog', 'aria-label':title, 'data-test-modal':'', onKeyDown:e=>{if(e.key==='Escape')onClose()}},children,footer) : null;
+      };
       export const Toast = ({text, onDone}) => React.createElement('div', {'data-test-toast': '', role: 'status'}, text, React.createElement('button', {'data-test-dismiss': '', onClick: onDone}, 'dismiss'));
       export const isBehindModal = (anchor) => {
         const modal = document.querySelector('[data-test-modal]');
         return !!anchor && !!modal && !modal.contains(anchor);
       };
       const Icon = () => null;
-      export { Icon as IconCheckOutlineRegular, Icon as IconChevronDownOutlineRegular, Icon as IconChevronLeftOutlineRegular, Icon as IconChevronRightOutlineRegular, Icon as IconDataOutlineRegular, Icon as IconRefreshOutlineRegular, Icon as IconSearchOutlineRegular, Icon as IconWarningOutlineRegular };
+      export { Icon as IconUsersOutlineRegular, Icon as IconCheckOutlineRegular, Icon as IconChevronDownOutlineRegular, Icon as IconChevronLeftOutlineRegular, Icon as IconChevronRightOutlineRegular, Icon as IconDataOutlineRegular, Icon as IconRefreshOutlineRegular, Icon as IconSearchOutlineRegular, Icon as IconWarningOutlineRegular };
     `,
         }))
       },
     },
   ],
+}
+
+await build(buildOptions)
+await build({
+  ...buildOptions,
+  entryPoints: ['src/components/model-selector/client/index.ts'],
+  outfile: 'agent_temp/tests/model-client.mjs',
+  loader: { '.css': 'text' },
 })
 
 const { ModelSelector } = await import('../agent_temp/tests/selector.mjs')
+const modelClient = await import('../agent_temp/tests/model-client.mjs')
 
 const levels = ['off', 'low', 'medium', 'high', 'max'].map((id) => ({ id, name: id }))
 
@@ -624,7 +644,7 @@ test('Fast 同路由刷新和写入保留确认值，只阻止速度控件，不
     await reply(1)
     await act(async () => fast.click())
     await act(async () => document.querySelector('[role="menuitemradio"]').click())
-    assert.equal(requests[2].method, 'PUT')
+    assert.equal(requests[2].method, 'POST')
     assertWaiting()
     assert.equal(document.activeElement, fast)
     await reply(2, false)
@@ -641,7 +661,7 @@ test('Fast 菜单：按支持档位显示、键盘选择、实心状态、写入
   let fail = false
   const writes = []
   globalThis.fetch = async (_url, init) => {
-    if (init.method === 'PUT') {
+    if (init.method === 'POST') {
       writes.push(JSON.parse(init.body))
       if (fail) return Response.json({ error: '速度保存失败' }, { status: 503 })
       mode = JSON.parse(init.body).mode
@@ -765,7 +785,7 @@ test('系统减少动态效果开启时仍完成主弹层与 Fast 退场，快�
     await click(document.querySelector('.rong-model-trigger'))
     const fast = document.querySelector('.rong-fast')
     await click(fast)
-    const menu = document.querySelector('[data-rong-speed-menu]')
+    const menu = document.querySelector('[data-rong-option-menu]')
     assert.equal(document.activeElement.getAttribute('aria-checked'), 'true')
     await click(fast)
     assert.equal(menu.dataset.open, 'false')
@@ -780,11 +800,11 @@ test('系统减少动态效果开启时仍完成主弹层与 Fast 退场，快�
     assert.equal(document.querySelector('[role="menu"]'), menu)
     await click(fast)
     await finish(menu)
-    assert.equal(document.querySelector('[data-rong-speed-menu]'), null)
+    assert.equal(document.querySelector('[data-rong-option-menu]'), null)
     await click(fast)
     await click(fast)
     await act(async () => new Promise((resolve) => setTimeout(resolve, 200)))
-    assert.equal(document.querySelector('[data-rong-speed-menu]'), null)
+    assert.equal(document.querySelector('[data-rong-option-menu]'), null)
 
     const trigger = document.querySelector('.rong-model-trigger')
     const popover = document.querySelector('.rong-model-popover')
@@ -998,4 +1018,232 @@ test('系统减少动态效果开启时滑块与粒子仍连续绘制；目录�
   }
   assert.equal(frames.size, 0)
   assert.equal(activeSubscriptions, 0)
+})
+
+test('Team 与 Fast 共用菜单：确认值、重复提交保护、失败 Toast 与已有请求关闭确认', async () => {
+  globalThis.fetch = async () => Response.json({ mode: 'standard', modes: ['standard', 'fast'] })
+  const state = {
+    current: { provider: 'p', model: 'first' },
+    groups: [{ id: 'p', name: 'P', models }],
+    failures: [],
+    pending: null,
+    status: 'ready',
+    error: null,
+  }
+  const root = createRoot(document.getElementById('root'))
+  let enabled = false
+  let needsConfirmation = false
+  let locked = false
+  let sessionId = 'team'
+  const calls = []
+  let response
+  const render = () =>
+    root.render(
+      React.createElement(ModelSelector, {
+        sessionId,
+        available: true,
+        locked,
+        directory: { getSnapshot: () => state, subscribe: () => () => {} },
+        load() {},
+        select() {
+          throw Error('Team 不得调用选模')
+        },
+        team: {
+          enabled,
+          ready: true,
+          needsConfirmation,
+          selectEnabled(value) {
+            calls.push(value)
+            response = Promise.withResolvers()
+            return response.promise
+          },
+        },
+      }),
+    )
+  const click = (element) => act(async () => element.click())
+  const choose = async (label) => {
+    await click(document.querySelector('.rong-team'))
+    assert.equal(
+      document.querySelector('[role="menu"]').getAttribute('aria-label'),
+      'Agent Team 模式',
+    )
+    await click(
+      [...document.querySelectorAll('[role="menuitemradio"]')].find(
+        (item) => item.textContent === label,
+      ),
+    )
+  }
+  const button = (label) =>
+    [...document.querySelectorAll('button')].find((item) => item.textContent === label)
+  try {
+    await act(async () => render())
+    await click(document.querySelector('.rong-model-trigger'))
+    assert.equal(
+      document.querySelector('.rong-fast').nextElementSibling,
+      document.querySelector('.rong-team'),
+    )
+    await choose('开启')
+    assert.deepEqual(calls, [true])
+    assert.equal(document.querySelector('.rong-team').getAttribute('aria-busy'), 'true')
+    assert.match(document.querySelector('.rong-team').getAttribute('aria-label'), /关闭/)
+    await click(document.querySelector('.rong-team'))
+    assert.equal(calls.length, 1)
+    await act(async () => response.resolve({ ok: false, error: { message: '拒绝' } }))
+    assert.match(document.querySelector('[data-test-toast]').textContent, /拒绝/)
+    assert.equal(document.querySelectorAll('[data-test-toast]').length, 1)
+    await choose('开启')
+    await act(async () => response.resolve({ ok: true, value: undefined }))
+    assert.match(
+      document.querySelector('.rong-team').getAttribute('aria-label'),
+      /关闭/,
+      'Remote 成功不代替投影',
+    )
+    enabled = true
+    needsConfirmation = true
+    await act(async () => render())
+    assert.ok(document.querySelector('.rong-team-enabled'))
+    await choose('关闭')
+    assert.equal(document.querySelector('.rong-model-popover'), null)
+    assert.ok(document.querySelector('[aria-label="确认停用 Agent Team？"]'))
+    assert.deepEqual(calls, [true, true])
+    await click(button('取消'))
+    assert.equal(document.querySelector('[data-test-modal]'), null)
+    assert.deepEqual(calls, [true, true])
+    await click(document.querySelector('.rong-model-trigger'))
+    await choose('关闭')
+    await click(button('确认停用'))
+    assert.deepEqual(calls, [true, true, false])
+    await act(async () => response.reject(Error('断线')))
+    assert.ok(document.querySelector('[data-test-modal]'))
+    assert.match(document.querySelector('[data-test-toast]').textContent, /断线/)
+    await click(button('确认停用'))
+    await act(async () => response.resolve({ ok: true, value: undefined }))
+    enabled = false
+    await act(async () => render())
+    assert.equal(document.querySelector('[data-test-modal]'), null)
+    await click(document.querySelector('.rong-model-trigger'))
+    locked = true
+    await act(async () => render())
+    assert.equal(document.querySelector('.rong-team').disabled, true)
+    locked = false
+    await act(async () => render())
+    await click(document.querySelector('.rong-model-trigger'))
+    await choose('开启')
+    const old = response
+    sessionId = 'another'
+    await act(async () => render())
+    await act(async () => old.reject(Error('旧会话迟到失败')))
+    assert.equal(document.querySelector('[data-test-toast]'), null)
+  } finally {
+    await act(async () => root.unmount())
+  }
+})
+
+test('原生插槽 Team 接入：可选 Remote 生命周期、根会话与投影门槛，命令固定会话', async () => {
+  const cleanups = []
+  const teamCleanups = []
+  let capability
+  let registration
+  let Component
+  const state = {
+    current: { provider: 'p', model: 'first' },
+    groups: [{ id: 'p', name: 'P', models }],
+    failures: [],
+    pending: null,
+    status: 'ready',
+    error: null,
+  }
+  modelClient.apply({
+    effect: (effect) => cleanups.push(effect()),
+    inject: (names, callback) => {
+      assert.deepEqual(names, ['remote.agentTeams'])
+      capability = callback
+    },
+    slots: {
+      inject: (_name, register) => register(),
+      register: (options, component) => {
+        registration = options
+        Component = component
+      },
+    },
+    modelDirectories: {
+      directoryFor: () => ({
+        store: { getSnapshot: () => state, subscribe: () => () => {} },
+        load: async () => {},
+        select: async () => ({ ok: true }),
+      }),
+    },
+    sessions: { subagentAddress: () => undefined },
+  })
+  const root = createRoot(document.getElementById('root'))
+  let addressed = false
+  let listed = false
+  let mode = { enabled: false, tasks: [] }
+  let model = { lastUsed: null }
+  const calls = []
+  const render = () =>
+    root.render(
+      React.createElement(Component, {
+        ...registration.inject('root-session'),
+        sessionId: 'root-session',
+        locked: false,
+        useSession: (select) => select({ subagent: addressed ? {} : null }),
+        useSessions: (select) =>
+          select({ byId: { 'root-session': { origin: listed ? 'subagent' : 'user' } } }),
+        useProjection: (key) => (key === 'agentTeam' ? mode : model),
+      }),
+    )
+  const click = (element) => act(async () => element.click())
+  try {
+    await act(async () => render())
+    await click(document.querySelector('.rong-model-trigger'))
+    assert.equal(document.querySelector('.rong-team'), null)
+    const service = {
+      setEnabled: async function (id, value) {
+        assert.equal(this, service)
+        calls.push([id, value])
+        return { ok: true, value: undefined }
+      },
+    }
+    await act(async () =>
+      capability({
+        remote: { agentTeams: service },
+        effect: (effect) => teamCleanups.push(effect()),
+      }),
+    )
+    assert.ok(document.querySelector('.rong-team'))
+    assert.deepEqual(calls, [], '发布能力不能调用远程命令')
+    await click(document.querySelector('.rong-team'))
+    await click(
+      [...document.querySelectorAll('[role="menuitemradio"]')].find(
+        (item) => item.textContent === '开启',
+      ),
+    )
+    assert.deepEqual(calls, [['root-session', true]])
+    assert.match(document.querySelector('.rong-team').getAttribute('aria-label'), /关闭/)
+    model = undefined
+    await act(async () => render())
+    assert.equal(document.querySelector('.rong-team').disabled, true)
+    model = { lastUsed: null }
+    addressed = true
+    await act(async () => render())
+    assert.equal(document.querySelector('.rong-team'), null)
+    addressed = false
+    listed = true
+    await act(async () => render())
+    assert.equal(document.querySelector('.rong-team'), null)
+    listed = false
+    mode = undefined
+    await act(async () => render())
+    assert.equal(document.querySelector('.rong-team'), null)
+    mode = { enabled: true, tasks: [] }
+    await act(async () => render())
+    assert.ok(document.querySelector('.rong-team-enabled'))
+    await act(async () => teamCleanups.forEach((cleanup) => cleanup()))
+    assert.equal(document.querySelector('.rong-team'), null)
+    assert.ok(document.querySelector('.rong-fast'))
+  } finally {
+    await act(async () => root.unmount())
+    cleanups.reverse().forEach((cleanup) => cleanup?.())
+  }
 })

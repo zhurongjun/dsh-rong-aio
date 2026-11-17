@@ -77,10 +77,12 @@ display_name 省略时使用 name；description 可选。正文按字面注入�
 
 ## 代码职责
 
-组件的 shared/state.ts 是唯一纯解析器；shared/markdown.ts 处理 Markdown，shared/protocol.ts 定义传输契约。host 下的 paths、prompt-catalog、config-store、session-location、session-store 分别处理路径、扫描、配置和会话存储；controller 协调并发与操作，request-guard 检查实际请求，model-selection 封装 rc.5 的公开选模方法适配，selection-error 生成组件内部可识别的校验错误，index 仅装配 DSH 公开钩子。
+组件的 shared/state.ts 是唯一纯解析器；shared/markdown.ts 处理 Markdown，shared/protocol.ts 定义传输契约。host 下的 paths、prompt-catalog、config-store、session-location、session-reader、session-store 分别处理路径、扫描、配置、原生只读查询和会话存储；controller 协调并发与操作，request-guard 检查实际请求，model-selection 封装 0.2.2-rc.3 的公开选模方法适配，selection-error 生成组件内部可识别的校验错误，index 仅装配 DSH 公开钩子。
 
-rc.5 没有选模前置事件，适配仅装饰公开 `sessionController.selectModel`，校验成功后保持原调用上下文委托，保留默认模型保存等原生行为；停用时还原。升级 DSH 必须复核方法、远程错误传递、运行中选模时序及生命周期。
+0.2.2-rc.3 没有选模前置事件，适配仅装饰公开 `sessionController.selectModel`，校验成功后保持原调用上下文委托，保留原生图像/选模串行队列、模型解析和默认模型保存等行为；停用时还原。升级 DSH 必须复核方法、远程错误传递、运行中选模时序及生命周期。
 
 选模拒绝通过 RemoteResult 返回，由当前选模入口呈现：原生模型菜单和本包选择器使用官方 Toast，原生 `/model` 保留菜单内错误提示；本组件不监听模型目录，也不另发一份选模拒绝通知。切换破甲词失败与请求护栏拒绝由本组件使用官方 Toast 呈现，结束时按通知 ID 确认；重复操作使用新通知 ID，旧 Toast 的退出回调不会清除新通知。Toast 不接管焦点，显示期间仍可输入、换模或重新选择。未开启破甲的会话不会因为模型不在白名单中而收到拒绝通知。
 
 前端使用 Zustand 与 Immer 接收权威结果。会话接口只返回一份 `session.resolved`，包含最终状态、正文、来源、有效性和可编辑性；父会话标识使用 `session.inheritedFrom`。UI 不复制原始选择或冻结文件，不另做模型白名单或会话状态解析。设置接口只返回文件配置与目录，不构造虚拟会话状态。
+
+驻留会话通过公开 `agent.model.current()` 读取当前模型；冷会话通过 `sessionController.projections` 读取精确的 `sequenced` 投影，通过 `sessionQuery.inspectSession` 判断历史，均不激活 Agent。迁移提示、缺失和读取失败不得回退为授权。子会话来源取原生头部 `parentSession`。JSONL 根目录使用 Loader 的 `effectiveConfig.root`；原始配置表达式不能作为目录。

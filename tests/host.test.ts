@@ -68,7 +68,7 @@ test('宿主接口：验证型号与协议、按会话隔离、持久化后回�
     const response = await route!.fetch(
       mode
         ? new Request('https://fixture.invalid/api/rong-aio.speed', {
-            method: 'PUT',
+            method: 'POST',
             body: JSON.stringify({ ...identity, mode }),
           })
         : new Request(

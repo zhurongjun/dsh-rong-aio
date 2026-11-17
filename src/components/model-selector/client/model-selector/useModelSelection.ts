@@ -15,7 +15,7 @@ import {
 } from '../../shared/model-selection.ts'
 import type { SelectionOperation, SelectorStore } from './selector-store.ts'
 
-interface Props extends ModelSelectInjected {
+interface Props extends Omit<ModelSelectInjected, 'resolveText'> {
   /** 会话实例独立的交互状态；不复制或乐观改写宿主 current。 */
   store: SelectorStore
   /** 宿主会话锁，具有最高交互优先级。 */

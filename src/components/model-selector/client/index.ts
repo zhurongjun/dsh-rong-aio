@@ -4,14 +4,35 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
-import type { ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
-import { ModelSelector } from './model-selector/ModelSelector.tsx'
+import { createStore } from 'zustand/vanilla'
+import {
+  ModelSelectorSlot,
+  type SelectorInjected,
+  type TeamCapability,
+} from './ModelSelectorSlot.tsx'
 import css from './model-selector/styles.css'
 
 export const inject = ['slots', 'modelDirectories', 'sessions', 'remote', 'remote.session']
 
 /** 注册模型输入框插槽与样式；模型目录由宿主管理，组件只委托读取与提交。 */
 export function apply(ctx: Context): void {
+  // Team 是可选宿主能力，其卸载不能连带停用模型、effort 或 Fast。
+  const teamCommands = createStore<{ capability: TeamCapability }>(() => ({
+    capability: undefined,
+  }))
+  ctx.inject(['remote.agentTeams'], (scope) => {
+    scope.effect(() => {
+      const capability: NonNullable<TeamCapability> = {
+        setEnabled: (sessionId, enabled, signal) =>
+          scope.remote.agentTeams.setEnabled(sessionId, enabled, signal),
+      }
+      teamCommands.setState({ capability })
+      return () => {
+        if (teamCommands.getState().capability === capability)
+          teamCommands.setState({ capability: undefined })
+      }
+    })
+  })
   ctx.effect(() => {
     const style = document.createElement('style')
     style.dataset.plugin = 'dsh-rong-aio'
@@ -25,10 +46,12 @@ export function apply(ctx: Context): void {
       {
         name: 'conversation.input.model',
         priority: -100,
-        inject: (sessionId): ModelSelectInjected => {
+        // 本选择器只消费目录名称，不呈现原生 badge，因而不需要 resolveText。
+        inject: (sessionId): SelectorInjected => {
           const directory = ctx.modelDirectories.directoryFor(sessionId)
           const available = ctx.sessions.subagentAddress(sessionId) === undefined
           return {
+            teamCommands,
             available,
             directory: directory.store,
             load: () => {
@@ -40,7 +63,7 @@ export function apply(ctx: Context): void {
           }
         },
       },
-      ModelSelector,
+      ModelSelectorSlot,
     ),
   )
 }

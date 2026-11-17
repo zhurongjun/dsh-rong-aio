@@ -60,10 +60,8 @@ export function sessionRoot(ctx: Context): string {
   )
   if (entries.length !== 1) throw new Error('无法唯一定位活动会话存储，请检查 JSONL 后端配置')
   const fiber = entries[0].fiber
-  // Cordis 4.1 的 config 保留原始表达式，只有 effectiveConfig 是活动实例使用的值。
-  // Cordis 4.0 将已求值配置保存在 config 中。
-  const config: unknown =
-    fiber && 'effectiveConfig' in fiber ? fiber.effectiveConfig : fiber?.config
+  // config 保留原始表达式，只有 effectiveConfig 是活动实例使用的值。
+  const config: unknown = fiber?.effectiveConfig
   const root =
     typeof config === 'object' && config !== null && 'root' in config ? config.root : undefined
   if (typeof root !== 'string' || !root) throw new Error('会话存储缺少已解析的 root 配置')

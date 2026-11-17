@@ -16,14 +16,14 @@ import {
   IconChevronLeftOutlineRegular,
   IconSearchOutlineRegular,
   MenuSurface,
-  useAnchoredPosition,
   useDismissOnOutsidePointer,
   useModalLayer,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CatalogRoute, Route } from '../shared/protocol.ts'
 import { matchingRoutes, modelLabel, providerLabel, routeKey } from './whitelist-models.ts'
+import { usePickerPosition } from './usePickerPosition.ts'
 
-/** 只选择待授权路由，不调用会话选模服务。浮层定位、模态层级及焦点恢复交给 DSH。 */
+/** 只选择待授权路由，不调用会话选模服务。模态层级及焦点恢复交给 DSH。 */
 export function WhitelistModelPicker({
   anchor,
   routes,
@@ -72,16 +72,8 @@ export function WhitelistModelPicker({
   const active = enabled.find((route) => routeKey(route) === highlight) ?? enabled[0]
   const activeIndex = active ? matches.indexOf(active) : -1
 
-  // 官方定位和模态层负责可见性与焦点；首帧未定位时不抢焦点。
-  const position = useAnchoredPosition({
-    open: true,
-    anchorRef: anchor,
-    panelRef: panel,
-    side: 'bottom',
-    align: 'end',
-    gap: 8,
-    margin: 12,
-  })
+  // 首帧未定位时不抢焦点；不依赖宿主已移除的内部定位 Hook。
+  const position = usePickerPosition(anchor, panel)
   useDismissOnOutsidePointer(anchor, true, onClose, panel)
 
   // 首帧等待定位时 visibility:hidden；此时聚焦会被浏览器忽略，必须等可见后注册焦点层。

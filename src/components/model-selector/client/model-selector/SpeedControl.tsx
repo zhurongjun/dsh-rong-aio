@@ -1,263 +1,48 @@
-/** Fast 菜单视图：独立控制展开、退场和焦点，速度数据与保存交给 speed store。 */
+/** Fast 业务适配：只订阅速度能力与确认值，菜单交互使用共享 OptionControl。 */
 
-import {
-  memo,
-  useEffect,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from 'react'
-import { createPortal } from 'react-dom'
-import { MenuSurface, IconCheckOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
-import { SPEED_LABELS, type SpeedMode } from '../../shared/speed.ts'
+import { memo } from 'react'
+import { SPEED_LABELS } from '../../shared/speed.ts'
 import { FastIcon } from './SelectorIcons.tsx'
 import { useSpeedSelection } from './useSpeedSelection.ts'
 import type { SpeedStore } from './speed-store.ts'
-import { SelectionButton } from './SelectionButton.tsx'
+import { OptionControl } from './OptionControl.tsx'
 
-/** 本视图所需的输入契约；数据保存与宿主副作用由外层负责。 */
 interface Props {
-  /** 独立速度 store，读写生命周期由外层选择器持有。 */
+  /** 速度状态与会话/provider/model 身份，由外层托管生命周期。 */
   store: SpeedStore
-
-  /** 当前完整路由；变化时重建菜单局部状态。 */
   identityKey: string
-
-  /** 主选择器是否打开；主弹层关闭同时关闭 Fast 菜单。 */
+  /** 主面板状态；保存中保留图标，锁定时禁止交互。 */
   open: boolean
-
-  /** 会话锁定属于不可用状态。 */
   disabled: boolean
-
-  /** 选模/档位提交期间仅阻止速度操作，不改变能力与图标颜色。 */
   busy: boolean
 }
 
-/** 按完整速度身份隔离 Fast 菜单实例，模型切换不会沿用上一菜单展开状态。 */
-export const SpeedControl = memo(function SpeedControl(props: Props) {
-  return <Control key={props.identityKey} {...props} />
-})
-
-/** 维护 Fast 菜单的局部可见性、定位与退场；展开不等于宿主速度已经改变。 */
-function Control({ store, identityKey, open, disabled, busy }: Props) {
+/** 路由变化重建菜单，速度显示始终来自宿主确认值。 */
+export const SpeedControl = memo(function SpeedControl({
+  store,
+  identityKey,
+  open,
+  disabled,
+  busy,
+}: Props) {
   const { state, loading, saving, select } = useSpeedSelection(store, identityKey)
-  const [expanded, setExpanded] = useState(false)
-  const [mounted, setMounted] = useState(false)
-  const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' })
-  const button = useRef<HTMLButtonElement>(null)
-  const menu = useRef<HTMLDivElement>(null)
-  const id = useId()
-  const unavailable = disabled || state.modes.length < 2
-  const pending = loading || saving || busy
-  const enabled = open && !unavailable && !pending
-  const visible = expanded && open && enabled
-
-  useEffect(() => {
-    if (!open || !enabled) setExpanded(false)
-  }, [open, enabled])
-
-  useLayoutEffect(() => {
-    if (visible) {
-      setMounted(true)
-      return
-    }
-    if (!mounted) return
-    // 正常由 transitionend 卸载；取消过渡、隐藏页面等情况由这个兜底清理。
-    const timer = window.setTimeout(() => setMounted(false), 180)
-    return () => window.clearTimeout(timer)
-  }, [visible, mounted])
-
-  useLayoutEffect(() => {
-    if (!visible || !mounted) return
-
-    /** 按闪电按钮锚点选择左右侧并夹紧到视口；缩放原点始终靠近锚点。 */
-    const place = () => {
-      const anchor = button.current?.getBoundingClientRect()
-      const surface = menu.current
-      if (!anchor || !surface) return
-      const viewport = window.visualViewport
-      const left = viewport?.offsetLeft ?? 0
-      const top = viewport?.offsetTop ?? 0
-      const width = viewport?.width ?? window.innerWidth
-      const height = viewport?.height ?? window.innerHeight
-      const preferredLeft = anchor.right + 6
-      const x = Math.max(
-        left + 12,
-        Math.min(
-          preferredLeft + surface.offsetWidth <= left + width - 12
-            ? preferredLeft
-            : anchor.left - 6 - surface.offsetWidth,
-          left + width - surface.offsetWidth - 12,
-        ),
-      )
-      const y = Math.max(
-        top + 12,
-        Math.min(anchor.top - 4, top + height - surface.offsetHeight - 12),
-      )
-      const next = {
-        left: x,
-        top: y,
-        transformOrigin: `${Math.max(0, Math.min(surface.offsetWidth, anchor.left + anchor.width / 2 - x))}px ${Math.max(0, Math.min(surface.offsetHeight, anchor.top + anchor.height / 2 - y))}px`,
-      }
-      setPosition((previous) =>
-        previous.left === next.left &&
-        previous.top === next.top &&
-        previous.transformOrigin === next.transformOrigin
-          ? previous
-          : next,
-      )
-    }
-
-    place()
-    const observer = new ResizeObserver(place)
-    if (menu.current) observer.observe(menu.current)
-    if (button.current) observer.observe(button.current)
-
-    /** 点击按钮和独立门户以外的位置时关闭；不影响主模型面板的事件处理。 */
-    const outside = (event: PointerEvent) => {
-      if (
-        !menu.current?.contains(event.target as Node) &&
-        !button.current?.contains(event.target as Node)
-      )
-        setExpanded(false)
-    }
-
-    document.addEventListener('pointerdown', outside)
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true)
-    window.visualViewport?.addEventListener('resize', place)
-    window.visualViewport?.addEventListener('scroll', place)
-    return () => {
-      observer.disconnect()
-      document.removeEventListener('pointerdown', outside)
-      window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
-      window.visualViewport?.removeEventListener('resize', place)
-      window.visualViewport?.removeEventListener('scroll', place)
-    }
-  }, [visible, mounted])
-
-  useLayoutEffect(() => {
-    if (!visible || !mounted || position.visibility === 'hidden') return
-    menu.current
-      ?.querySelector<HTMLButtonElement>('[aria-checked="true"]')
-      ?.focus({ preventScroll: true })
-  }, [visible, mounted, position.visibility])
-
-  /** 先收起菜单并恢复按钮焦点，再让 store 保存速度；不提前改写显示值。 */
-  function choose(mode: SpeedMode) {
-    if (!visible) return
-    setExpanded(false)
-    button.current?.focus()
-    void select(mode)
-  }
-
   return (
-    <>
-      <SelectionButton
-        ref={button}
-        className="rong-icon-button rong-header-action rong-fast"
-        disabled={unavailable}
-        inactive={!open}
-        busy={pending}
-        aria-label={
-          state.modes.length > 1
-            ? `速度：${SPEED_LABELS[state.mode]}`
-            : `Fast 不可用：${state.reason ?? (loading ? '正在读取速度设置' : '此模型不在支持规则内')}`
-        }
-        aria-haspopup="menu"
-        aria-expanded={visible}
-        aria-controls={visible ? id : undefined}
-        onKeyDown={(event) => {
-          if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-            event.preventDefault()
-            event.stopPropagation()
-            if (!expanded) setExpanded(true)
-            else {
-              const items = menu.current?.querySelectorAll<HTMLButtonElement>('button')
-              const index = event.key === 'ArrowDown' ? 0 : (items?.length ?? 1) - 1
-              items?.[index]?.focus()
-            }
-          }
-          if (expanded && event.key === 'Escape') {
-            event.preventDefault()
-            event.stopPropagation()
-            setExpanded(false)
-          }
-          if (event.key === 'Tab') setExpanded(false)
-        }}
-        onClick={() => setExpanded((previous) => !previous)}
-      >
-        <FastIcon active={state.mode !== 'standard' && state.modes.length > 1} />
-      </SelectionButton>
-      {mounted &&
-        createPortal(
-          <MenuSurface
-            compact
-            ref={menu}
-            id={id}
-            role={visible ? 'menu' : undefined}
-            aria-hidden={!visible || undefined}
-            aria-label="速度模式"
-            data-rong-speed-menu
-            data-open={visible}
-            className="rong-speed-menu"
-            style={position}
-            onTransitionEnd={(event) => {
-              if (
-                event.target === event.currentTarget &&
-                event.propertyName === 'transform' &&
-                !visible
-              )
-                setMounted(false)
-            }}
-            onKeyDown={(event) => {
-              if (!visible) return
-              const items = Array.from(
-                menu.current?.querySelectorAll<HTMLButtonElement>('button') ?? [],
-              )
-              const current = items.indexOf(document.activeElement as HTMLButtonElement)
-              if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
-                event.preventDefault()
-                const index =
-                  event.key === 'Home'
-                    ? 0
-                    : event.key === 'End'
-                      ? items.length - 1
-                      : (current + (event.key === 'ArrowDown' ? 1 : -1) + items.length) %
-                        items.length
-                items[index]?.focus()
-              }
-              if (event.key === 'Escape' || event.key === 'Tab') {
-                event.preventDefault()
-                setExpanded(false)
-                button.current?.focus()
-              }
-              event.stopPropagation()
-            }}
-          >
-            <div className="rong-speed-items">
-              {state.modes.map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  role="menuitemradio"
-                  aria-checked={state.mode === mode}
-                  disabled={!visible}
-                  onClick={() => void choose(mode)}
-                >
-                  <span>{SPEED_LABELS[mode]}</span>
-                  <span className="rong-speed-check" aria-hidden="true">
-                    {state.mode === mode && <IconCheckOutlineRegular size={16} />}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </MenuSurface>,
-          document.body,
-        )}
-    </>
+    <OptionControl
+      key={identityKey}
+      value={state.mode}
+      items={state.modes.map((value) => ({ value, label: SPEED_LABELS[value] }))}
+      label={
+        state.modes.length > 1
+          ? `速度：${SPEED_LABELS[state.mode]}`
+          : `Fast 不可用：${state.reason ?? (loading ? '正在读取速度设置' : '此模型不在支持规则内')}`
+      }
+      menuLabel="速度模式"
+      icon={<FastIcon active={state.mode !== 'standard' && state.modes.length > 1} />}
+      className="rong-fast"
+      open={open}
+      disabled={disabled || state.modes.length < 2}
+      busy={busy || loading || saving}
+      onSelect={(mode) => void select(mode)}
+    />
   )
-}
+})

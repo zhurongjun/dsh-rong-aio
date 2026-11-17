@@ -33,7 +33,7 @@ OpenAI Fast 参数及支持范围参见[官方 Fast 文档](https://developers.o
 
 速度状态按 **profile + sessionId + provider + model** 隔离，使用 DSH 公开 `storageDomain` 的 `rong_aio_speed` 域持久化；写入成功后才改变 UI，失败显示错误并保留原值。重开弹层重新读取状态，不使用浏览器本地缓存冒充服务器状态。切换模型保留各自选择，Desktop / Web profile 独立。界面表示请求的档位；网关转发、账户权限、配额和上游实际服务速度由提供商决定，快速档可能产生更高费用。
 
-rc.5 的 GenerateOptions / pi-ai 调用不透传任意 payload 字段，因此宿主在公开 `llm/stream` 作用域内，用 AsyncLocalStorage 对 fetch 做限定兼容：仅修改当前模型的 POST `/responses`、`/chat/completions` 或 `/messages` JSON，保留消息、原有请求头和取消信号。标准档明确发送标准值；标题生成、压缩、无会话请求不继承速度。并发请求各自隔离，插件停用时恢复 fetch。
+0.2.2-rc.3 的 GenerateOptions / pi-ai 调用不透传任意 payload 字段，因此宿主在公开 `llm/stream` 作用域内，用 AsyncLocalStorage 对 fetch 做限定兼容：仅修改当前模型的 POST `/responses`、`/chat/completions` 或 `/messages` JSON，保留消息、原有请求头和取消信号。标准档明确发送标准值；标题生成、压缩、无会话请求不继承速度。并发请求各自隔离，插件停用时恢复 fetch。
 
 Ultrafast 暂仅对 Responses 连接开放，依据[官方 FAQ](https://help.openai.com/en/articles/11647665-fast-mode-faq)；Completions 连接只提供标准/快速。OpenAI 请求会移除可能与所选档位冲突的可选 `OpenAI-Service-Tier` 头，由请求体明确指定速度。
 
@@ -71,7 +71,7 @@ Fast 菜单只展示档位名称和固定宽度的勾选列，最小宽 96px、�
 - `shared/model-selection.ts` 处理模型与明确 effort，`shared/speed.ts` 维护速度规则；运动和粒子数学计算分别集中在 `slider-motion.ts`、`particle-motion.ts`。改编来源与许可见 [第三方声明](../THIRD_PARTY_NOTICES.md)。
 - `ModelSelector.tsx` 只组合控制器和子视图，管理菜单定位、焦点、退场与键盘导航；`useModelSelection.ts` 只读订阅宿主目录并协调模型、effort、Reset 的串行提交。DSH `modelDirectories` 是已确认模型的唯一来源。
 - `selector-store.ts` 管理每个会话的弹层、搜索、手势预览、进行中操作和 Toast。操作具有序号、种类和路由；只有对应序号可释放操作，不复制宿主模型目录。`speed-store.ts` 按会话/provider/model 路由独立读取和保存速度，迟到响应不能覆盖新路由。
-- `EffortPanel.tsx` 组合 Fast、标题、Reset 和受控滑杆；`useEffortPreview.ts` 为面板和输入框入口提供同一档位投影。`EffortSlider.tsx` 只持有手势与运动资源，不另存待确认档位或保存请求。
+- `EffortPanel.tsx` 组合 Fast、Team、标题、Reset 和受控滑杆；`useEffortPreview.ts` 为面板和输入框入口提供同一档位投影。`EffortSlider.tsx` 只持有手势与运动资源，不另存待确认档位或保存请求。
 - `SelectionButton.tsx` 统一鼠标、键盘激活保护。能力缺失或会话锁定使用原生 `disabled`；短暂请求等待使用 `aria-disabled`/`aria-busy` 并拦截激活，保留颜色、形状、hover 背景和焦点。Escape、Tab 仍由外层处理。
 - React 负责结构与可访问性；`useSliderMotion.ts` 的 RAF 只更新运动样式、粒子节点和经过状态，不逐帧更新 React store。同一运动属性不能同时由 JSX 写入。
 - `host/index.ts` 装配速度接口、storageDomain 和 `llm/stream`；`host/speed-transport.ts` 在限定请求作用域内适配 HTTP 字段，停用恢复 fetch。
@@ -82,11 +82,23 @@ Fast 菜单只展示档位名称和固定宽度的勾选列，最小宽 96px、�
 | ---------------------------------- | --------------------------------------------------------------- | ------------------------------------------------- |
 | 宿主 `current` 与模型目录          | 模型名、明确档位目录、Reset 默认档；模型身份变化后重新读取 Fast | 不使用宿主 `pending` 冒充已确认模型               |
 | 手势预览、进行中 effort/Reset 操作 | 滑杆目标、标题、输入框 effort；操作按模型及档位目录隔离         | 不改写宿主 `current`，不刷新 Fast，不重挂载工具栏 |
-| 本实例选模操作、宿主 `pending`     | 暂时阻止模型、effort、Reset 和 Fast 操作                        | 不将正常按钮置灰，不改变已确认速度或 SVG 轮廓     |
+| 本实例选模操作、宿主 `pending`     | 暂时阻止模型、effort、Reset、Fast 和 Team 操作                  | 不将正常按钮置灰，不改变已确认速度或 SVG 轮廓     |
 | Fast 能力、最近确认速度            | Fast 是否真正可用、空心/实心图标、速度菜单勾选                  | 不依赖 effort 预览或档位值                        |
-| Fast GET/PUT 状态                  | 只阻止 Fast 自身操作，保留最近确认显示                          | 不禁用 Reset，不改写模型或 effort                 |
+| Fast GET/POST 状态                 | 只阻止 Fast 自身操作，保留最近确认显示                          | 不禁用 Reset，不改写模型或 effort                 |
 | 搜索、列表高亮、粒子运动           | 各自视图；粒子帧直接写动画 DOM                                  | 不触发宿主选模和速度请求                          |
 
 档位展示优先级为：**同路由待确认操作 → 同路由手势预览 → 宿主确认值**。拖动只写手势预览；松手、键盘和 Reset 由控制器原子取得操作资格并接管预览。成功后交接给宿主确认值，失败后回退并显示一次 Toast。关闭只丢弃未提交手势；进行中操作在面板重新挂载后仍可投影。会话更换建立新实例，旧实例的完成或拒绝不写入新实例。
 
 打开菜单时加载模型目录；保存期间重开复用目录，避免额外加载改写拒绝结果的归属。Fast 在首次挂载、已确认模型身份变化和菜单重开时读取；更换路由中止旧请求，同路由刷新保留已确认速度。仅修改 effort、拖动、搜索和 RAF 运动都不重新读取 Fast。
+
+速度接口为 `GET /api/rong-aio.speed` 读取、`POST /api/rong-aio.speed` 保存，直接消费官方 Connection 的 HTTP 类型。会话/provider/model 键、速度档位和 storageDomain 名称保持稳定。
+
+## Agent Team
+
+Team 入口紧邻 Fast 右侧，使用官方多人图标；开启显示业务主色。两者共用 `OptionControl.tsx` 的图标按钮、菜单、定位、键盘和退场逻辑，业务状态独立。
+
+`ModelSelectorSlot.tsx` 通过宿主标准 hooks 读取 `agentTeam` 和 `modelSelection` 投影，命令只调用公开 `remote.agentTeams.setEnabled(sessionId, enabled)`。不复制 Team 状态或新建存储，不调用模型选择、Fast 或破甲接口。切换模型不会重置会话的 Team 选择。
+
+只有根会话、可用 Team Remote 和有效 Team 投影同时存在时显示入口；模型投影未就绪或会话锁定时禁用。Team 服务停用仅移除 Team 入口，其他选择器功能继续工作。
+
+已有 `modelSelection.lastUsed` 的会话关闭 Team 前先关闭菜单，打开官方确认 Modal；取消不发送请求。确认期间阻止重复提交，失败使用 Toast 并允许重试。已确认图标与勾选只跟随原生投影；会话切换或组件卸载后，旧请求不能改变新会话界面。

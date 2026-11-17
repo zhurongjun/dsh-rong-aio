@@ -1,4 +1,4 @@
-/** 强度面板：组合三个工具栏控件和受控滑杆，所有档位文字及运动目标共享同一投影。 */
+/** 强度面板：组合 Fast、Team、模型标题、Reset 和受控滑杆，共享确认状态与运动投影。 */
 
 import { forwardRef, memo } from 'react'
 import type {
@@ -14,11 +14,15 @@ import { EffortSlider } from './EffortSlider.tsx'
 import { SpeedControl } from './SpeedControl.tsx'
 import { SelectionButton } from './SelectionButton.tsx'
 import { ResetIcon } from './SelectorIcons.tsx'
+import { TeamControl } from './TeamControl.tsx'
+import type { TeamSelection, TeamInteraction } from './useTeamSelection.ts'
 
 interface Props {
   /** 会话交互和速度 store；仅订阅本面板使用的投影。 */
   store: SelectorStore
   speedStore: SpeedStore
+  team?: TeamSelection
+  teamInteraction: TeamInteraction
   /** 档位目录与速度各自的路由身份；effort 不属于速度身份。 */
   routeKey: string
   speedRoute: string
@@ -42,6 +46,8 @@ export const EffortPanel = memo(
     {
       store,
       speedStore,
+      team,
+      teamInteraction,
       routeKey,
       speedRoute,
       model,
@@ -63,7 +69,7 @@ export const EffortPanel = memo(
 
     return (
       <div className="rong-effort-pane">
-        <div className="rong-effort-header">
+        <div className="rong-effort-header" data-has-team={!!team || undefined}>
           <SpeedControl
             store={speedStore}
             identityKey={speedRoute}
@@ -71,6 +77,15 @@ export const EffortPanel = memo(
             disabled={locked}
             busy={selecting}
           />
+          {team && (
+            <TeamControl
+              team={team}
+              interaction={teamInteraction}
+              open={open}
+              locked={locked}
+              busy={selecting}
+            />
+          )}
           <EffortHeading
             ref={ref}
             efforts={efforts}
