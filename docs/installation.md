@@ -2,9 +2,27 @@
 
 支持 **DeepSeek Harness `0.2.2-rc.3`**。开发依赖与 API 验证均固定在该版本；插件清单仅声明当前维护基线，DSH 会在加载组件前核对 `engines.dsh`。Desktop 与 Web 使用各自的 profile，安装来源、构建许可和启用状态分别管理。
 
-## Git 安装入口
+## Release 安装入口（推荐）
 
-推荐使用固定提交：
+在 [GitHub Releases](https://github.com/zhurongjun/dsh-rong-aio/releases) 选择版本，复制其 `.tgz` 附件链接。`v0.1.0` 的安装地址为：
+
+```text
+https://github.com/zhurongjun/dsh-rong-aio/releases/download/v0.1.0/dsh-rong-aio-0.1.0.tgz
+```
+
+Desktop 在“插件 → 添加插件”中粘贴该地址，安装成功后点击“立即启用”。Web 使用固定版本 DSH：
+
+```sh
+dsh plugin --profile web add 'https://github.com/zhurongjun/dsh-rong-aio/releases/download/v0.1.0/dsh-rong-aio-0.1.0.tgz'
+```
+
+Release 的 `.tgz` 是 `pnpm pack` 生成的预构建 npm 包，含 `lib/`、组件清单与 bundle patch；不需要用户机器上的 Git、开发依赖或本插件构建许可。不要安装 GitHub 自动生成的 **Source code (zip/tar.gz)**，它们只有源码，没有 `lib/`。Release 页面 URL 也不是安装 spec，必须使用 `.tgz` 附件的直链。DSH 宿主需能访问 GitHub 下载域名；npm 镜像不会代理 Release 附件。
+
+也可下载 `.tgz` 和同名 `.sha256` 到同一目录，校验后按下文“安装包”方式安装本地文件。Linux 用 `sha256sum --check dsh-rong-aio-0.1.0.tgz.sha256`；macOS 用 `shasum -a 256 --check dsh-rong-aio-0.1.0.tgz.sha256`。更新或回退时先卸载，再安装目标版本；固定 URL 不会自动跟随新 Release。
+
+## Git 源码安装入口
+
+需要安装源码时，推荐使用固定提交：
 
 ```text
 github:zhurongjun/dsh-rong-aio#<完整提交 SHA>
@@ -28,7 +46,7 @@ pnpm --version
 
 macOS Desktop 会在启动时读取登录 shell 的环境；若安装工具或修改 PATH 后仍找不到命令，退出并重新打开 DSH。插件自身的生命周期只构建源码，不安装全局工具。不具备构建环境的机器可以使用下文的安装包方式。
 
-## Desktop
+## Desktop 的 Git 安装
 
 1. 若已安装本插件的本地目录或旧版本，先在“插件 → dsh-rong-aio”详情中卸载；同名包不能重复添加。
 2. 点击“添加插件”，填入上面的 Git spec，将提交占位符替换为实际值，点击“安装”。
@@ -39,7 +57,7 @@ macOS Desktop 会在启动时读取登录 shell 的环境；若安装工具或�
 
 构建许可允许包以宿主用户权限运行构建代码，只批准信任的源码。Git 来源的键可能包含 URL 和提交号，必须以当前 pnpm 输出为准；升级到另一个提交可能需要再次许可。仓库内对 esbuild、koffi 的开发构建许可不代替 DSH profile 对本插件的许可。
 
-## Web
+## Web 的 Git 安装
 
 以下命令中的 `dsh` 须使用上文列出的版本。没有全局命令时，可用 `pnpm dlx @deepseek-ai/dsh@0.2.2-rc.3` 代替 `dsh`。
 
@@ -99,6 +117,33 @@ dsh plugin --profile web add /absolute/path/to/dsh-rong-aio-0.1.0.tgz
 
 Desktop 可在“添加插件”中填写本地包绝对路径。安装包只包含运行产物、配置层和必要说明，作为依赖安装时不运行构建，不需要开发依赖；支持在 Git 构建环境不可用时安装预先生成的包。
 
+## 发布与插件发现
+
+`.github/workflows/ci.yml` 在主分支推送与 PR 时执行 `pnpm install --frozen-lockfile`、`pnpm check`、`pnpm build`、打包和隔离安装验证。Node.js 使用 24 系列，pnpm 从根包 `packageManager` 读取固定版本；第三方 Actions 固定到提交。只有 `v*` Tag 的检查全部通过，具有 `contents: write` 权限的独立发布 job 才会创建 Release。
+
+发布一个新版本：
+
+1. 同步修改根包与 `src/components/*/package.json` 的版本，维护安装说明中的示例版本和 DSH 兼容范围。
+2. 执行 `pnpm check`、`pnpm build`、`pnpm pack --pack-destination agent_temp/packages` 和 `RELEASE_TAG=vX.Y.Z node scripts/check-package.mjs`，将 `X.Y.Z` 替换为新版本。
+3. 提交源码后推送主分支，再创建并推送同版本的 Tag：
+
+   ```sh
+   git tag -a vX.Y.Z -m '发布 vX.Y.Z'
+   git push origin main
+   git push origin vX.Y.Z
+   ```
+
+4. 等待该 Tag 的 GitHub Actions 成功，核对 Release 中的 `.tgz` 与 `.tgz.sha256`。CI 先上传草稿附件，再公开 Release；带 `-rc.1` 等后缀的版本标为 prerelease，不设为 Latest。失败后可重跑以补全草稿，已经公开的 Release 不覆盖，修复应使用新版本和新 Tag。
+
+根包版本必须与 Tag 完全一致，内部组件版本必须跟随根包。包内容校验拒绝工作文件、源码、测试和依赖目录，检查所有入口与 locale 已打包，并在独立目录以 `--ignore-scripts --prod` 安装，证明运行包无需安装时编译。校验和用于核对附件完整性，不是签名。流程不发布到 npm，也不改动 DSH profile。
+
+GitHub 的两种“标签”用途不同：
+
+- **Repository Topic `dsh-plugin`**：在仓库首页 About 的 Topics 中设置，供 GitHub 话题检索及采用该约定的社区目录发现。根包 `keywords` 提供相同关键词，但不能代替仓库 Topic。
+- **Git Tag `vX.Y.Z`**：标识具体源码版本并触发本仓库 Release。DSH 官方索引生成器识别 `vX.Y.Z`、`X.Y.Z` 和 `<name>@X.Y.Z`，且要求该提交的包版本匹配。
+
+根包声明 `dsh.bundle` 且不设置 `private: true`，符合官方索引生成器收录条件；内部组件仍为私有，只随根包安装。DSH `0.2.2-rc.3` 的原生“发现”由实验性的“自定义插件索引”提供，**不内置索引源，也不自动扫描 GitHub Topics**。用户需启用该组件并添加可信的索引 URL；是否收录和刷新由索引维护者决定。该版本索引格式只支持 npm 与固定提交 Git 来源，不能把 Release tarball 直接写成索引来源；Topic 或 Tag 不能保证原生“发现”即时展示，也不会让索引中的 Git 安装自动改用 Release 附件。
+
 ## 启停、卸载、更新和回退
 
 - **整个插件启停**：在插件页面切换 `dsh-rong-aio` 总开关，控制全部功能组件。
@@ -133,6 +178,9 @@ Desktop 可在“添加插件”中填写本地包绝对路径。安装包只包
 ## 官方依据
 
 - [目标版本的 Git 安装与 prepare 说明](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/docs/user/develop/basic/publish.md#installing-from-github-the-build-script-catch)
+- [官方 GitHub Topic 约定](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/README.zh.md#社区与支持)
+- [原生插件索引与安装来源格式](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/docs/user/guide/plugin-market.zh.md)
+- [索引生成器的私有包过滤和 Tag 规则](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/apps/plugin-market-generator/README.zh.md)
 - [配置层加载规则](https://github.com/deepseek-ai/deepseek-harness/blob/dsh-v0.2.2-rc.3/packages/boot/app-boot/README.md)
 - [pnpm 生命周期](https://pnpm.io/scripts)
 - [pnpm pack 生命周期](https://pnpm.io/cli/pack#life-cycle-scripts)

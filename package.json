@@ -2,7 +2,6 @@
   "name": "dsh-rong-aio",
   "version": "0.1.0",
   "description": "自用 DSH 功能组合包：统一安装，按功能独立启停。",
-  "private": true,
   "type": "module",
   "license": "GPL-3.0-only",
   "repository": {
@@ -119,5 +118,12 @@
     "@deepseek-ai/cordis-plugin-loader": {
       "optional": true
     }
-  }
+  },
+  "homepage": "https://github.com/zhurongjun/dsh-rong-aio#readme",
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "model-selector",
+    "system-prompt"
+  ]
 }

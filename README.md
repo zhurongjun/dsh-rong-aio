@@ -6,13 +6,13 @@
 
 ## 安装
 
-推荐在 **DSH Desktop → 插件 → 添加插件** 中填写：
+推荐在 **DSH Desktop → 插件 → 添加插件** 中填写 Release 安装包地址：
 
 ```text
-github:zhurongjun/dsh-rong-aio#<完整提交 SHA>
+https://github.com/zhurongjun/dsh-rong-aio/releases/download/v0.1.0/dsh-rong-aio-0.1.0.tgz
 ```
 
-将占位符替换为已推送提交。DSH 宿主需能执行 Node.js、Git 和 pnpm（见安装说明）。首次安装需允许该 Git 包的构建脚本；pnpm 准备 Git 依赖时安装开发依赖，再由 `prepare` 生成运行产物，完成后点击“立即启用”。也可以省略 `#<完整提交 SHA>` 安装默认分支最新版本。
+安装包已包含运行产物，无需 Git、开发依赖或本插件的构建脚本许可；完成后点击“立即启用”。其他版本从 [Releases](https://github.com/zhurongjun/dsh-rong-aio/releases) 选择对应 `.tgz` 附件；Git 源码安装仍可使用 `github:zhurongjun/dsh-rong-aio#<完整提交 SHA>`，但需要宿主具备构建环境并允许精确来源的脚本。
 
 本地开发执行 `pnpm install --frozen-lockfile`，安装结束会自动构建，再运行 `pnpm check`；随后在 DSH 中添加源码目录绝对路径。`pnpm pack` 同样自动构建，生成的安装包无需开发依赖或安装时构建。`lib/` 仍不提交。
 
@@ -65,4 +65,4 @@ Host 不导入 Client；Client 不导入 Host 或 Node；Shared 不依赖任一�
 | `pnpm build`                                       | 生成可安装的 `lib/`                                 |
 | `pnpm pack --pack-destination agent_temp/packages` | 自动构建并打成安装包                                |
 
-没有 CI、提交钩子、自动发布或自动提交。保留已有 [GPL v3 许可证](LICENSE)。
+主分支推送和 PR 自动执行完整检查、构建与安装包验证；推送与包版本一致的 `vX.Y.Z` Tag 后，CI 发布 `.tgz` 和 SHA-256 校验文件。发布步骤、GitHub `dsh-plugin` Topic 与 DSH 索引发现的区别见[安装与维护](docs/installation.md#发布与插件发现)。保留已有 [GPL v3 许可证](LICENSE)。

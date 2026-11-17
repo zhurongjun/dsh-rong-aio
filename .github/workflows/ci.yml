@@ -1,0 +1,112 @@
+# 检查每次主分支变更；只有版本 Tag 通过同一套检查后才发布预构建安装包。
+name: CI 与 Release
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          dest: agent_temp/tools/pnpm
+          run_install: false
+      - name: 安装固定依赖
+        run: pnpm install --frozen-lockfile
+      - name: 完整检查
+        run: pnpm check
+      - name: 构建
+        run: pnpm build
+      - name: 打包
+        run: pnpm pack --pack-destination agent_temp/packages
+      - name: 验证版本、包内容与隔离安装
+        env:
+          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+        run: node scripts/check-package.mjs
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: plugin-package
+          path: |
+            agent_temp/packages/*.tgz
+            agent_temp/packages/*.sha256
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: plugin-package
+          path: agent_temp/packages
+      - name: 核对附件校验和
+        working-directory: agent_temp/packages
+        run: sha256sum --check *.sha256
+      - name: 上传附件并发布
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p agent_temp/release
+          version="${RELEASE_TAG#v}"
+          asset="dsh-rong-aio-${version}.tgz"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${asset}"
+          cat > agent_temp/release/notes.md <<EOF
+          适用于 DSH **0.2.2-rc.3**，包含模型选择器和破甲模式两个独立组件。
+
+          在 DSH Desktop → 插件 → 添加插件中粘贴以下地址：
+
+          \`\`\`text
+          ${url}
+          \`\`\`
+
+          Web 安装：
+
+          \`\`\`sh
+          dsh plugin --profile web add '${url}'
+          \`\`\`
+
+          附件已包含构建产物，无需在用户机器上编译。下载 .tgz 及同名 .sha256 文件后，可用 \`sha256sum --check ${asset}.sha256\` 核对完整性。
+
+          [安装与维护说明](https://github.com/${GITHUB_REPOSITORY}/blob/${RELEASE_TAG}/docs/installation.md)
+          EOF
+
+          # 失败重跑只允许补全草稿，已经公开的版本及附件不覆盖。
+          if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > agent_temp/release/is-draft.txt; then
+            test "$(cat agent_temp/release/is-draft.txt)" = true
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --notes-file agent_temp/release/notes.md
+          fi
+          gh release upload "$RELEASE_TAG" "agent_temp/packages/${asset}" "agent_temp/packages/${asset}.sha256" --clobber
+          if [[ "$version" == *-* ]]; then
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false --notes-file agent_temp/release/notes.md
+          else
+            gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest --notes-file agent_temp/release/notes.md
+          fi
