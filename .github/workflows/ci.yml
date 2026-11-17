@@ -26,10 +26,12 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
-      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
-        with:
-          dest: agent_temp/tools/pnpm
-          run_install: false
+      # 用 npm 引导安装，避免旧版自安装器把根包配置误判为多包 workspace。
+      - name: 安装固定版本 pnpm
+        shell: bash
+        run: |
+          npm install --prefix agent_temp/tools --no-save --ignore-scripts --package-lock=false --no-audit --no-fund "$(node -p 'require("./package.json").packageManager')"
+          echo "$GITHUB_WORKSPACE/agent_temp/tools/node_modules/.bin" >> "$GITHUB_PATH"
       - name: 安装固定依赖
         run: pnpm install --frozen-lockfile
       - name: 完整检查
