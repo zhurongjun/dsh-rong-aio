@@ -1,4 +1,4 @@
-/** 静态导入边界检查：解析 JS/TS AST，覆盖导入、再导出、类型导入与动态导入。 */
+/** 检查 src 中的文档文件，并解析 JS/TS AST 校验导入边界。 */
 
 import { parse } from '@babel/parser'
 import { readFile, readdir } from 'node:fs/promises'
@@ -6,6 +6,10 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = fileURLToPath(new URL('../', import.meta.url))
+
+// 按文件名识别独立文档，不读取文件内容，也不影响源码中使用 Markdown。
+const documentName =
+  /^(?:readme|changelog|contributing)$|\.(?:md|mdx|mdoc|markdown|mdown|mdwn|mkd|mkdn|mkdown|markdn|mdtxt|mdtext|rmd|rmarkdown|qmd|txt|text|rst|rest|adoc|asciidoc|org|rtf|pdf|docx?|odt)$/i
 
 /** 从仓库相对路径提取功能归属，根共享和装配层不属于业务组件。 */
 const owner = (file) => /^src\/components\/([^/]+)\//.exec(file)?.[1]
@@ -79,14 +83,14 @@ export function checkImports(source, file) {
   return errors
 }
 
-/** 递归收集源码文件，供命令行检查使用；目录读取失败直接使检查失败。 */
+/** 递归收集所有非目录条目，使未跟踪和隐藏的文档也能进入检查。 */
 async function filesIn(directory) {
   const files = await readdir(directory, { withFileTypes: true })
   return (
     await Promise.all(
       files.map((entry) => {
         const name = path.join(directory, entry.name)
-        return entry.isDirectory() ? filesIn(name) : /\.[cm]?[jt]sx?$/.test(name) ? [name] : []
+        return entry.isDirectory() ? filesIn(name) : [name]
       }),
     )
   ).flat()
@@ -100,15 +104,16 @@ if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.ar
       : await filesIn(path.join(root, 'src'))
   const errors = (
     await Promise.all(
-      files.map(async (file) =>
-        checkImports(
-          await readFile(file, 'utf8'),
-          path.relative(root, file).split(path.sep).join('/'),
-        ),
-      ),
+      files.map(async (file) => {
+        const relative = path.relative(root, file).split(path.sep).join('/')
+        if (relative.startsWith('src/') && documentName.test(path.basename(file)))
+          return [`${relative}: src/ 禁止存放独立文档`]
+        if (!/\.[cm]?[jt]sx?$/.test(file)) return []
+        return checkImports(await readFile(file, 'utf8'), relative)
+      }),
     )
   ).flat()
   for (const error of errors) console.error(error)
   if (errors.length) process.exitCode = 1
-  else console.log(`组件边界检查通过：${files.length} 个文件`)
+  else console.log(`源码目录与导入边界检查通过：${files.length} 个文件`)
 }

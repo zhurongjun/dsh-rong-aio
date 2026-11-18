@@ -97,7 +97,7 @@ jobs:
 
           附件已包含构建产物，无需在用户机器上编译。下载 .tgz 及同名 .sha256 文件后，可用 \`sha256sum --check ${asset}.sha256\` 核对完整性。
 
-          [安装与维护说明](https://github.com/${GITHUB_REPOSITORY}/blob/${RELEASE_TAG}/docs/installation.md)
+          [安装与使用说明](https://github.com/${GITHUB_REPOSITORY}/blob/${RELEASE_TAG}/README.md)
           EOF
 
           # 失败重跑只允许补全草稿，已经公开的版本及附件不覆盖。
