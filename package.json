@@ -1,12 +1,16 @@
 {
   "name": "dsh-rong-aio",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "自用 DSH 功能组合包：统一安装，按功能独立启停。",
   "type": "module",
   "license": "GPL-3.0-only",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/zhurongjun/dsh-rong-aio.git"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
   },
   "packageManager": "pnpm@11.25.0",
   "engines": {

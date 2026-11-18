@@ -1,9 +1,9 @@
-/** 验证预构建发布包、Tag 与组件版本，并在独立目录禁止脚本安装后生成 SHA-256。 */
+/** 验证预构建发布包、Tag 与组件版本，检查 npm 和 pnpm 安装后生成 SHA-256。 */
 
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
@@ -72,6 +72,20 @@ assert.equal(installed.name, manifest.name)
 assert.equal(installed.version, manifest.version)
 assert.deepEqual(installed.dsh, manifest.dsh)
 
+// npm 使用默认脚本策略安装 tarball，离线验证用户安装时不需要获取开发依赖。
+const npmDirectory = await mkdtemp(path.join(root, 'agent_temp/release/npm-install-'))
+
+await copyFile(path.join(directory, 'package.json'), path.join(npmDirectory, 'package.json'))
+execFileSync('npm', ['install', '--offline', '--no-audit', '--no-fund'], {
+  cwd: npmDirectory,
+  env: { ...process.env, npm_config_cache: path.join(root, 'agent_temp/npm-cache') },
+  stdio: 'inherit',
+  shell: process.platform === 'win32',
+})
+const npmManifest = path.join(npmDirectory, 'node_modules', manifest.name, 'package.json')
+
+assert.deepEqual(JSON.parse(await readFile(npmManifest, 'utf8')), installed)
+
 /** 核对全部导出目标；通配符导出至少需要一个真实文件匹配。 */
 const checkExports = async (exports, base = '') => {
   if (typeof exports === 'string') {
@@ -115,4 +129,4 @@ const sha256 = createHash('sha256')
   .digest('hex')
 
 await writeFile(`${archive}.sha256`, `${sha256}  ${archiveName}\n`)
-process.stdout.write(`已验证 ${archiveName}：版本、分发文件、组件导出与禁用脚本安装均通过。\n`)
+process.stdout.write(`已验证 ${archiveName}：版本、分发文件、组件导出、pnpm 与 npm 安装均通过。\n`)

@@ -6,13 +6,21 @@
 
 ## 安装
 
-推荐在 **DSH Desktop → 插件 → 添加插件** 中填写 Release 安装包地址：
+发布到 npm 后，推荐在 **DSH Desktop → 插件 → 添加插件** 中填写包名，安装完成后点击“立即启用”。
 
 ```text
-https://github.com/zhurongjun/dsh-rong-aio/releases/download/v0.1.0/dsh-rong-aio-0.1.0.tgz
+dsh-rong-aio
 ```
 
-安装包已包含运行产物，无需 Git、开发依赖或本插件的构建脚本许可；完成后点击“立即启用”。其他版本从 [Releases](https://github.com/zhurongjun/dsh-rong-aio/releases) 选择对应 `.tgz` 附件；Git 源码安装仍可使用 `github:zhurongjun/dsh-rong-aio#<完整提交 SHA>`，但需要宿主具备构建环境并允许精确来源的脚本。
+DSH Web 用户可将同一个 npm 包添加到 `web` profile：
+
+```sh
+dsh plugin --profile web add dsh-rong-aio
+```
+
+包名默认安装稳定版。需要固定版本时填写 `dsh-rong-aio@<版本号>`，试用已发布的预发布版时填写 `dsh-rong-aio@next`。在自行管理依赖的 npm 项目中，可以执行 `npm install dsh-rong-aio` 将包加入项目依赖。
+
+首次 npm 发布前，或无法访问 npm 时，可从 [GitHub Releases](https://github.com/zhurongjun/dsh-rong-aio/releases) 复制对应版本的 `.tgz` 附件地址，填入同一个安装入口。npm 包和 Release 附件都已包含运行产物。Git 源码安装仍可使用 `github:zhurongjun/dsh-rong-aio#<完整提交 SHA>`，需要宿主具备构建环境并允许精确来源的脚本。
 
 本地开发执行 `pnpm install --frozen-lockfile`，安装结束会自动构建，再运行 `pnpm check`；随后在 DSH 中添加源码目录绝对路径。`pnpm pack` 同样自动构建，生成的安装包无需开发依赖或安装时构建。`lib/` 仍不提交。
 
@@ -61,4 +69,6 @@ Host 不导入 Client；Client 不导入 Host 或 Node；Shared 不依赖任一�
 | `pnpm build`                                       | 生成可安装的 `lib/`                                 |
 | `pnpm pack --pack-destination agent_temp/packages` | 自动构建并打成安装包                                |
 
-主分支推送和 PR 自动执行完整检查、构建与安装包验证；推送与包版本一致的 `vX.Y.Z` Tag 后，CI 发布 `.tgz` 和 SHA-256 校验文件。保留已有 [GPL v3 许可证](LICENSE)。
+每次向任意分支推送提交或更新 PR，`ci.yml` 都会执行完整检查、构建、打包与隔离安装验证。
+
+推送与根包和组件版本一致的新 `v<版本号>` Tag 后，`publish.yml` 会对该 Tag 调用同一套 CI 验证，再将验证过的安装包发布到 npm。维护者在 npm 的 Trusted Publisher 设置中填写工作流文件名 `publish.yml`。稳定版使用 `latest`，预发布版（如 `v0.2.0-rc.1`）使用 `next`。GitHub Release 随后提供同一个 `.tgz` 和 SHA-256 校验文件。保留已有 [GPL v3 许可证](LICENSE)。
