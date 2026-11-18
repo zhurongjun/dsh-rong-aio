@@ -89,16 +89,6 @@
       "env": {
         "node": true
       }
-    },
-    {
-      "files": [
-        "tests/components/model-selector/*/ui.test.mjs",
-        "tests/components/model-selector/helpers/dom.mjs"
-      ],
-      "env": {
-        "node": true,
-        "browser": true
-      }
     }
   ]
 }
