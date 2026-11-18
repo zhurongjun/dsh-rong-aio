@@ -7,8 +7,11 @@ test('安装清单：当前 DSH 基线通过原生检查，其他版本不会误
   const manifest = JSON.parse(
     await readFile(new URL('../../package.json', import.meta.url), 'utf8'),
   )
+  assert.equal(evaluatePluginCompatibility(manifest), undefined)
   assert.equal(evaluatePluginCompatibility(manifest, {}, '0.2.2-rc.3'), undefined)
-  const unsupported = evaluatePluginCompatibility(manifest, {}, '0.2.2-rc.2')
-  assert.equal(unsupported?.requirements['engines.dsh'], manifest.engines.dsh)
-  assert.equal(unsupported?.exempted, false)
+  for (const version of ['0.2.2-rc.2', '0.2.2-rc.4', '0.2.2']) {
+    const unsupported = evaluatePluginCompatibility(manifest, {}, version)
+    assert.equal(unsupported?.requirements['engines.dsh'], manifest.engines.dsh)
+    assert.equal(unsupported?.exempted, false)
+  }
 })

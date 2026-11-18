@@ -25,7 +25,7 @@ const archiveName = `${manifest.name}-${manifest.version}.tgz`
 
 const archive = path.join(root, 'agent_temp/packages', archiveName)
 
-const files = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n')
+const files = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split(/\r?\n/)
 
 // 严格按分发白名单检查；自动携带的 npm 元信息文件单独允许。
 const allowed = ['package.json', 'README.md', 'LICENSE', ...manifest.files]
