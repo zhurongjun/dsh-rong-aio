@@ -31,6 +31,14 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: 完整检查
         run: pnpm check
+      - name: 保留失败的浏览器测试轨迹
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bombadil-traces
+          path: agent_temp/bombadil/run-*/
+          if-no-files-found: ignore
+          retention-days: 7
       - name: 构建
         run: pnpm build
       - name: 打包

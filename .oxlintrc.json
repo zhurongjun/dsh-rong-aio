@@ -29,6 +29,10 @@
   ],
   "overrides": [
     {
+      "files": ["tests/bombadil/workbench.jsx"],
+      "env": { "browser": true }
+    },
+    {
       "files": ["src/**/host/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
       "env": {
         "node": true
