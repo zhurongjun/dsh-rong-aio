@@ -45,12 +45,18 @@ export async function workspaces(u) {
     !beta.querySelector('input') && u.window.getComputedStyle(row(u, 'beta')).userSelect === 'none',
     '行无复选框且文字不可选中',
   )
-  beta.dispatchEvent(
-    new u.window.PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }),
-  )
+  const canHover = u.window.matchMedia('(any-hover: hover)').matches
+  if (canHover) {
+    beta.dispatchEvent(
+      new u.window.PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }),
+    )
+  } else {
+    u.press(u.document.activeElement, 'Tab')
+    row(u, 'beta').focus()
+  }
   const tooltip = await u.until(
     () => u.one('[role=tooltip]')?.textContent.includes('beta') && u.one('[role=tooltip]'),
-    '悬停显示会话详情',
+    canHover ? '鼠标悬停显示会话详情' : '键盘聚焦显示会话详情',
   )
   const details = tooltip.textContent
   const context = () =>

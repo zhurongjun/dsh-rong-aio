@@ -24,7 +24,8 @@ export async function runBombadil(origin, directory, fixtureRoot, signal) {
   const flags = [
     '--exit-on-violation',
     '--time-limit',
-    '20s',
+    // Bombadil 从进程启动开始计时。CI 冷启动曾在首个场景完成前耗去约 17 秒。
+    process.env.CI === 'true' ? '60s' : '20s',
     '--output-path',
     trace,
     origin,
