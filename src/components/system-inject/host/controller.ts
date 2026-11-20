@@ -256,11 +256,11 @@ export class Controller {
   /**
    * 实际分发前复核最终路由、首段与捕获时的文件版本。
    *
-   * freeze 表示普通会话请求；携带正文的辅助请求也校验，但不代替首次普通请求冻结。
+   * 自动审查使用宿主自己的系统策略，仍按实际路由授权。仅普通会话请求冻结快照。
    * 开启候选持有文件目录锁完成复核与落盘；冻结/关闭状态不依赖模板目录。
    * 快照先持久化，再允许调用适配器；任一步失败均抛错，绝不剥离正文后继续发送。
    */
-  async admit(id: string, route: Route, system: string, freeze: boolean): Promise<void> {
+  async admit(id: string, request: Route & { purpose?: string }, system: string): Promise<void> {
     await this.exclusive(async () => {
       const entry = this.sessions.get(id)
 
@@ -275,15 +275,15 @@ export class Controller {
           if (entry.candidate?.revision !== config.revision)
             throw new Error('破甲词或白名单在请求准备期间发生变化，请重新发送')
         }
-        await this.authorize(this.resolve(undefined, entry), route)
-        if (body && !prefixMatches(system, body))
+        await this.authorize(this.resolve(undefined, entry), request)
+        if (request.purpose !== 'auto-review' && body && !prefixMatches(system, body))
           throw new Error(
             '实际请求未包含破甲正文首段。当前完整系统预设或其他扩展不兼容，已阻止发送。',
           )
         if (!this.active) throw new Error('破甲模式组件已停用')
 
         // 原子持久化先于适配器调用，API 随后失败也不会解冻或重新取词。
-        if (freeze && !entry.frozen) {
+        if (!request.purpose && !entry.frozen) {
           const candidate = entry.candidate!
           await this.sessions.persist(entry, {
             version: 1,

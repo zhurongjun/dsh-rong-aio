@@ -41,6 +41,12 @@ export async function runtime(t) {
         method: 'POST',
         body: JSON.stringify({ model: options.model, input: options.messages }),
       })
+      if (options.purpose === 'auto-review') {
+        const text = JSON.stringify({ risk: 'high', decision: 'deny' })
+        yield { type: 'block-start', index: 0, blockType: 'text' }
+        yield { type: 'text-delta', index: 0, text }
+        yield { type: 'block-end', index: 0, block: { type: 'text', text } }
+      }
       yield { type: 'finish', reason: { kind: 'stop' } }
     }
   }
