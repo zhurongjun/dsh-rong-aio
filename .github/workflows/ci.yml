@@ -29,25 +29,24 @@ jobs:
           echo "$GITHUB_WORKSPACE/agent_temp/tools/node_modules/.bin" >> "$GITHUB_PATH"
       - name: 安装固定依赖
         run: pnpm install --frozen-lockfile
-      - name: 完整检查
-        run: pnpm check
-      - name: 保留失败的浏览器测试轨迹
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: bombadil-traces
-          path: agent_temp/bombadil/run-*/
-          if-no-files-found: ignore
-          retention-days: 7
-      - name: 构建
-        run: pnpm build
-      - name: 打包
-        run: pnpm pack --pack-destination agent_temp/packages
-      - name: 验证版本、包内容与隔离安装
+      - name: 静态检查
+        run: |
+          pnpm format:check
+          pnpm lint
+          pnpm check:ui
+          pnpm typecheck
+      - name: Node 测试
+        run: pnpm test:node
+      - name: 构建并验证发布包
+        if: github.ref_type == 'tag'
         env:
-          RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
-        run: node scripts/check-package.mjs
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          pnpm build
+          pnpm pack --pack-destination agent_temp/packages
+          node scripts/check-package.mjs
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: github.ref_type == 'tag'
         with:
           name: plugin-package
           path: |
