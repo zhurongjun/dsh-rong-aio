@@ -55,6 +55,11 @@
       "source": "packages/client/ui-theme/src/styles/design-platform.css#L259",
       "role": "语义颜色"
     },
+    "--dsw-alias-label-primary-foreground": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L257",
+      "role": "强调色背景上的前景文字"
+    },
     "--dsw-alias-label-secondary": {
       "kind": "theme",
       "source": "packages/client/ui-theme/src/styles/design-platform.css#L260",

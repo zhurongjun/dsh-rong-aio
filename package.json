@@ -29,7 +29,12 @@
       "types": "./lib/system-inject.d.ts",
       "default": "./lib/system-inject.js"
     },
-    "./system-inject/locale/*.json": "./lib/components/system-inject/locale/*.json"
+    "./system-inject/locale/*.json": "./lib/components/system-inject/locale/*.json",
+    "./session-manager": {
+      "types": "./lib/session-manager.d.ts",
+      "default": "./lib/session-manager.js"
+    },
+    "./session-manager/locale/*.json": "./lib/components/session-manager/locale/*.json"
   },
   "files": [
     "lib/",

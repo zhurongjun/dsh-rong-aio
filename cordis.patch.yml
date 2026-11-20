@@ -4,3 +4,5 @@
       name: dsh-rong-aio/model-selector
     - id: rong-aio-system-inject
       name: dsh-rong-aio/system-inject
+    - id: rong-aio-session-manager
+      name: dsh-rong-aio/session-manager

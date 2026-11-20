@@ -7,6 +7,8 @@ import { AgentRegistry } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
 import { SessionStore } from '@deepseek-ai/dsh-session'
+import { SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
+import { WorkspaceRegistry } from '@deepseek-ai/dsh-workspace'
 import ClientModules from '@deepseek-ai/dsh-client-modules'
 import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
@@ -55,6 +57,7 @@ export async function runtime(t) {
     SessionProjectionRegistry,
     SessionStore,
     AgentRegistry,
+    SessionQueryEngine,
     SystemPrompt,
     LlmRuntime,
     Tools,
@@ -74,26 +77,63 @@ export async function runtime(t) {
   ctx.provide('settings', {
     describe: () => [{ ns: 'fixture', value: { api: 'openai-responses' } }],
   })
-  const records = new Map()
+  const domains = new Map()
   ctx.provide('storageDomain', {
-    open: async () => ({
-      table: () => ({
-        get: (key) => records.get(key),
-        put: async (key, value) => {
-          records.set(key, value)
+    get: (name) => domains.get(name),
+    open: async (spec) => {
+      let global = spec.global?.initial
+      const tables = new Map(
+        Object.keys(spec.tables).map((name) => {
+          const records = new Map()
+          return [
+            name,
+            {
+              get size() {
+                return records.size
+              },
+              keys: () => records.keys(),
+              entries: () => records.entries(),
+              get: (key) => records.get(key),
+              delete: async (key) => records.delete(key),
+              put: async (key, value) => {
+                records.set(key, value)
+              },
+              update: async (key, change) => {
+                const value = change(records.get(key))
+                records.set(key, value)
+                return value
+              },
+            },
+          ]
+        }),
+      )
+      const domain = {
+        table: (name) => tables.get(name),
+        global: {
+          get: () => global,
+          set: async (value) => {
+            global = value
+          },
         },
-      }),
-      close() {},
-    }),
+        close: () => domains.delete(spec.name),
+      }
+      domains.set(spec.name, domain)
+      return domain
+    },
   })
   ctx.provide('dshHomePath', (name) => join(f.root, 'home', name))
-  ctx.provide('workspaceRegistry', { list: () => [{ path: f.workspace }] })
+  ctx.plugin(WorkspaceRegistry)
   ctx.provide('agentDefaultModel', {
     currentSelection: () => ({ provider: 'fixture', model: 'denied' }),
   })
-  ctx.provide('sessionQuery', { inspectSession: async (id, read) => read(ctx.sessions.get(id)) })
   // 选模入口只代替宿主目录授权及默认保存；AgentModel、日志和调用上下文仍是真实服务。
+  const openedDirectories = []
   ctx.provide('sessionController', {
+    canOpenWorkspacePath: () => true,
+    async openWorkspacePath({ path }) {
+      openedDirectories.push(path)
+      return { opened: true }
+    },
     async selectModel(request) {
       ctx.agents.get(request.sessionId).model.select(request)
       return { selected: request }
@@ -137,6 +177,7 @@ export async function runtime(t) {
     ...components,
   ])
   await ctx.loader.await()
+  await ctx.workspaceRegistry.create(f.workspace)
   const clients = () =>
     ctx.clientModules
       .graph()
@@ -181,5 +222,6 @@ export async function runtime(t) {
     clients,
     calls,
     wire,
+    openedDirectories,
   }
 }

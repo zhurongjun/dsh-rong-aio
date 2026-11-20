@@ -1,15 +1,40 @@
 /** 测试宿主的 DSH 基础控件。插件提供菜单选项、事件处理和业务状态。 */
-import { createElement as h, forwardRef, useLayoutEffect } from 'react'
+import { cloneElement, createElement as h, forwardRef, useLayoutEffect, useState } from 'react'
 
 export const Button = forwardRef(
   ({ icon, size: _size, variant: _variant, children, ...props }, ref) =>
     h('button', { ...props, ref }, icon, children),
 )
 export const Input = forwardRef(({ icon: _icon, ...props }, ref) => h('input', { ...props, ref }))
+export const Checkbox = ({ label, checked, onChange, disabled, className }) =>
+  h(
+    'label',
+    { className },
+    h('input', {
+      type: 'checkbox',
+      checked,
+      disabled,
+      onChange: (event) => onChange(event.target.checked),
+    }),
+    h('span', {}, label),
+  )
 export const MenuSurface = forwardRef(({ compact: _compact, ...props }, ref) =>
   h('div', { ...props, ref }),
 )
 export const Tag = ({ children }) => h('span', {}, children)
+export function Tooltip({ label, children, disabled }) {
+  const [shown, setShown] = useState(false)
+  return [
+    cloneElement(children, {
+      key: 'anchor',
+      onMouseEnter: () => setShown(true),
+      onMouseLeave: () => setShown(false),
+    }),
+    shown &&
+      !disabled &&
+      h('li', { key: 'tooltip', role: 'tooltip' }, typeof label === 'function' ? label() : label),
+  ]
+}
 export const MenuItemButton = ({ children, onSelect, disabled }) =>
   h('button', { role: 'menuitem', disabled, onClick: onSelect }, children)
 export function Menu({ anchor, open, items, children, onSelect }) {
@@ -25,7 +50,12 @@ export function Menu({ anchor, open, items, children, onSelect }) {
         items?.map((item) =>
           h(
             'button',
-            { key: item.id, role: 'menuitem', onClick: () => onSelect(item.id) },
+            {
+              key: item.id,
+              role: 'menuitem',
+              disabled: item.disabled,
+              onClick: () => onSelect(item.id),
+            },
             item.label,
           ),
         ),
@@ -74,7 +104,10 @@ export function useModalLayer(ref, open) {
   }, [ref, open])
 }
 export const useDismissOnOutsidePointer = () => {}
-export const writeClipboard = async (text) => globalThis.navigator.clipboard.writeText(text)
+export const writeClipboard = async (text) => {
+  await globalThis.navigator.clipboard.writeText(text)
+  return true
+}
 export const PathLabel = ({ path }) => h('span', {}, path)
 const Icon = () => null
 export {
@@ -90,6 +123,11 @@ export {
   Icon as IconPlusOutlineRegular,
   Icon as IconSearchOutlineRegular,
   Icon as IconTrashOutlineRegular,
+  Icon as IconArchiveOutlineRegular,
+  Icon as IconArchiveOffOutlineRegular,
+  Icon as IconFolderOpenRegular,
+  Icon as IconFolderCloseRegular,
+  Icon as IconTriangleRightFillRegular,
   Icon as IconChevronLeftOutlineRegular,
   Icon as IconEllipsisOutlineRegular,
 }

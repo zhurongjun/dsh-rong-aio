@@ -51,7 +51,7 @@ export function sessionDirectory(root: string, meta: { id: string; cwd?: string 
 export function sessionRoot(ctx: Context): string {
   const backend = Reflect.get(ctx, 'sessionPersistence') as { name?: string } | undefined
   if (backend?.name !== 'session-persistence-jsonl')
-    throw new Error('破甲模式会话快照需要原生 JSONL 会话存储')
+    throw new Error('此操作需要原生 JSONL 会话存储')
   const entries = [...ctx.loader.entries()].filter(
     (entry) =>
       entry.options.name === '@deepseek-ai/dsh-session-persistence-jsonl' &&

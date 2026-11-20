@@ -15,7 +15,7 @@ import { API, commandSchema, type StateView } from '../shared/protocol.ts'
 import { Controller } from './controller.ts'
 import { Paths } from './paths.ts'
 import { SessionStore, type SessionMeta, type SessionEntry } from './session-store.ts'
-import { sessionDirectory, sessionRoot } from './session-location.ts'
+import { sessionDirectory, sessionRoot } from '../../../host/session-location.ts'
 import { guardRequest } from './request-guard.ts'
 import { installSelectionGuard } from './model-selection.ts'
 import { currentModel, hasRequestHistory } from './session-reader.ts'
@@ -59,6 +59,9 @@ export async function apply(ctx: Context): Promise<void> {
   )
 
   const controller = new Controller(paths, sessions, (id) => currentModel(ctx, id))
+  ctx.on('rong-aio/session-removing', (id) => {
+    sessions.entries.delete(id)
+  })
   ctx.effect(() => () => controller.close())
 
   /**

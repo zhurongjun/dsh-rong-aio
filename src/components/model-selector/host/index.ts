@@ -8,6 +8,7 @@ import type {} from '@deepseek-ai/dsh-settings'
 import { z } from 'zod'
 import { speedKey, speedRuleFor, type SpeedMode, type SpeedRule } from '../shared/speed.ts'
 import { createSpeedTransport } from './speed-transport.ts'
+import type {} from '../../../shared/session-events.ts'
 
 export const inject = ['llm', 'storageDomain', 'connection', 'settings']
 
@@ -60,6 +61,12 @@ export async function apply(ctx: Context): Promise<void> {
   const domain = await ctx.storageDomain.open(spec)
   ctx.effect(() => () => domain.close())
   const table = domain.table('selections')
+  ctx.on('rong-aio/session-removing', async (id) => {
+    const prefix = '[' + JSON.stringify(id) + ','
+    for (const key of table.keys()) {
+      if (key.startsWith(prefix)) await table.delete(key)
+    }
+  })
   const transport = createSpeedTransport()
   ctx.effect(() => () => transport.dispose())
   const connection = Reflect.get(ctx, 'connection') as unknown as HostConnectionHandle
