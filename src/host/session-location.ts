@@ -5,7 +5,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cordis-plugin-loader'
 
 /** 与支持版本的 JSONL 磁盘编码一致；不访问后端私有 root/locate。 */
-export function encodeSessionSegment(value: string): string {
+function encodeSessionSegment(value: string): string {
   if (!value) throw new Error('会话 ID 不能为空')
   if (value === '.' || value === '..') return '~002E'.repeat(value.length)
   let result = ''
@@ -19,7 +19,7 @@ export function encodeSessionSegment(value: string): string {
 }
 
 /** 把原生 cwd 编码为工程分区键，保留官方截断和分隔符折叠规则。 */
-export function projectKey(cwd: string): string {
+function projectKey(cwd: string): string {
   if (!cwd) throw new Error('工作区路径不能为空')
   let result = ''
   let separator = false

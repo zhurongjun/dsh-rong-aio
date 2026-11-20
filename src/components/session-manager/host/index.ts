@@ -1,13 +1,10 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection'
-import type { SessionId, SessionStore } from '@deepseek-ai/dsh-session'
-import type {} from '@deepseek-ai/dsh-session-query'
-import type {} from '@deepseek-ai/dsh-session-projection'
-import type {} from '@deepseek-ai/dsh-workspace'
+import type { SessionStore } from '@deepseek-ai/dsh-session'
 import { z } from 'zod'
-import { API, type Outcome } from '../shared/protocol.ts'
+import { API } from '../shared/protocol.ts'
 import { listSessions, openDirectory } from './catalog.ts'
-import { refreshSearchIndex, removeSession } from './remove.ts'
+import { applyBatch } from './batch.ts'
 
 export const inject = [
   'connection',
@@ -30,7 +27,6 @@ const command = z.discriminatedUnion('action', [
 export function apply(ctx: Context) {
   const connection = Reflect.get(ctx, 'connection') as HostConnectionHandle
   const sessions = Reflect.get(ctx, 'sessions') as unknown as SessionStore
-  const workspace = ctx.workspaceRegistry
   let tail = Promise.resolve()
   ctx.effect(() => () => tail)
   connection.fetch.register({
@@ -51,42 +47,7 @@ export function apply(ctx: Context) {
         if (parsed.data.action === 'open-directory')
           return Response.json(await openDirectory(ctx, parsed.data.target, request.signal))
         const { action, targets } = parsed.data
-        const task = tail.then(async () => {
-          const outcomes: Outcome[] = []
-          for (const target of new Map(targets.map((item) => [item.id, item])).values()) {
-            const id = target.id as SessionId
-            try {
-              const live = sessions.get(id)
-              if (action === 'delete' && live)
-                throw new Error('会话仍被 DSH 占用；请在释放会话或重启 DSH 后重试')
-              if (action === 'delete') await removeSession(ctx, id, target)
-              else {
-                const header = live?.header ?? (await ctx.sessionPersistence.stat(id))?.header
-                if (header?.createdAt !== target.createdAt)
-                  throw new Error('会话已变更或已移除，请刷新列表')
-                if (action === 'archive') await workspace.archiveSession(id)
-                else await workspace.unarchiveSession(id)
-              }
-              outcomes.push({ id })
-            } catch (error) {
-              outcomes.push({ id, error: error instanceof Error ? error.message : String(error) })
-            }
-          }
-          const removed = action === 'delete' && outcomes.find((item) => !item.error)
-          if (removed) {
-            try {
-              await refreshSearchIndex(ctx, removed.id as SessionId)
-            } catch (error) {
-              return {
-                outcomes,
-                warning:
-                  '磁盘删除已完成，全文索引待同步。' +
-                  (error instanceof Error ? error.message : String(error)),
-              }
-            }
-          }
-          return { outcomes }
-        })
+        const task = tail.then(() => applyBatch(ctx, sessions, action, targets))
         tail = task.then(
           () => {},
           () => {},

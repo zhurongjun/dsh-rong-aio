@@ -219,4 +219,22 @@ test('同名工作区各自分组，悬停和菜单使用所点会话的实际�
   await waitFor(() => f.openedDirectories.length === 1)
   assert.deepEqual(f.openedDirectories, [two.directory])
   assert.equal(row.querySelector('button[aria-pressed]').getAttribute('aria-pressed'), 'false')
+  // 筛选应展开匹配组、清除上次选择；清空搜索后，同名工作区仍然独立。
+  await click(header)
+  const search = document.querySelector('input[aria-label="搜索会话"]')
+  const typeQuery = (value) =>
+    act(async () => {
+      const input = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')
+      input.set.call(search, value)
+      search.dispatchEvent(new window.Event('input', { bubbles: true }))
+    })
+  await typeQuery(one.target.id)
+  assert.equal(
+    document.querySelector('button[aria-expanded]').getAttribute('aria-expanded'),
+    'true',
+  )
+  assert.equal(document.querySelector('button[aria-pressed]').getAttribute('aria-pressed'), 'false')
+  assert.ok(!byText('small', two.target.id))
+  await typeQuery('')
+  assert.ok(byText('small', two.target.id))
 })
