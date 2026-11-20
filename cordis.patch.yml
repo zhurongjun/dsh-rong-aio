@@ -6,3 +6,5 @@
       name: dsh-rong-aio/system-inject
     - id: rong-aio-session-manager
       name: dsh-rong-aio/session-manager
+    - id: rong-aio-side
+      name: dsh-rong-aio/side

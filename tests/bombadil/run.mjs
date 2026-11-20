@@ -20,7 +20,16 @@ test('Bombadil verifies the DSH client slots in Chromium', { timeout: 100000 }, 
   )
   assert.deepEqual(
     reports.map((r) => r.name),
-    ['openSlider', 'models', 'speedAndTeam', 'settings', 'workspaces', 'operations', 'exploration'],
+    [
+      'openSlider',
+      'models',
+      'speedAndTeam',
+      'settings',
+      'sideChat',
+      'workspaces',
+      'operations',
+      'exploration',
+    ],
     'Every workflow and at least eight browser exploration clicks must complete before the time limit',
   )
   const beta = await f.ctx.sessionPersistence.stat('beta')

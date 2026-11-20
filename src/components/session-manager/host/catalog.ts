@@ -1,4 +1,5 @@
 import { stat } from 'node:fs/promises'
+import { isSideSession } from '../../../shared/side-session.ts'
 import { basename, dirname, isAbsolute } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
@@ -23,6 +24,7 @@ export async function listSessions(
   const locations = new Map(stored.map((item) => [item.header.id, item]))
   const headers = new Map(stored.map((item) => [item.header.id, item.header]))
   for (const live of sessions.list()) headers.set(live.id, live.header)
+  for (const id of headers.keys()) if (isSideSession(id)) headers.delete(id)
 
   const titles = new Map<SessionId, string>()
   const missing: SessionId[] = []

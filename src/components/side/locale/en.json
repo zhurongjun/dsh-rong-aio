@@ -1,0 +1,10 @@
+{
+  "meta": {
+    "title": "Side chat",
+    "description": "Ask questions beside the main conversation and revisit their history."
+  },
+  "command": {
+    "label": "Side chat",
+    "description": "Start a side chat from the current conversation"
+  }
+}

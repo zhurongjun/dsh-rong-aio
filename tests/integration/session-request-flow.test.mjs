@@ -9,7 +9,8 @@ test('安装后设置 Fast 与破甲词，首条请求冻结正文，子会话�
   const selector = 'dsh-rong-aio-model-selector'
   const inject = 'dsh-rong-aio-system-inject'
   const manager = 'dsh-rong-aio-session-manager'
-  assert.deepEqual(clients(), [selector, manager, inject])
+  const side = 'dsh-rong-aio-side'
+  assert.deepEqual(clients(), [selector, manager, side, inject])
   const session = { sessionId: agent.id }
   assert.equal((await f.injectView(session)).session.resolved.status, 'off')
   const identity = { sessionId: agent.id, ...route }
@@ -52,7 +53,7 @@ test('安装后设置 Fast 与破甲词，首条请求冻结正文，子会话�
   assert.ok(calls[1].messages[0].content[0].text.startsWith(prompt.body))
 
   await enable('rong-aio-model-selector', false)
-  assert.deepEqual(clients(), [manager, inject])
+  assert.deepEqual(clients(), [manager, side, inject])
   assert.equal((await request('rong-aio.speed?' + new URLSearchParams(identity))).status, 404)
   await assert.rejects(
     ctx.sessionController.selectModel({
@@ -64,7 +65,7 @@ test('安装后设置 Fast 与破甲词，首条请求冻结正文，子会话�
   assert.deepEqual(await run(), { kind: 'completed' })
   assert.equal(wire.at(-1).service_tier, undefined)
   await enable('rong-aio-system-inject', false)
-  assert.deepEqual(clients(), [manager])
+  assert.deepEqual(clients(), [manager, side])
   assert.equal((await request('rong-aio.system-inject?sessionId=' + agent.id)).status, 404)
   await ctx.sessionController.selectModel({
     sessionId: agent.id,
@@ -74,7 +75,7 @@ test('安装后设置 Fast 与破甲词，首条请求冻结正文，子会话�
   assert.deepEqual(await run(), { kind: 'completed' })
   assert.ok(!calls.at(-1).messages[0].content[0].text.includes(prompt.body))
   await enable('rong-aio-system-inject', true)
-  assert.deepEqual(clients(), [manager, inject])
+  assert.deepEqual(clients(), [manager, side, inject])
   await ctx.sessionController.selectModel({ sessionId: agent.id, ...route })
   assert.deepEqual(await run(), { kind: 'completed' })
   assert.ok(calls.at(-1).messages[0].content[0].text.startsWith(prompt.body))

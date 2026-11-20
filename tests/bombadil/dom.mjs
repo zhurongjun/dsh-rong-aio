@@ -26,7 +26,8 @@ export function controls(document, window) {
   const press = (el, key) =>
     el.dispatchEvent(new window.KeyboardEvent('keydown', { key, bubbles: true, cancelable: true }))
   const type = (el, value) => {
-    Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set.call(el, value)
+    const type = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement : window.HTMLInputElement
+    Object.getOwnPropertyDescriptor(type.prototype, 'value').set.call(el, value)
     el.dispatchEvent(new window.Event('input', { bubbles: true }))
   }
   const button = (value) => click(() => text('button', value), value)

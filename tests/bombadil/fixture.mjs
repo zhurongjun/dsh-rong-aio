@@ -1,13 +1,14 @@
 import { createServer } from 'node:http'
 import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { build } from 'esbuild'
 import TeamService from '@deepseek-ai/dsh-agent-team'
 import { runtime } from '../integration/helpers/runtime.mjs'
 import { storedSession } from '../integration/helpers/stored-session.mjs'
 
 export async function serve(t, report) {
-  const f = await runtime(t)
+  const f = await runtime(t, { side: true })
   const snapshot = (id) => {
     const agent = f.ctx.agents.get(id)
     return {
@@ -83,12 +84,22 @@ export async function serve(t, report) {
     bundle: true,
     write: false,
     jsx: 'automatic',
+    plugins: [
+      {
+        name: 'workbench-primitives',
+        setup(build) {
+          build.onResolve({ filter: /^@deepseek-ai\/dsh-client-ui-primitives$/ }, () => ({
+            path: fileURLToPath(new URL('./primitives.mjs', import.meta.url)),
+          }))
+        },
+      },
+    ],
     minify: true,
     define: { 'process.env.NODE_ENV': '"production"' },
   })
   for (const file of bundle.outputFiles)
     assets.set('/workbench.' + file.path.split('.').at(-1), file.contents)
-  for (const name of ['model-selector', 'system-inject', 'session-manager'])
+  for (const name of ['model-selector', 'system-inject', 'session-manager', 'side'])
     assets.set(
       '/client/' + name + '.js',
       await readFile(f.ctx.clientModules.clientPath('dsh-rong-aio-' + name)),

@@ -1,0 +1,4 @@
+{
+  "meta": { "title": "侧聊", "description": "在主会话右侧提问，保留独立的对话与操作记录。" },
+  "command": { "label": "侧聊", "description": "从当前主会话新建侧聊" }
+}

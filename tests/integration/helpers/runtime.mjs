@@ -14,10 +14,15 @@ import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import { LlmRuntime, LlmAdapter, createUserMessage } from '@deepseek-ai/dsh-llm'
 import Tools from '@deepseek-ai/dsh-tools'
+import { executeToolBatch, ToolExecutionPipeline } from '@deepseek-ai/dsh-tools/pipeline'
+import Commands from '@deepseek-ai/dsh-commands'
+import SandboxPolicy from '@deepseek-ai/dsh-sandbox-policy'
+import Approval from '@deepseek-ai/dsh-user-approval'
+import PermissionPresets from '@deepseek-ai/dsh-permission-presets'
 import { prepareBundle } from './bundle.mjs'
 import { fixture, prompt, route } from './files.mjs'
 
-export async function runtime(t) {
+export async function runtime(t, { side = false, reply } = {}) {
   const f = await fixture()
   const ctx = new Context()
   t.after(async () => {
@@ -41,13 +46,21 @@ export async function runtime(t) {
       calls.push(options)
       await fetch('https://fixture.invalid/responses', {
         method: 'POST',
-        body: JSON.stringify({ model: options.model, input: options.messages }),
+        body: JSON.stringify({
+          model: options.model,
+          input: options.messages,
+          tools: options.tools,
+          toolHistory: options.toolHistory,
+        }),
       })
       if (options.purpose === 'auto-review') {
         const text = JSON.stringify({ risk: 'high', decision: 'deny' })
         yield { type: 'block-start', index: 0, blockType: 'text' }
         yield { type: 'text-delta', index: 0, text }
         yield { type: 'block-end', index: 0, block: { type: 'text', text } }
+      } else if (reply) {
+        yield* reply(options)
+        return
       }
       yield { type: 'finish', reason: { kind: 'stop' } }
     }
@@ -65,26 +78,39 @@ export async function runtime(t) {
   ])
     await ctx.plugin(plugin, {})
   ctx.tools.setExecutor({
-    describe: () => ({ schemas: [], knownNames: [] }),
-    execute: () => {
-      throw new Error('本测试不执行工具')
-    },
+    describe: (tools) => ({
+      schemas: tools.map(({ name, description, parameters }) => ({
+        name,
+        description,
+        parameters,
+      })),
+    }),
+    execute: (input) => executeToolBatch(input, new ToolExecutionPipeline(ctx), () => 1),
   })
   ctx.llm.registerAdapter(['fixture'], new Adapter())
   ctx.llm.registerConfigurableProviders([
     { provider: 'fixture', displayName: 'Fixture', settingsNs: 'fixture', settingsPath: [] },
   ])
   ctx.provide('settings', {
+    configure: () => () => {},
     describe: () => [{ ns: 'fixture', value: { api: 'openai-responses' } }],
   })
+  if (side) {
+    ctx.provide('shell', { sandboxMode: 'workspace-write' })
+    for (const plugin of [Commands, SandboxPolicy, Approval, PermissionPresets])
+      await ctx.plugin(plugin, {})
+  }
   const domains = new Map()
+  const savedTables = new Map()
   ctx.provide('storageDomain', {
     get: (name) => domains.get(name),
     open: async (spec) => {
       let global = spec.global?.initial
       const tables = new Map(
         Object.keys(spec.tables).map((name) => {
-          const records = new Map()
+          const key = spec.name + '/' + name
+          const records = savedTables.get(key) ?? new Map()
+          savedTables.set(key, records)
           return [
             name,
             {
@@ -137,6 +163,14 @@ export async function runtime(t) {
     async selectModel(request) {
       ctx.agents.get(request.sessionId).model.select(request)
       return { selected: request }
+    },
+    async resolveAgent(id) {
+      const agent = ctx.agents.get(id)
+      return agent ? { agent } : { error: new Error('不存在的会话') }
+    },
+    async prompt({ sessionId, content }) {
+      ctx.agents.get(sessionId).followup(createUserMessage({ source: { kind: 'user' }, content }))
+      return { accepted: true }
     },
   })
   new HostConnectionService(ctx, [], {})

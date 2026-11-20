@@ -5,10 +5,14 @@ import type {} from '@deepseek-ai/dsh-api-session-controller/types'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionPersistenceSnapshot } from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-storage-domain'
-import type {} from '../../../shared/session-events.ts'
-import { sessionDirectory, sessionRoot } from '../../../host/session-location.ts'
-import type { Target } from '../shared/protocol.ts'
-import { removeSpills } from './spill.ts'
+import type {} from '../shared/session-events.ts'
+import { sessionDirectory, sessionRoot } from './session-location.ts'
+import { removeSpills } from './session-spill.ts'
+
+interface Target {
+  id: string
+  createdAt: number
+}
 
 /** 已存在的原生全文索引在公开搜索接口执行查询前，会先清理消失的会话记录。 */
 export async function refreshSearchIndex(ctx: Context, removed: SessionId) {

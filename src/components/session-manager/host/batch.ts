@@ -2,10 +2,12 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { SessionId, SessionStore } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-workspace'
 import type { Action, BatchResult, Outcome, Target } from '../shared/protocol.ts'
-import { refreshSearchIndex, removeSession } from './remove.ts'
+import { refreshSearchIndex, removeSession } from '../../../host/remove-session.ts'
+import { isSideSession } from '../../../shared/side-session.ts'
 
 async function applyAction(ctx: Context, sessions: SessionStore, action: Action, target: Target) {
   const id = target.id as SessionId
+  if (isSideSession(id)) throw new Error('请在所属主会话的侧聊历史中管理这条记录')
   const live = sessions.get(id)
   if (action === 'delete') {
     if (live) throw new Error('会话仍被 DSH 占用；请在释放会话或重启 DSH 后重试')

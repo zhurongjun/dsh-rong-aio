@@ -5,6 +5,36 @@
     "sourceBase": "https://github.com/deepseek-ai/deepseek-harness/blob/9c2670d3bce5275e0d1610272958121af87787bb/"
   },
   "tokens": {
+    "--dsh-content-font-delta-secondary": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L59",
+      "role": "输入框下方状态行随宿主次级字号调整"
+    },
+    "--dsw-alias-button-info-fill": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L212",
+      "role": "聊天发送按钮背景"
+    },
+    "--dsw-alias-button-info-hover": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L213",
+      "role": "聊天发送按钮悬停背景"
+    },
+    "--dsw-alias-label-on-color": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L254",
+      "role": "彩色发送按钮上的图标"
+    },
+    "--dsw-elevation-soft": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L38",
+      "role": "聊天输入卡片阴影"
+    },
+    "--dsw-font-markdown-base": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L93",
+      "role": "匹配聊天输入区的正文字号和行高"
+    },
     "--dsh-composer-model-icon-display": {
       "kind": "component-contract",
       "source": "packages/client/ui-model-selection/src/client/ModelSelect.module.css#L71",
@@ -202,6 +232,13 @@
     }
   },
   "localBindings": [
+    {
+      "file": "src/components/side/client/styles.css",
+      "selector": ".rong-side-draft-card",
+      "property": "--dsw-elevation-stroke-color",
+      "value": "var(--dsw-alias-border-l2)",
+      "reason": "侧聊草稿使用宿主聊天输入卡片的描边与阴影"
+    },
     {
       "file": "src/components/model-selector/client/model-selector/styles.css",
       "selector": ".rong-model-popover",
