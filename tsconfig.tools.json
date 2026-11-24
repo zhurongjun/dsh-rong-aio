@@ -3,7 +3,7 @@
   "compilerOptions": {
     "composite": false,
     "incremental": true,
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": ["ES2024", "ESNext.Array", "DOM", "DOM.Iterable"],
     "types": ["node", "react", "react-dom"],
     "allowJs": true,
     "checkJs": false,

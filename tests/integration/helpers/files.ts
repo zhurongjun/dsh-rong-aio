@@ -1,5 +1,3 @@
-/** 通过插件支持的 Markdown 和 JSON 格式准备独立的用户目录与工作区。 */
-
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { stringify } from 'yaml'

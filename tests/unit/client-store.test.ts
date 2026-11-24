@@ -1,5 +1,3 @@
-/** 验证客户端 store 订阅自托管生命期与菜单退场卸载状态机。 */
-
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { createStore } from 'zustand/vanilla'

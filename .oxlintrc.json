@@ -44,7 +44,7 @@
   ],
   "overrides": [
     {
-      "files": ["tests/bombadil/**/*.{jsx,tsx}", "tests/bombadil/primitives.mjs"],
+      "files": ["tests/ui/**/*.{jsx,tsx}", "tests/ui/primitives.mjs"],
       "env": { "browser": true }
     },
     {
@@ -83,12 +83,11 @@
     {
       "files": [
         "tools/**/*.{js,mjs,ts}",
-        "tests/components/**/*.{js,mjs,ts,tsx}",
-        "tests/contracts/**/*.{js,mjs,ts,tsx}",
-        "tests/integration/**/*.{js,mjs,ts,tsx}",
-        "tests/bombadil/run.mjs",
-        "tests/bombadil/driver.mjs",
-        "tests/bombadil/fixture.mjs"
+        "tests/unit/**/*.ts",
+        "tests/integration/**/*.ts",
+        "tests/ui/run.ts",
+        "tests/ui/driver.ts",
+        "tests/ui/fixture.ts"
       ],
       "env": {
         "node": true

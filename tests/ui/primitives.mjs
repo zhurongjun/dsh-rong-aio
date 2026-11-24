@@ -1,4 +1,3 @@
-// Re-export the host's native browser controls without bundling unrelated DSH screens.
 export { Button } from '@deepseek-ai/dsh-client-ui-primitives/src/Button.tsx'
 export { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives/src/Checkbox.tsx'
 export { Input } from '@deepseek-ai/dsh-client-ui-primitives/src/Input.tsx'

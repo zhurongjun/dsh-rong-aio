@@ -10,10 +10,10 @@ import * as primitives from './primitives.mjs'
 import { GuideBody } from '@deepseek-ai/dsh-client-ui-sidebar-right/src/client/tabs/guide/GuideBody.tsx'
 import inputBar from '@deepseek-ai/dsh-client-ui-conversation/src/client/skeleton/InputBar.module.css'
 import conversation from '@deepseek-ai/dsh-client-ui-conversation/src/client/skeleton/ConversationRoot.module.css'
-import '../../node_modules/@deepseek-ai/dsh-client-ui-theme/src/styles/design-platform.css'
-import '../../node_modules/@deepseek-ai/dsh-client-ui-theme/src/styles/base.css'
-import '../../node_modules/@deepseek-ai/dsh-client-ui-theme/src/styles/gradient-shadow-text.css'
-import '../../node_modules/@deepseek-ai/dsh-client-ui-theme/src/styles/scrollbar.css'
+import '@deepseek-ai/dsh-client-ui-theme/src/styles/design-platform.css'
+import '@deepseek-ai/dsh-client-ui-theme/src/styles/base.css'
+import '@deepseek-ai/dsh-client-ui-theme/src/styles/gradient-shadow-text.css'
+import '@deepseek-ai/dsh-client-ui-theme/src/styles/scrollbar.css'
 
 const modules = {
   react: React,
@@ -23,6 +23,7 @@ const modules = {
 }
 const slots = new Map()
 const directories = new Map()
+
 async function command(action, args = {}) {
   const response = await fetch('/fixture', {
     method: 'POST',
@@ -40,6 +41,7 @@ async function start() {
       },
     },
   })
+
   const { models, sessions } = await command('catalog')
   for (const session of sessions) {
     const store = createStore(() => ({
@@ -69,6 +71,7 @@ async function start() {
       },
     })
   }
+
   const sidebar = document.querySelector('aside')
   const refreshSidebar = async () => {
     sidebar.textContent = (await command('sidebar')).join(' ')
@@ -76,6 +79,7 @@ async function start() {
   const infoStore = createStore(() => sessions[0])
   const refreshProjection = async (id) =>
     infoStore.setState(await command('snapshot', { id }), true)
+
   const sidebarTabTypes = new Map()
   const dock = createStore(() => ({ tabs: [], active: {}, expanded: true }))
   const sidebarRight = {
@@ -143,6 +147,7 @@ async function start() {
       })
     },
   }
+
   const current = createStore(() => ({ key: sessions[0].id }))
   const status = { getSnapshot: () => new Map(), subscribe: () => () => {} }
   const services = {
@@ -203,6 +208,7 @@ async function start() {
       },
     },
   }
+
   const slashContext = new Context()
   let slash
   slashContext.provide('inputTriggers', {
@@ -220,6 +226,7 @@ async function start() {
   slashContext.provide('locale', locale)
   services.locale = locale
   services.commandUi = new CommandUiRuntime(slashContext)
+
   window.__ModuleLoader__ = {
     load: ({ factory }) =>
       factory((dep) => {
@@ -227,8 +234,10 @@ async function start() {
         return modules[dep]
       }).apply(services),
   }
-  for (const name of ['model-selector', 'system-inject', 'session-manager', 'side'])
+  for (const name of ['model-selector', 'system-inject', 'session-manager', 'side']) {
     await import('/client/' + name + '.js')
+  }
+
   function Slot({ name, id, info, ...props }) {
     return slots
       .get(name)
@@ -247,6 +256,7 @@ async function start() {
         />
       ))
   }
+
   function Workbench() {
     const [section, setSection] = useState('conversation')
     const info = React.useSyncExternalStore(infoStore.subscribe, infoStore.getState)
@@ -269,6 +279,7 @@ async function start() {
     const [query, setQuery] = useState('side')
     const commandSession = { sessionId: info.id }
     const signal = () => new AbortController().signal
+
     return (
       <>
         <nav aria-label="测试宿主导航">
@@ -479,8 +490,10 @@ async function start() {
       </>
     )
   }
+
   createRoot(document.querySelector('main')).render(<Workbench />)
 }
+
 start().catch((error) => {
   document.querySelector('main').textContent = error.stack
   throw error

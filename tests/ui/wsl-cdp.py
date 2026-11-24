@@ -1,8 +1,6 @@
-"""Forward WSL loopback to the disposable Windows browser's loopback CDP socket."""
 import asyncio
 import sys
 
-# WSL NAT has a separate loopback. Windows interop pipes keep CDP off the LAN.
 CONNECT = """
 const socket = require('node:net').connect(+process.argv[1], '127.0.0.1');
 process.stdin.pipe(socket).pipe(process.stdout);

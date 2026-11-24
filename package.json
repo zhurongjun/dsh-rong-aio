@@ -1,6 +1,6 @@
 {
   "name": "dsh-rong-aio",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "自用 DSH 功能组合包：统一安装，按功能独立启停。",
   "type": "module",
   "license": "GPL-3.0-only",
@@ -61,8 +61,8 @@
     "prepare": "node tools/build.ts",
     "typecheck": "tsc -b tsconfig.json && tsc -p tsconfig.tools.json",
     "test": "pnpm test:node && pnpm test:ui",
-    "test:node": "node --test \"tests/**/*.test.ts\" \"tests/**/*.test.mjs\"",
-    "test:ui": "node --test tests/bombadil/run.mjs",
+    "test:node": "node --test \"tests/unit/**/*.test.ts\" \"tests/integration/**/*.test.ts\"",
+    "test:ui": "node --test tests/ui/run.ts",
     "verify:package": "node tools/verify-package.ts"
   },
   "devDependencies": {
