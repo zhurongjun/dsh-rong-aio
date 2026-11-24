@@ -7,13 +7,16 @@ import {
   Input,
   SegmentedTabs,
   Toast,
+  IconChevronsUpDownOutlineRegular,
   IconSearchOutlineRegular,
   IconRefreshOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SessionRow } from '../shared/protocol.ts'
+import { buildSessionTree, collectExpandableIds, type SessionNode } from '../shared/tree.ts'
 import { SessionGroups } from './SessionGroups.tsx'
 import { SessionActions, DeleteConfirmation, type SessionActionHandler } from './SessionActions.tsx'
 import { createSessionOperationsStore, type SessionSelection } from './operations-store.ts'
+
+const EMPTY_COLLAPSED: ReadonlySet<string> = new Set()
 
 const tabs = [
   {
@@ -26,29 +29,53 @@ const tabs = [
 ] as const
 
 function BatchToolbar({
-  visible,
+  nodes,
   selection,
   archived,
   busy,
   onAction,
+  expandableCount,
+  allCollapsed,
+  onToggleAll,
 }: {
-  visible: SessionRow[]
+  nodes: SessionNode[]
   selection: SessionSelection
   archived: boolean
   busy: boolean
   onAction: SessionActionHandler
+  expandableCount: number
+  allCollapsed: boolean
+  onToggleAll: () => void
 }) {
   const selected = useStore(selection.store)
-  const chosen = visible.filter((row) => selected.has(row.id))
+  const selectable = nodes.filter((node) => !node.row.subagent)
+  const chosen = selectable.filter((node) => selected.has(node.row.id))
+  const foldLabel = allCollapsed ? '展开全部子会话' : '折叠全部子会话'
+
   return (
     <div className="rong-session-toolbar">
       <Checkbox
         label={chosen.length ? '已选 ' + chosen.length + ' 项' : '全选'}
-        disabled={busy || !visible.length}
-        checked={visible.length > 0 && chosen.length === visible.length}
-        onChange={(checked) => selection.select(visible, checked)}
+        disabled={busy || !selectable.length}
+        checked={selectable.length > 0 && chosen.length === selectable.length}
+        onChange={(checked) => selection.select(selectable, checked)}
       />
-      <SessionActions targets={chosen} archived={archived} busy={busy} onAction={onAction} />
+      <div className="rong-session-toolbar-right">
+        {expandableCount > 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<IconChevronsUpDownOutlineRegular size={15} />}
+            aria-label={foldLabel}
+            title={foldLabel}
+            disabled={busy}
+            onClick={onToggleAll}
+          >
+            {allCollapsed ? '展开子会话' : '折叠子会话'}
+          </Button>
+        )}
+        <SessionActions targets={chosen} archived={archived} busy={busy} onAction={onAction} />
+      </div>
     </div>
   )
 }
@@ -85,17 +112,46 @@ export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promi
   const [tab, setTab] = useState<'archived' | 'open'>('archived')
   const [query, setQuery] = useState('')
   const [searchRevision, setSearchRevision] = useState(0)
+  const [foldState, setFoldState] = useState<{
+    tab: 'archived' | 'open'
+    revision: number
+    collapsed: ReadonlySet<string>
+  }>({
+    tab: 'archived',
+    revision: 0,
+    collapsed: EMPTY_COLLAPSED,
+  })
 
   const archived = tab === 'archived'
   const filter = query.trim().toLowerCase()
-  const visible = rows.filter(
-    (row) =>
-      row.archived === archived &&
-      (!filter ||
-        [row.title, row.id, row.cwd, row.workspace.title].some((field) =>
-          field?.toLowerCase().includes(filter),
-        )),
-  )
+  const visible = buildSessionTree(rows, query, archived)
+  const expandableIds = collectExpandableIds(visible)
+  const collapsedIds =
+    foldState.tab === tab && foldState.revision === searchRevision
+      ? foldState.collapsed
+      : EMPTY_COLLAPSED
+  const allCollapsed = expandableIds.length > 0 && expandableIds.every((id) => collapsedIds.has(id))
+
+  function toggleNode(id: string) {
+    setFoldState((current) => {
+      const base =
+        current.tab === tab && current.revision === searchRevision
+          ? current.collapsed
+          : EMPTY_COLLAPSED
+      const next = new Set(base)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return { tab, revision: searchRevision, collapsed: next }
+    })
+  }
+
+  function toggleAllNodes() {
+    setFoldState({
+      tab,
+      revision: searchRevision,
+      collapsed: allCollapsed ? EMPTY_COLLAPSED : new Set(expandableIds),
+    })
+  }
 
   return (
     <section className="rong-session-page" aria-label="会话管理">
@@ -134,21 +190,26 @@ export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promi
 
       <div role="tabpanel" id="rong-session-panel" aria-labelledby={'rong-session-' + tab}>
         <BatchToolbar
-          visible={visible}
+          nodes={visible}
           selection={selection}
           archived={archived}
           busy={busy}
           onAction={onAction}
+          expandableCount={expandableIds.length}
+          allCollapsed={allCollapsed}
+          onToggleAll={toggleAllNodes}
         />
 
         {visible.length ? (
           <SessionGroups
             key={tab}
-            rows={visible}
+            nodes={visible}
             query={query}
             searchRevision={searchRevision}
             selection={selection}
             busy={busy}
+            collapsedIds={collapsedIds}
+            onToggleNode={toggleNode}
             onAction={onAction}
             openDirectory={openDirectory}
             feedback={feedback}

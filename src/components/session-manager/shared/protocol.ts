@@ -13,6 +13,9 @@ export interface SessionRow extends Target {
   canOpenDirectory: boolean
   archived: boolean
   live: boolean
+  subagent: boolean
+  missing?: boolean
+  parentId?: string
 }
 
 export type Action = 'archive' | 'restore' | 'delete'

@@ -102,6 +102,18 @@ export async function serve(
   ] as const) {
     await storedSession(f, id, workspace)
   }
+  await storedSession(f, 'first-sub', first, undefined, {
+    parentSession: 'first-session' as SessionId,
+    origin: 'subagent',
+  })
+  await storedSession(f, 'first-grand', first, undefined, {
+    parentSession: 'first-sub' as SessionId,
+    origin: 'subagent',
+  })
+  await storedSession(f, 'orphan-sub', first, undefined, {
+    parentSession: 'removed-main' as SessionId,
+    origin: 'subagent',
+  })
 
   const commands: Record<string, (args: Record<string, any>) => unknown> = {
     async catalog() {

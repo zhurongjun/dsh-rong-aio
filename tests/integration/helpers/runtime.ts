@@ -354,10 +354,11 @@ export async function storedSession(
   id: string,
   workspace = f.ctx.workspaceRegistry.list()[0],
   text?: string,
+  meta?: { parentSession?: SessionId; origin?: 'subagent' },
 ) {
   const handle = await f.ctx.agents.create({
     sessionId: id as SessionId,
-    meta: { cwd: workspace.path },
+    meta: { cwd: workspace.path, ...meta },
     agentOptions: f.route,
   })
   if (text !== undefined) {
@@ -369,7 +370,7 @@ export async function storedSession(
   await f.ctx.sessions.flush(handle.agent.session)
   const stored = await f.ctx.sessionPersistence.stat(id as never)
   assert.ok(stored?.location && stored.location.kind === 'jsonl')
-  await workspace.attachSession(id as never)
+  if (meta?.origin !== 'subagent') await workspace.attachSession(id as never)
   await handle.dispose()
   return {
     directory: dirname(stored.location.path),

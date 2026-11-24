@@ -2,46 +2,51 @@ import { useState } from 'react'
 import { Menu, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
 import { errorMessage } from '../../../shared/error.ts'
 import type { SessionRow } from '../shared/protocol.ts'
+import type { SessionNode } from '../shared/tree.ts'
 import type { SessionSelection } from './operations-store.ts'
 import type { SessionActionHandler } from './SessionActions.tsx'
 import type { MenuTarget } from './SessionItem.tsx'
 import { WorkspaceGroup } from './WorkspaceGroup.tsx'
 
 interface Props {
-  rows: SessionRow[]
+  nodes: SessionNode[]
   query: string
   searchRevision: number
   selection: SessionSelection
   busy: boolean
+  collapsedIds: ReadonlySet<string>
+  onToggleNode: (id: string) => void
   onAction: SessionActionHandler
   openDirectory: (row: SessionRow) => Promise<void>
   feedback: (message: string, failed?: boolean) => void
 }
 
 export function SessionGroups({
-  rows,
+  nodes,
   query,
   searchRevision,
   selection,
   busy,
+  collapsedIds,
+  onToggleNode,
   onAction,
   openDirectory,
   feedback,
 }: Props) {
   const [menuState, setMenuState] = useState<{
     target: MenuTarget
-    rows: SessionRow[]
+    nodes: SessionNode[]
     query: string
   } | null>(null)
   const menu =
-    menuState && menuState.rows === rows && menuState.query === query ? menuState.target : null
+    menuState && menuState.nodes === nodes && menuState.query === query ? menuState.target : null
 
-  const groupMap = new Map<string, SessionRow[]>()
-  for (const row of rows) {
-    const key = row.workspace.key
+  const groupMap = new Map<string, SessionNode[]>()
+  for (const node of nodes) {
+    const key = node.row.workspace.key
     const members = groupMap.get(key)
-    if (members) members.push(row)
-    else groupMap.set(key, [row])
+    if (members) members.push(node)
+    else groupMap.set(key, [node])
   }
   const groups = [...groupMap]
 
@@ -81,7 +86,9 @@ export function SessionGroups({
           busy={busy}
           searchRevision={searchRevision}
           openMenuId={menu?.row.id}
-          onMenu={(target) => setMenuState({ target, rows, query })}
+          collapsedIds={collapsedIds}
+          onToggleNode={onToggleNode}
+          onMenu={(target) => setMenuState({ target, nodes, query })}
           onAction={onAction}
         />
       ))}
@@ -95,7 +102,11 @@ export function SessionGroups({
           autoFocus
           anchor={null}
           anchorPoint={menu}
-          returnFocus={() => menu.anchor.querySelector<HTMLButtonElement>('button[aria-pressed]')}
+          returnFocus={() =>
+            menu.anchor.querySelector<HTMLElement>(
+              'button[aria-pressed], .rong-session-subagent-body',
+            )
+          }
           onClose={() => setMenuState(null)}
           onSelect={(id) => void choose(id)}
           items={[

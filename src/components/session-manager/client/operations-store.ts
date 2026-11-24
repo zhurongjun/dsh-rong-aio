@@ -3,18 +3,20 @@ import { requestJson } from '../../../client/http.ts'
 import { withLifecycle } from '../../../client/store.ts'
 import { errorMessage } from '../../../shared/error.ts'
 import { API, type Action, type BatchResult, type SessionRow } from '../shared/protocol.ts'
+import type { SessionNode } from '../shared/tree.ts'
 
 function createSelection() {
   const store = createStore<ReadonlySet<string>>(() => new Set<string>())
   return {
     store,
 
-    select(rows: readonly SessionRow[], checked: boolean) {
+    select(nodes: readonly SessionNode[], checked: boolean) {
       const current = store.getState()
       const next = new Set(current)
-      for (const { id } of rows) {
-        if (checked) next.add(id)
-        else next.delete(id)
+      for (const { row } of nodes) {
+        if (row.subagent) continue
+        if (checked) next.add(row.id)
+        else next.delete(row.id)
       }
       if (next.size !== current.size) store.setState(next, true)
     },
@@ -40,7 +42,7 @@ function request<T>(signal: AbortSignal, body?: object): Promise<T> {
 interface OperationsState {
   rows: SessionRow[]
   busy: boolean
-  pendingDelete: SessionRow[]
+  pendingDelete: SessionNode[]
   notice?: { text: string; toast?: boolean }
   errors: string[]
 }
@@ -90,17 +92,17 @@ export function createSessionOperationsStore(refreshSidebar: () => Promise<void>
       await reload(signal, true)
     })
 
-  const perform = (action: Action, items: SessionRow[]) =>
+  const perform = (action: Action, items: SessionNode[]) =>
     run(async (signal) => {
       const { outcomes, warning } = await request<BatchResult>(signal, {
         action,
-        targets: items.map(({ id, createdAt }) => ({ id, createdAt })),
+        targets: items.map(({ row }) => ({ id: row.id, createdAt: row.createdAt })),
         ...(action === 'delete' && { confirmed: true }),
       })
       if (signal.aborted) return
 
       const failed = outcomes.filter((result) => result.error)
-      const titles = new Map(items.map((row) => [row.id, row.title]))
+      const titles = new Map(items.map(({ row }) => [row.id, row.title]))
       const messages = failed.map(
         (result) => `${titles.get(result.id) ?? result.id}：${result.error}`,
       )
@@ -128,7 +130,7 @@ export function createSessionOperationsStore(refreshSidebar: () => Promise<void>
     selection,
     refresh,
 
-    onAction(action: Action, items: SessionRow[]) {
+    onAction(action: Action, items: SessionNode[]) {
       if (running || !items.length) return
       if (action === 'delete') store.setState({ pendingDelete: items })
       else void perform(action, items)

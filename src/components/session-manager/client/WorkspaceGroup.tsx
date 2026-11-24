@@ -6,23 +6,25 @@ import {
   IconFolderOpenRegular,
   IconTriangleRightFillRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { SessionRow } from '../shared/protocol.ts'
+import type { SessionNode } from '../shared/tree.ts'
 import type { SessionActionHandler } from './SessionActions.tsx'
 import { SessionItem, type MenuTarget } from './SessionItem.tsx'
 import type { SessionSelection } from './operations-store.ts'
 
 interface GroupSelectionProps {
-  members: SessionRow[]
+  members: SessionNode[]
   selection: SessionSelection
   busy: boolean
 }
 
 function WorkspaceCheckbox({ members, selection, busy }: GroupSelectionProps) {
+  const selectable = members.filter((node) => !node.row.subagent)
   const checked = useStore(selection.store, (ids) => {
-    const first = ids.has(members[0].id)
-    return members.some((row) => ids.has(row.id) !== first) ? 'mixed' : first
+    if (!selectable.length) return false
+    const first = ids.has(selectable[0].row.id)
+    return selectable.some((node) => ids.has(node.row.id) !== first) ? 'mixed' : first
   })
-  const label = `全选工作区「${members[0].workspace.title}」`
+  const label = `全选工作区「${members[0].row.workspace.title}」`
   const isMixed = checked === 'mixed'
 
   const bindCheck = (el: HTMLSpanElement | null) => {
@@ -36,8 +38,8 @@ function WorkspaceCheckbox({ members, selection, busy }: GroupSelectionProps) {
         label={label}
         title={label}
         checked={checked === true}
-        disabled={busy}
-        onChange={(next) => selection.select(members, next)}
+        disabled={busy || !selectable.length}
+        onChange={(next) => selection.select(selectable, next)}
       />
     </span>
   )
@@ -46,6 +48,8 @@ function WorkspaceCheckbox({ members, selection, busy }: GroupSelectionProps) {
 interface Props extends GroupSelectionProps {
   searchRevision: number
   openMenuId?: string
+  collapsedIds: ReadonlySet<string>
+  onToggleNode: (id: string) => void
   onMenu: (target: MenuTarget) => void
   onAction: SessionActionHandler
 }
@@ -56,13 +60,15 @@ export function WorkspaceGroup({
   busy,
   searchRevision,
   openMenuId,
+  collapsedIds,
+  onToggleNode,
   onMenu,
   onAction,
 }: Props) {
   const [collapsedAtRevision, setCollapsedAtRevision] = useState<number | null>(null)
   const expanded = collapsedAtRevision !== searchRevision
   const listId = useId()
-  const { workspace, cwd } = members[0]
+  const { workspace, cwd } = members[0].row
   const Folder = expanded ? IconFolderOpenRegular : IconFolderCloseRegular
 
   return (
@@ -83,15 +89,22 @@ export function WorkspaceGroup({
         <WorkspaceCheckbox members={members} selection={selection} busy={busy} />
       </div>
 
-      <ul hidden={!expanded} id={listId} aria-label={workspace.title}>
+      <ul
+        className="rong-session-tree-root"
+        hidden={!expanded}
+        id={listId}
+        aria-label={workspace.title}
+      >
         {expanded &&
-          members.map((row) => (
+          members.map((node) => (
             <SessionItem
-              key={row.id}
-              row={row}
+              key={node.row.id}
+              node={node}
               selection={selection}
               busy={busy}
-              menuOpen={openMenuId === row.id}
+              openMenuId={openMenuId}
+              collapsedIds={collapsedIds}
+              onToggleNode={onToggleNode}
               onMenu={onMenu}
               onAction={onAction}
             />

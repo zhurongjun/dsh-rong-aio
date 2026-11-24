@@ -189,3 +189,242 @@ test('缺少删除确认时拒绝请求；隔离占用会话与侧聊历史', as
   assert.equal(sideOutcomes.length, 1)
   assert.match(sideOutcomes[0].error ?? '', /侧聊历史/)
 })
+
+test('子会话继承主会话工作区与归档状态，禁止单独操作并随主会话连带删除', async (t) => {
+  const f = await runtime(t, { spills: true })
+  const api = 'rong-aio.session-manager'
+  const parent = await storedSession(f, 'main-parent', undefined, '主引用 deadbeef2222-child.txt')
+  const child = await storedSession(f, 'child-sub', undefined, undefined, {
+    parentSession: 'main-parent' as never,
+    origin: 'subagent',
+  })
+  const grand = await storedSession(f, 'grand-sub', undefined, undefined, {
+    parentSession: 'child-sub' as never,
+    origin: 'subagent',
+  })
+  const ordinaryFork = await storedSession(f, 'ordinary-fork', undefined, undefined, {
+    parentSession: 'main-parent' as never,
+  })
+
+  type Row = {
+    id: string
+    archived: boolean
+    subagent: boolean
+    parentId?: string
+    workspace: { key: string; title: string }
+  }
+  const fetchRows = async () => (await (await f.request(api)).json()) as Row[]
+
+  const initial = await fetchRows()
+  const parentRow = initial.find((row) => row.id === parent.target.id)!
+  const childRow = initial.find((row) => row.id === child.target.id)!
+  const grandRow = initial.find((row) => row.id === grand.target.id)!
+  const forkRow = initial.find((row) => row.id === ordinaryFork.target.id)!
+
+  assert.equal(parentRow.subagent, false)
+  assert.equal(childRow.subagent, true)
+  assert.equal(childRow.parentId, parent.target.id)
+  assert.deepEqual(childRow.workspace, parentRow.workspace)
+  assert.equal(grandRow.subagent, true)
+  assert.equal(grandRow.parentId, child.target.id)
+  assert.deepEqual(grandRow.workspace, parentRow.workspace)
+  assert.equal(forkRow.subagent, false)
+  assert.equal(forkRow.parentId, undefined)
+
+  for (const action of ['archive', 'restore'] as const) {
+    const res = (await (await f.request(api, { action, targets: [child.target] })).json()) as {
+      outcomes: Array<{ id: string; error?: string }>
+    }
+    assert.match(res.outcomes[0].error ?? '', /子会话跟随所属主会话/)
+  }
+  const directDelete = (await (
+    await f.request(api, { action: 'delete', confirmed: true, targets: [grand.target] })
+  ).json()) as { outcomes: Array<{ id: string; error?: string }> }
+  assert.match(directDelete.outcomes[0].error ?? '', /子会话不支持单独删除/)
+
+  await f.request(api, { action: 'archive', targets: [parent.target] })
+  const archivedRows = await fetchRows()
+  assert.equal(archivedRows.find((row) => row.id === parent.target.id)?.archived, true)
+  assert.equal(archivedRows.find((row) => row.id === child.target.id)?.archived, true)
+  assert.equal(archivedRows.find((row) => row.id === grand.target.id)?.archived, true)
+  assert.equal(archivedRows.find((row) => row.id === ordinaryFork.target.id)?.archived, false)
+
+  await f.request(api, { action: 'restore', targets: [parent.target] })
+  const restoredRows = await fetchRows()
+  assert.equal(restoredRows.find((row) => row.id === grand.target.id)?.archived, false)
+
+  const liveGrand = await f.ctx.agents.resume({
+    resumeSessionId: 'grand-sub' as never,
+    agentOptions: f.route,
+  })
+  const blockedDelete = (await (
+    await f.request(api, { action: 'delete', confirmed: true, targets: [parent.target] })
+  ).json()) as { outcomes: Array<{ id: string; error?: string }> }
+  assert.match(blockedDelete.outcomes[0].error ?? '', /子会话.*占用/)
+  await access(parent.directory)
+  await access(child.directory)
+  await access(grand.directory)
+  await liveGrand.dispose()
+
+  const parentSpillDir = join(f.spillsRoot, parent.target.id)
+  const childSpillDir = join(f.spillsRoot, child.target.id)
+  const parentSpill = join(parentSpillDir, 'deadbeef1111-parent.txt')
+  const childSpill = join(childSpillDir, 'deadbeef2222-child.txt')
+  await mkdir(parentSpillDir, { recursive: true })
+  await mkdir(childSpillDir, { recursive: true })
+  await writeFile(parentSpill, 'parent-spill')
+  await writeFile(childSpill, 'child-spill')
+
+  for (const target of [parent.target, child.target, grand.target]) {
+    await f.request('rong-aio.speed', { sessionId: target.id, ...f.route, mode: 'fast' })
+  }
+
+  const removed: string[] = []
+  f.ctx.on('api-session/removed' as never, (id: string) => {
+    removed.push(id)
+  })
+
+  const cascadeRes = await f.request(api, {
+    action: 'delete',
+    confirmed: true,
+    targets: [parent.target],
+  })
+  assert.deepEqual(await cascadeRes.json(), { outcomes: [{ id: parent.target.id }] })
+
+  for (const item of [parent, child, grand]) {
+    await assert.rejects(access(item.directory), { code: 'ENOENT' })
+    assert.equal(await f.ctx.sessionPersistence.stat(item.target.id as never), undefined)
+    const speed = (await (
+      await f.request(
+        'rong-aio.speed?' + new URLSearchParams({ sessionId: item.target.id, ...f.route }),
+      )
+    ).json()) as { mode: string }
+    assert.equal(speed.mode, 'standard')
+  }
+  await assert.rejects(access(parentSpill), { code: 'ENOENT' })
+  await assert.rejects(access(childSpill), { code: 'ENOENT' })
+  await access(ordinaryFork.directory)
+  assert.deepEqual(removed, [grand.target.id, child.target.id, parent.target.id])
+})
+
+test('主会话缺失时聚合多级孤立子会话并支持统一归档、复原与级联清理', async (t) => {
+  const f = await runtime(t, { spills: true })
+  const api = 'rong-aio.session-manager'
+  const orphanChild = await storedSession(f, 'orphan-child', undefined, undefined, {
+    parentSession: 'deleted-main' as never,
+    origin: 'subagent',
+  })
+  const orphanGrand = await storedSession(f, 'orphan-grand', undefined, undefined, {
+    parentSession: 'orphan-child' as never,
+    origin: 'subagent',
+  })
+  const orphanSibling = await storedSession(f, 'orphan-sibling', undefined, undefined, {
+    parentSession: 'deleted-main' as never,
+    origin: 'subagent',
+  })
+
+  type Row = {
+    id: string
+    createdAt: number
+    title: string
+    archived: boolean
+    canOpenDirectory: boolean
+    live: boolean
+    subagent: boolean
+    missing?: boolean
+    parentId?: string
+    workspace: { key: string; title: string }
+  }
+  const fetchRows = async () => (await (await f.request(api)).json()) as Row[]
+
+  const initial = await fetchRows()
+  const missingRoot = initial.find((row) => row.id === 'deleted-main')!
+  assert.equal(missingRoot.missing, true)
+  assert.equal(missingRoot.subagent, false)
+  assert.equal(missingRoot.title, '主会话已缺失')
+  assert.equal(missingRoot.archived, false)
+  assert.equal(missingRoot.canOpenDirectory, false)
+  assert.equal(missingRoot.live, false)
+  assert.equal(missingRoot.createdAt, orphanChild.target.createdAt)
+
+  const childRow = initial.find((row) => row.id === 'orphan-child')!
+  const grandRow = initial.find((row) => row.id === 'orphan-grand')!
+  const siblingRow = initial.find((row) => row.id === 'orphan-sibling')!
+  assert.equal(childRow.parentId, 'deleted-main')
+  assert.equal(siblingRow.parentId, 'deleted-main')
+  assert.equal(grandRow.parentId, 'orphan-child')
+  assert.deepEqual(childRow.workspace, missingRoot.workspace)
+  assert.deepEqual(grandRow.workspace, missingRoot.workspace)
+
+  const missingTarget = { id: 'deleted-main', createdAt: missingRoot.createdAt }
+
+  for (const action of ['archive', 'restore'] as const) {
+    const res = (await (
+      await f.request(api, { action, targets: [orphanChild.target] })
+    ).json()) as {
+      outcomes: Array<{ id: string; error?: string }>
+    }
+    assert.match(res.outcomes[0].error ?? '', /子会话跟随所属主会话/)
+  }
+  const directDelete = (await (
+    await f.request(api, { action: 'delete', confirmed: true, targets: [orphanGrand.target] })
+  ).json()) as { outcomes: Array<{ id: string; error?: string }> }
+  assert.match(directDelete.outcomes[0].error ?? '', /子会话不支持单独删除/)
+
+  const archiveRes = await f.request(api, { action: 'archive', targets: [missingTarget] })
+  assert.deepEqual(await archiveRes.json(), { outcomes: [{ id: 'deleted-main' }] })
+  const archivedRows = await fetchRows()
+  for (const id of ['deleted-main', 'orphan-child', 'orphan-grand', 'orphan-sibling']) {
+    assert.equal(archivedRows.find((row) => row.id === id)?.archived, true)
+  }
+
+  const restoreRes = await f.request(api, { action: 'restore', targets: [missingTarget] })
+  assert.deepEqual(await restoreRes.json(), { outcomes: [{ id: 'deleted-main' }] })
+  const restoredRows = await fetchRows()
+  for (const id of ['deleted-main', 'orphan-child', 'orphan-grand', 'orphan-sibling']) {
+    assert.equal(restoredRows.find((row) => row.id === id)?.archived, false)
+  }
+
+  const childSpillDir = join(f.spillsRoot, orphanChild.target.id)
+  const childSpill = join(childSpillDir, 'deadbeef3333-orphan.txt')
+  await mkdir(childSpillDir, { recursive: true })
+  await writeFile(childSpill, 'orphan-spill')
+  await f.request('rong-aio.speed', {
+    sessionId: orphanGrand.target.id,
+    ...f.route,
+    mode: 'fast',
+  })
+
+  const removed: string[] = []
+  f.ctx.on('api-session/removed' as never, (id: string) => {
+    removed.push(id)
+  })
+
+  const deleteRes = await f.request(api, {
+    action: 'delete',
+    confirmed: true,
+    targets: [missingTarget],
+  })
+  assert.deepEqual(await deleteRes.json(), { outcomes: [{ id: 'deleted-main' }] })
+
+  for (const item of [orphanChild, orphanGrand, orphanSibling]) {
+    await assert.rejects(access(item.directory), { code: 'ENOENT' })
+    assert.equal(await f.ctx.sessionPersistence.stat(item.target.id as never), undefined)
+  }
+  await assert.rejects(access(childSpill), { code: 'ENOENT' })
+  const speed = (await (
+    await f.request(
+      'rong-aio.speed?' + new URLSearchParams({ sessionId: orphanGrand.target.id, ...f.route }),
+    )
+  ).json()) as { mode: string }
+  assert.equal(speed.mode, 'standard')
+  assert.deepEqual(removed, [orphanGrand.target.id, orphanChild.target.id, orphanSibling.target.id])
+
+  const afterDelete = await fetchRows()
+  for (const id of ['deleted-main', 'orphan-child', 'orphan-grand', 'orphan-sibling']) {
+    assert.equal(
+      afterDelete.some((row) => row.id === id),
+      false,
+    )
+  }
+})
