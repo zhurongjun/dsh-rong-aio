@@ -35,34 +35,36 @@ jobs:
           name: plugin-package
           path: agent_temp/packages
       - name: 校验并发布 npm 包
-        working-directory: agent_temp/packages
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p agent_temp
           version="${RELEASE_TAG#v}"
           archive="dsh-rong-aio-${version}.tgz"
-          sha256sum --check "${archive}.sha256"
+          (cd agent_temp/packages && sha256sum --check "${archive}.sha256")
 
-          # 重跑时核对 npm 上的不可变版本，只有同一份包才继续发布 GitHub Release。
-          status=$(curl --silent --show-error --retry 3 --output registry-version.json --write-out '%{http_code}' \
+          dist_tag="latest"
+          if [[ "${version%%+*}" == *-* ]]; then
+            dist_tag="next"
+          fi
+
+          status=$(curl --silent --show-error --retry 3 --output agent_temp/npm-registry-version.json --write-out '%{http_code}' \
             "${NPM_CONFIG_REGISTRY}/dsh-rong-aio/${version}")
           case "$status" in
             200)
-              integrity="sha512-$(openssl dgst -sha512 -binary "$archive" | openssl base64 -A)"
-              if ! jq -e --arg integrity "$integrity" '.dist.integrity == $integrity' registry-version.json > /dev/null; then
-                echo "::error::npm 已存在同版本且内容不一致，请使用新版本号。"
+              integrity="sha512-$(openssl dgst -sha512 -binary "agent_temp/packages/${archive}" | openssl base64 -A)"
+              if ! jq -e --arg integrity "$integrity" '.dist.integrity == $integrity' agent_temp/npm-registry-version.json > /dev/null; then
+                echo "::error::npm 已存在内容不同的版本：dsh-rong-aio@${version}"
                 exit 1
               fi
-              echo "npm 上已有相同的 dsh-rong-aio@${version}。"
+              echo "npm 已存在一致版本：dsh-rong-aio@${version} (${integrity})"
               ;;
             404)
-              if [[ "${version%%+*}" == *-* ]]; then
-                export NPM_CONFIG_TAG=next
-              fi
-              npm publish "./${archive}" --access public --registry "$NPM_CONFIG_REGISTRY"
+              npm publish "./agent_temp/packages/${archive}" --access public --tag "$dist_tag" --registry "$NPM_CONFIG_REGISTRY"
+              echo "已发布 npm：dsh-rong-aio@${version} (tag: ${dist_tag})"
               ;;
             *)
-              echo "::error::查询 npm 版本失败（HTTP ${status}）。"
+              echo "::error::查询 npm 注册表失败：dsh-rong-aio@${version} (HTTP ${status})"
               exit 1
               ;;
           esac
@@ -82,9 +84,6 @@ jobs:
         with:
           name: plugin-package
           path: agent_temp/packages
-      - name: 核对附件校验和
-        working-directory: agent_temp/packages
-        run: sha256sum --check *.sha256
       - name: 上传附件并发布
         shell: bash
         run: |
@@ -92,6 +91,8 @@ jobs:
           mkdir -p agent_temp/release
           version="${RELEASE_TAG#v}"
           asset="dsh-rong-aio-${version}.tgz"
+          (cd agent_temp/packages && sha256sum --check "${asset}.sha256")
+
           dsh_range="$(tar -xOzf "agent_temp/packages/${asset}" package/package.json | jq -er '.engines.dsh')"
           component_locales="$(tar -tzf "agent_temp/packages/${asset}" | grep -E '^package/lib/components/[^/]+/locale/zh\.json$' | sort)"
           components_md=""
@@ -101,6 +102,7 @@ jobs:
             components_md+="${line}"$'\n'
           done <<< "$component_locales"
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${asset}"
+
           cat > agent_temp/release/notes.md <<EOF
           支持的 DSH 版本范围为 \`${dsh_range}\`，包含以下独立组件：
 
@@ -122,15 +124,22 @@ jobs:
           [安装与使用说明](https://github.com/${GITHUB_REPOSITORY}/blob/${RELEASE_TAG}/README.md)
           EOF
 
-          # 失败重跑只允许补全草稿，已经公开的版本及附件不覆盖。
-          if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > agent_temp/release/is-draft.txt; then
-            test "$(cat agent_temp/release/is-draft.txt)" = true
-          else
+          if gh release view "$RELEASE_TAG" --json isDraft,url > agent_temp/release/view.json 2> agent_temp/release/view.err; then
+            if [[ "$(jq -r '.isDraft' agent_temp/release/view.json)" != true ]]; then
+              echo "::error::GitHub Release ${RELEASE_TAG} 已公开 ($(jq -r '.url' agent_temp/release/view.json))，禁止覆盖"
+              exit 1
+            fi
+          elif grep -qi 'release not found' agent_temp/release/view.err; then
             gh release create "$RELEASE_TAG" --verify-tag --draft --title "$RELEASE_TAG" --notes-file agent_temp/release/notes.md
+          else
+            cat agent_temp/release/view.err >&2
+            exit 1
           fi
+
           gh release upload "$RELEASE_TAG" "agent_temp/packages/${asset}" "agent_temp/packages/${asset}.sha256" --clobber
-          if [[ "$version" == *-* ]]; then
+          if [[ "${version%%+*}" == *-* ]]; then
             gh release edit "$RELEASE_TAG" --draft=false --prerelease --latest=false --notes-file agent_temp/release/notes.md
           else
             gh release edit "$RELEASE_TAG" --draft=false --prerelease=false --latest --notes-file agent_temp/release/notes.md
           fi
+          echo "已发布 GitHub Release：$(gh release view "$RELEASE_TAG" --json url --jq .url)"

@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: ${{ github.ref_type != 'tag' && github.ref != 'refs/heads/main' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref != 'refs/heads/main') }}
 
 jobs:
   check:
@@ -25,26 +25,28 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
-      - name: 校验发布 Tag 与包版本一致
+      - name: 校验版本 Tag
         if: github.ref_type == 'tag'
         shell: bash
         run: |
           version="v$(node -p 'require("./package.json").version')"
           if [[ "$GITHUB_REF_NAME" != "$version" ]]; then
-            echo "::error::Tag ${GITHUB_REF_NAME} 与 package.json 版本 ${version} 不一致。"
+            echo "::error::Tag (${GITHUB_REF_NAME}) 与 package.json 版本 (${version}) 不一致"
             exit 1
           fi
-      # 用 npm 引导安装，避免旧版自安装器把根包配置误判为多包 workspace。
-      - name: 安装固定版本 pnpm
+          echo "Tag: ${GITHUB_REF_NAME}"
+      - name: 安装 pnpm
         shell: bash
         run: |
-          npm install --prefix agent_temp/tools --no-save --ignore-scripts --package-lock=false --no-audit --no-fund "$(node -p 'require("./package.json").packageManager')"
+          npm install --prefix agent_temp/tools --no-save --ignore-scripts --package-lock=false --no-audit --no-fund --loglevel=error "$(node -p 'require("./package.json").packageManager')"
+          export PATH="$GITHUB_WORKSPACE/agent_temp/tools/node_modules/.bin:$PATH"
           echo "$GITHUB_WORKSPACE/agent_temp/tools/node_modules/.bin" >> "$GITHUB_PATH"
+          echo "pnpm $(pnpm --version)"
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
           path: agent_temp/pnpm-store
           key: ${{ runner.os }}-pnpm-store-${{ hashFiles('pnpm-lock.yaml') }}
-      - name: 安装固定依赖
+      - name: 安装依赖
         run: pnpm install --frozen-lockfile
       - name: 静态检查
         run: |
@@ -55,11 +57,19 @@ jobs:
         run: pnpm test:node
       - name: UI 测试
         run: pnpm test:ui
-      - name: 构建并验证发布包
+      - name: 上传 UI 测试诊断日志
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: bombadil-diagnostics
+          path: agent_temp/bombadil/**
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: 打包与安装验证
         env:
           RELEASE_TAG: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
         run: |
-          pnpm build
+          rm -rf agent_temp/packages
           pnpm pack --pack-destination agent_temp/packages
           pnpm verify:package
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4

@@ -6,7 +6,7 @@ import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { loadWorkspaceManifests } from './manifest.ts'
 
-const { root: rootDir, components } = await loadWorkspaceManifests()
+const { root: rootDir, manifest, components } = await loadWorkspaceManifests()
 const output = path.join(rootDir, 'lib')
 
 const declaration =
@@ -114,3 +114,7 @@ for (const { id, source, manifest: component, hasHost, hasClient } of components
   )
   await writeFile(path.join(output, `${id}.d.ts`), declaration)
 }
+
+console.log(
+  `构建产物：${manifest.name}@${manifest.version}（${components.map((c) => c.id).join(', ')}）-> lib/`,
+)

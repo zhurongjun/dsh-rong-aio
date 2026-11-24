@@ -1,6 +1,6 @@
 {
   "name": "dsh-rong-aio-model-selector",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "模型、推理强度、Fast 速度与 Agent Team 选择器。",
   "private": true,
   "type": "module",

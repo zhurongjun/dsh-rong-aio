@@ -20,6 +20,6 @@ if (errors.length) {
   process.exitCode = 1
 } else {
   console.log(
-    `工程契约检查通过：${componentCount} 个组件，边界检查 ${boundaries.fileCount} 个文件，UI 契约 ${uiContract.fileCount} 个文件（DSH ${uiContract.version}）`,
+    `契约检查：${componentCount} 个组件，边界 ${boundaries.fileCount} 个文件，UI ${uiContract.fileCount} 个文件（DSH ${uiContract.version}）`,
   )
 }
