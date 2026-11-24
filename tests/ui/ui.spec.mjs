@@ -5,7 +5,7 @@ export {
   noUnhandledPromiseRejections,
 } from '@antithesishq/bombadil/browser/defaults/properties'
 import { controls } from './dom.mjs'
-import { openSlider, models, speedAndTeam, settings } from './conversation.mjs'
+import { models, speedAndTeam, settings } from './conversation.mjs'
 import { workspaces, operations } from './sessions.mjs'
 
 async function sideChat(u) {
@@ -172,7 +172,7 @@ async function sideChat(u) {
   await menu()
 }
 
-const scenarios = { openSlider, models, speedAndTeam, settings, sideChat, workspaces, operations }
+const scenarios = { models, speedAndTeam, settings, sideChat, workspaces, operations }
 const names = Object.keys(scenarios)
 
 const run = registerCustomAction('check workflow', async (document, window, name) => {
@@ -195,35 +195,8 @@ const error = extract(({ document }) => document.documentElement.dataset.violati
 
 export const workflowsSucceed = always(() => error.current === '')
 
-const track = extract(({ document }) => {
-  const el = document.querySelector('[role=slider]')
-  if (!el) return null
-  const r = el.getBoundingClientRect()
-  return {
-    x: r.left + 15,
-    y: r.top + r.height / 2,
-    end: r.right - 14,
-    done: el.getAttribute('aria-valuetext') === 'high',
-  }
-})
-
 export const checks = actions(() => {
   if (!ready.current || error.current) return ['Wait']
-  if (completed.current === 'openSlider' && !track.current?.done) {
-    const r = track.current
-    return r
-      ? [
-          {
-            MouseDrag: {
-              from: { x: r.x, y: r.y },
-              to: { x: r.end, y: r.y },
-              steps: 8,
-              delayMillis: 18,
-            },
-          },
-        ]
-      : ['Wait']
-  }
   const next = names[names.indexOf(completed.current) + 1]
   return next ? [run(next)] : ['Wait']
 })

@@ -1,6 +1,6 @@
 {
   "name": "dsh-rong-aio-system-inject",
-  "version": "0.2.7",
+  "version": "0.2.8",
   "description": "文件破甲词库、新会话显式授权、冻结快照与精确模型护栏。",
   "private": true,
   "type": "module",

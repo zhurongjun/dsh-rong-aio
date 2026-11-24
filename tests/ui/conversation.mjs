@@ -34,17 +34,38 @@ async function modelList(u, name) {
   return u.until(() => u.one('[role=combobox]'), '搜索模型')
 }
 
-export async function openSlider(u) {
+export async function models(u) {
   await panel(u)
   await u.until(() => slider(u)?.getAttribute('aria-valuetext') === '尚未选择强度', '初始强度为空')
-}
 
-export async function models(u) {
+  u.press(slider(u), 'End')
   await u.until(
     () =>
-      trigger(u)?.textContent.includes('high') && u.label('宿主选模记录').textContent === 'high',
-    '拖动释放后提交 high',
+      slider(u)?.getAttribute('aria-valuetext') === 'high' &&
+      slider(u)?.getAttribute('aria-busy') !== 'true' &&
+      trigger(u)?.textContent.includes('high') &&
+      u.label('宿主选模记录').textContent === 'high',
+    'End 键提交 high',
   )
+
+  u.press(slider(u), 'ArrowLeft')
+  await u.until(
+    () =>
+      slider(u)?.getAttribute('aria-valuetext') === 'medium' &&
+      slider(u)?.getAttribute('aria-busy') !== 'true' &&
+      trigger(u)?.textContent.includes('medium'),
+    '左键回退到 medium',
+  )
+
+  u.press(slider(u), 'ArrowRight')
+  await u.until(
+    () =>
+      slider(u)?.getAttribute('aria-valuetext') === 'high' &&
+      slider(u)?.getAttribute('aria-busy') !== 'true' &&
+      trigger(u)?.textContent.includes('high'),
+    '右键前进到 high',
+  )
+
   await u.action('重置当前模型的推理强度')
   await u.until(() => trigger(u)?.textContent.includes('medium'), '重置后为 medium')
   await closePanel(u)

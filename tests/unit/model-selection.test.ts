@@ -10,6 +10,15 @@ import {
   effortsOf,
   selectionFor,
 } from '../../src/components/model-selector/shared/model-selection.ts'
+import {
+  energyFor,
+  particlesFor,
+} from '../../src/components/model-selector/shared/particle-motion.ts'
+import {
+  advanceMotion,
+  clamp,
+  detentAt,
+} from '../../src/components/model-selector/shared/slider-motion.ts'
 import { speedRuleFor } from '../../src/components/model-selector/shared/speed.ts'
 
 function makeModel(
@@ -117,4 +126,53 @@ test('speedRuleFor：匹配精确型号、别名、日期后缀并拒绝未开�
 
   assert.equal(speedRuleFor('gpt-6-astra-mini'), undefined)
   assert.equal(speedRuleFor('deepseek-v4'), undefined)
+})
+
+test('slider-motion：档位滞回吸附、数值夹紧与运动收敛边界', () => {
+  assert.equal(clamp(-2, 0, 1), 0)
+  assert.equal(clamp(3, 0, 1), 1)
+  assert.equal(detentAt(0.9, 0, 1), 0)
+
+  assert.equal(detentAt(0.1, 0, 3), 0)
+  assert.equal(detentAt(0.2, 0, 3), 1)
+  assert.equal(detentAt(1.5, -1, 3), 2)
+
+  assert.equal(detentAt(0.8, 2, 3), 2)
+  assert.equal(detentAt(0.6, 2, 3), 1)
+  assert.equal(detentAt(-0.5, 9, 3), 0)
+
+  let state = { position: 0, velocity: 0 }
+  for (let i = 0; i < 120; i++) {
+    state = advanceMotion(state, 1, 0.016)
+  }
+  assert.deepEqual(state, { position: 1, velocity: 0 })
+
+  assert.deepEqual(advanceMotion({ position: 1, velocity: 5 }, 1, 0.01), {
+    position: 1,
+    velocity: 0,
+  })
+  assert.deepEqual(advanceMotion({ position: 0, velocity: -5 }, 0, 0.01), {
+    position: 0,
+    velocity: 0,
+  })
+})
+
+test('particle-motion：低档无粒子，高档位输出确定性且范围内的粒子序列', () => {
+  assert.equal(energyFor(-0.5), 0)
+  assert.equal(energyFor(1 / 3), 0)
+  assert.ok(Math.abs(energyFor(2 / 3) - 0.5) < 1e-12)
+  assert.equal(energyFor(1.5), 1)
+
+  assert.deepEqual(particlesFor(0), [])
+  assert.deepEqual(particlesFor(1 / 3), [])
+
+  const high = particlesFor(1)
+  assert.equal(high.length, 22)
+  assert.deepEqual(particlesFor(1), high)
+  for (const particle of high) {
+    assert.ok(particle.y > 0 && particle.y < 100)
+    assert.ok(particle.duration > 0)
+    assert.ok(particle.delay <= 0 && particle.delay > -particle.duration)
+    assert.ok(particle.brightness >= 0.5 && particle.brightness <= 1)
+  }
 })

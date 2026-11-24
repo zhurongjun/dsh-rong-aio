@@ -5,15 +5,7 @@ import { test } from 'node:test'
 import { runBombadil } from './driver.ts'
 import { serve } from './fixture.ts'
 
-const expectedNames = [
-  'openSlider',
-  'models',
-  'speedAndTeam',
-  'settings',
-  'sideChat',
-  'workspaces',
-  'operations',
-]
+const expectedNames = ['models', 'speedAndTeam', 'settings', 'sideChat', 'workspaces', 'operations']
 
 test('Bombadil verifies the DSH client slots in Chromium', { timeout: 100000 }, async (t) => {
   const reports: Array<{ name: string; error?: string }> = []

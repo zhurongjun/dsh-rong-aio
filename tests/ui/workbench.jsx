@@ -34,14 +34,6 @@ async function command(action, args = {}) {
 }
 
 async function start() {
-  Object.defineProperty(navigator, 'clipboard', {
-    value: {
-      async writeText(value) {
-        document.querySelector('output[aria-label="测试剪贴板"]').textContent = value
-      },
-    },
-  })
-
   const { models, sessions } = await command('catalog')
   for (const session of sessions) {
     const store = createStore(() => ({

@@ -9,6 +9,48 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import { build } from 'esbuild'
 import { runtime, storedSession } from '../integration/helpers/runtime.ts'
 
+const VIRTUAL_MEDIA_FEATURES: Record<string, string> = {
+  'any-hover': 'hover',
+  hover: 'hover',
+  'any-pointer': 'fine',
+  pointer: 'fine',
+  'prefers-reduced-motion': 'no-preference',
+  'prefers-color-scheme': 'light',
+  'prefers-contrast': 'no-preference',
+  'forced-colors': 'none',
+}
+
+function virtualHostScript(): string {
+  return (
+    '<script>(function(){' +
+    `const features=${JSON.stringify(VIRTUAL_MEDIA_FEATURES)};` +
+    'Object.defineProperty(navigator,"clipboard",{configurable:true,value:{writeText:async function(value){const out=document.querySelector(\'output[aria-label="测试剪贴板"]\');if(out)out.textContent=value;}}});' +
+    'Object.defineProperty(navigator,"language",{configurable:true,value:"zh-CN"});' +
+    'Object.defineProperty(navigator,"languages",{configurable:true,value:["zh-CN","zh"]});' +
+    'const nativeMatchMedia=window.matchMedia?window.matchMedia.bind(window):function(){return {matches:false};};' +
+    'function matchClause(clause){' +
+    'const parsed=/^\\(\\s*([a-z-]+)\\s*(?::\\s*([^)]+?))?\\s*\\)$/i.exec(clause.trim());' +
+    'if(!parsed)return nativeMatchMedia(clause).matches;' +
+    'const name=parsed[1].toLowerCase();' +
+    'if(!Object.hasOwn(features,name))return nativeMatchMedia(clause).matches;' +
+    'const raw=parsed[2];' +
+    'if(raw===undefined)return features[name]!=="none";' +
+    'return features[name]===raw.trim().toLowerCase();' +
+    '}' +
+    'function matchBranch(branch){' +
+    'const parts=branch.trim().split(/\\s+and\\s+/i);' +
+    'return parts.length>0&&parts.every(matchClause);' +
+    '}' +
+    'window.matchMedia=function(query){' +
+    'const text=String(query);' +
+    'if(!/any-hover|hover|any-pointer|pointer|prefers-reduced-motion|prefers-color-scheme|prefers-contrast|forced-colors/i.test(text))return nativeMatchMedia(text);' +
+    'const matches=text.split(",").some(matchBranch);' +
+    'return {matches:matches,media:text,onchange:null,addListener:function(){},removeListener:function(){},addEventListener:function(){},removeEventListener:function(){},dispatchEvent:function(){return false;}};' +
+    '};' +
+    '})();</script>'
+  )
+}
+
 export async function serve(
   t: TestContext,
   report: (entry: { name: string; error?: string }) => void,
@@ -125,6 +167,7 @@ export async function serve(
     '<link rel="stylesheet" href="/workbench.css"><main></main>' +
     '<aside aria-label="宿主侧栏">previously-deleted</aside>' +
     '<output aria-label="测试剪贴板"></output><output aria-label="宿主选模记录"></output>' +
+    virtualHostScript() +
     '<script src="/workbench.js"></script></html>'
 
   const server = createServer(async (req, res) => {

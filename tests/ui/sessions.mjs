@@ -47,24 +47,15 @@ export async function workspaces(u) {
   await u.until(() => checked(row(u, 'alpha')) && !checked(row(u, 'beta')), '全选只影响本组')
 
   const beta = row(u, 'beta').closest('li')
-  beta.dispatchEvent(
-    new u.window.PointerEvent('pointerover', { bubbles: true, pointerType: 'mouse' }),
-  )
+  u.press(u.document.activeElement, 'Tab')
+  row(u, 'beta').focus()
   const tooltip = await u.until(
     () => u.one('[role=tooltip]')?.textContent.includes('beta') && u.one('[role=tooltip]'),
-    '鼠标悬停显示会话详情',
+    '聚焦显示会话详情',
   )
   const details = tooltip.textContent
 
-  const context = () =>
-    beta.dispatchEvent(
-      new u.window.MouseEvent('contextmenu', {
-        bubbles: true,
-        cancelable: true,
-        clientX: 180,
-        clientY: 140,
-      }),
-    )
+  const context = () => u.press(row(u, 'beta'), 'ContextMenu')
   const item = async (name) => u.click(() => u.text('[role=menuitem]', name), name)
 
   context()
@@ -87,7 +78,7 @@ export async function workspaces(u) {
     '仅在详情展示存档路径',
   )
 
-  u.press(row(u, 'beta'), 'ContextMenu')
+  context()
   await item('在文件管理器中打开')
   u.check(!checked(row(u, 'beta')), '菜单不切换选择')
 
