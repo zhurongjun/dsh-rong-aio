@@ -145,19 +145,9 @@
       "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L241",
       "role": "排版"
     },
-    "--dsw-font-xs-13-font-size": {
-      "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L238",
-      "role": "排版"
-    },
     "--dsw-font-s-14": {
       "kind": "theme",
       "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L220",
-      "role": "排版"
-    },
-    "--dsw-font-s-strong-14": {
-      "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L227",
       "role": "排版"
     },
     "--dsw-font-base-strong-16": {
@@ -168,11 +158,6 @@
     "--dsw-font-xxs-12": {
       "kind": "theme",
       "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L248",
-      "role": "排版"
-    },
-    "--dsw-font-xxs-strong-12": {
-      "kind": "theme",
-      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L255",
       "role": "排版"
     },
     "--dsw-font-xxxs-11": {

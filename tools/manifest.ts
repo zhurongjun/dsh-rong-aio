@@ -1,4 +1,3 @@
-import assert from 'node:assert/strict'
 import { access, readFile, readdir } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -75,94 +74,113 @@ async function exists(filePath: string): Promise<boolean> {
   )
 }
 
+function validateRootManifest(manifest: RootManifest): void {
+  if (manifest.private === true) throw new Error('根 package.json 不能设置 private: true')
+  if (!manifest.keywords?.includes('dsh-plugin')) {
+    throw new Error('根 package.json keywords 缺少 "dsh-plugin"')
+  }
+  for (const hook of ['preinstall', 'install', 'postinstall']) {
+    if (manifest.scripts?.[hook] !== undefined) {
+      throw new Error(`根 package.json 不能包含安装期生命周期脚本：${hook}`)
+    }
+  }
+  if (manifest.dsh?.bundle?.patch !== './cordis.patch.yml') {
+    throw new Error('根 package.json dsh.bundle.patch 必须为 ./cordis.patch.yml')
+  }
+}
+
+async function loadComponentEntry(
+  rootDir: string,
+  rootManifest: RootManifest,
+  id: string,
+): Promise<ComponentEntry> {
+  if (!/^[a-z][a-z0-9-]*$/.test(id)) throw new Error(`非法组件目录名：${id}`)
+
+  const source = `src/components/${id}`
+  const component = await readJson<ComponentManifest>(path.join(rootDir, source, 'package.json'))
+
+  if (component.name !== `${rootManifest.name}-${id}` || component.type !== 'module') {
+    throw new Error(
+      `${id} 的 package.json name 必须为 ${rootManifest.name}-${id}，type 必须为 module`,
+    )
+  }
+  if (component.version !== rootManifest.version) {
+    throw new Error(`${id} 的版本（${component.version}）与根包（${rootManifest.version}）不一致`)
+  }
+  if (component.private !== true) {
+    throw new Error(`${id} 的 package.json 必须设置 private: true`)
+  }
+  if (component.dependencies || component.devDependencies || component.scripts) {
+    throw new Error(`${id} 的 package.json 不能声明 dependencies、devDependencies 或 scripts`)
+  }
+
+  const rootExport = rootManifest.exports?.[`./${id}`]
+  if (typeof rootExport !== 'object' || rootExport?.default !== `./lib/${id}.js`) {
+    throw new Error(`根 package.json exports["./${id}"].default 必须为 ./lib/${id}.js`)
+  }
+  if (rootExport.types !== `./lib/${id}.d.ts`) {
+    throw new Error(`根 package.json exports["./${id}"].types 必须为 ./lib/${id}.d.ts`)
+  }
+  if (rootManifest.exports?.[`./${id}/locale/*.json`] !== `./lib/components/${id}/locale/*.json`) {
+    throw new Error(
+      `根 package.json exports["./${id}/locale/*.json"] 必须为 ./lib/components/${id}/locale/*.json`,
+    )
+  }
+
+  const hasHost = await exists(path.join(rootDir, source, 'host/index.ts'))
+  const hasClient = Boolean(component.dsh?.client)
+  if (!hasHost && !hasClient) throw new Error(`${id} 缺少 host 或 client 入口`)
+  if (hasClient && component.exports?.['./client'] !== './client.js') {
+    throw new Error(`${id} 的 exports["./client"] 必须为 ./client.js`)
+  }
+
+  return { id, source, manifest: component, hasHost, hasClient }
+}
+
+function validatePatchFile(
+  raw: unknown,
+  packageName: string,
+  components: ComponentEntry[],
+): CordisPatchEntry[] {
+  if (!Array.isArray(raw)) throw new Error('cordis.patch.yml 必须为 YAML 数组')
+  const patch = raw as CordisPatchEntry[]
+  const rows = patch.flatMap((entry) => entry.insert ?? [])
+
+  if (rows.length !== components.length) {
+    throw new Error(
+      `cordis.patch.yml 组件数量（${rows.length}）与 src/components（${components.length}）不一致`,
+    )
+  }
+
+  for (const { id } of components) {
+    const matched = rows.some(
+      (row) => row.id === `rong-aio-${id}` && row.name === `${packageName}/${id}`,
+    )
+    if (!matched) {
+      throw new Error(
+        `cordis.patch.yml 缺少组件条目：{ id: "rong-aio-${id}", name: "${packageName}/${id}" }`,
+      )
+    }
+  }
+
+  return patch
+}
+
 export async function loadWorkspaceManifests(rootDir = root): Promise<WorkspaceManifests> {
   const manifest = await readJson<RootManifest>(path.join(rootDir, 'package.json'))
-  assert.notEqual(manifest.private, true, '根包必须可被插件索引发现')
-  assert.ok(manifest.keywords?.includes('dsh-plugin'), '根包应提供插件发现关键词')
-  for (const hook of ['preinstall', 'install', 'postinstall']) {
-    assert.equal(manifest.scripts?.[hook], undefined, '预构建包不能要求安装时执行脚本')
-  }
-  assert.equal(
-    manifest.dsh?.bundle?.patch,
-    './cordis.patch.yml',
-    '根包 dsh.bundle.patch 必须指向 ./cordis.patch.yml',
-  )
+  validateRootManifest(manifest)
 
   const entries = await readdir(path.join(rootDir, 'src/components'), { withFileTypes: true })
-  const components: ComponentEntry[] = []
+  const dirs = entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort((a, b) => a.localeCompare(b))
 
-  for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
-    if (!entry.isDirectory()) continue
-    const id = entry.name
-    if (!/^[a-z][a-z0-9-]*$/.test(id)) throw new Error(`非法组件目录名：${id}`)
-
-    const source = `src/components/${id}`
-    const component = await readJson<ComponentManifest>(path.join(rootDir, source, 'package.json'))
-
-    if (component.name !== `${manifest.name}-${id}` || component.type !== 'module') {
-      throw new Error(`${id} 必须声明唯一的 ESM 组件身份 ${manifest.name}-${id}`)
-    }
-    assert.equal(
-      component.version,
-      manifest.version,
-      `${id} 的版本（${component.version}）必须与根包（${manifest.version}）一致`,
-    )
-    assert.equal(
-      component.private,
-      true,
-      `${id} 只能随根包分发，package.json 必须设置 private: true`,
-    )
-    if (
-      ['dependencies', 'devDependencies', 'scripts'].some((key) =>
-        Boolean(component[key as keyof ComponentManifest]),
-      )
-    ) {
-      throw new Error(`${id} 的依赖和脚本必须统一放在根包`)
-    }
-
-    const rootExport = manifest.exports?.[`./${id}`]
-    if (typeof rootExport !== 'object' || rootExport?.default !== `./lib/${id}.js`) {
-      throw new Error(`根包缺少组件导出 ./${id}`)
-    }
-    if (rootExport.types !== `./lib/${id}.d.ts`) {
-      throw new Error(`根包缺少组件类型导出 ./${id}`)
-    }
-    if (manifest.exports?.[`./${id}/locale/*.json`] !== `./lib/components/${id}/locale/*.json`) {
-      throw new Error(`根包缺少组件 locale 导出 ./${id}/locale/*.json`)
-    }
-
-    const hasHost = await exists(path.join(rootDir, source, 'host/index.ts'))
-    const hasClient = Boolean(component.dsh?.client)
-    if (!hasHost && !hasClient) throw new Error(`${id} 没有运行入口`)
-    if (hasClient && component.exports?.['./client'] !== './client.js') {
-      throw new Error(`${id} 的 ./client 必须指向 ./client.js`)
-    }
-
-    components.push({ id, source, manifest: component, hasHost, hasClient })
-  }
-
-  const parsedPatch: unknown = parseYaml(
+  const components = await Promise.all(dirs.map((id) => loadComponentEntry(rootDir, manifest, id)))
+  const rawPatch: unknown = parseYaml(
     await readFile(path.join(rootDir, 'cordis.patch.yml'), 'utf8'),
   )
-  assert.ok(Array.isArray(parsedPatch), 'bundle patch 必须是 YAML 数组')
-  const patch = parsedPatch as CordisPatchEntry[]
-  const patchRows = patch.flatMap((entry) => entry.insert ?? [])
-  assert.equal(
-    patchRows.length,
-    components.length,
-    `cordis.patch.yml 组件数量（${patchRows.length}）与 src/components（${components.length}）不一致`,
-  )
-
-  for (const component of components) {
-    const matched = patchRows.some(
-      (row) =>
-        row.id === `rong-aio-${component.id}` && row.name === `${manifest.name}/${component.id}`,
-    )
-    assert.ok(
-      matched,
-      `cordis.patch.yml 缺少组件条目 { id: "rong-aio-${component.id}", name: "${manifest.name}/${component.id}" }`,
-    )
-  }
+  const patch = validatePatchFile(rawPatch, manifest.name, components)
 
   return { root: rootDir, manifest, patch, components }
 }

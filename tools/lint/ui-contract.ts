@@ -1,10 +1,21 @@
-import { parse as parseSource } from '@babel/parser'
 import * as css from 'css-tree'
 import { readFileSync } from 'node:fs'
-import { readFile, readdir } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
 import { root } from '../manifest.ts'
+import {
+  collectFiles,
+  identifierOrString,
+  isCssNode,
+  isSourceNode,
+  lineOf,
+  parseCssSheet,
+  parseSourceModule,
+  stringValue,
+  toPosixRelative,
+  walkSourceAst,
+  type SourceNode,
+} from './shared.ts'
 
 export interface ContractRuleEntry {
   file: string
@@ -22,34 +33,22 @@ export interface ContractRules {
   decorations: ContractRuleEntry[]
 }
 
-interface SourceAstNode {
-  type?: string
-  loc?: {
-    start?: { line?: number }
-  } | null
-  name?: string | SourceAstNode
-  value?: unknown
-  key?: SourceAstNode
-  property?: SourceAstNode
-  object?: SourceAstNode
-  callee?: SourceAstNode
-  left?: SourceAstNode
-  right?: SourceAstNode
-  expression?: SourceAstNode
-  consequent?: SourceAstNode
-  alternate?: SourceAstNode
-  expressions?: SourceAstNode[]
-  quasis?: Array<{ value: { cooked?: string | null } }>
-  arguments?: SourceAstNode[]
-  [key: string]: unknown
+interface CompiledRuleEntry extends ContractRuleEntry {
+  normalizedValue: string
 }
 
-const owned = /^--(?:dsw|dsh|ds)-/
+interface CompiledContract {
+  tokens: Record<string, unknown>
+  localBindings: CompiledRuleEntry[]
+  decorations: CompiledRuleEntry[]
+}
 
-const paint =
+const OWNED_VAR = /^--(?:dsw|dsh|ds)-/
+
+const PAINT_PROP =
   /^(?:color|background(?:-color|-image)?|border(?:-(?:top|right|bottom|left|block|inline)(?:-start|-end)?)?(?:-color)?|border-image(?:-source)?|outline(?:-color)?|(?:box|text)-shadow|fill|stroke|text-decoration(?:-color)?|(?:stop|flood|lighting|caret|accent)-color)$/
 
-const colorFunctions = new Set([
+const COLOR_FUNCTIONS = new Set([
   'rgb',
   'rgba',
   'hsl',
@@ -63,23 +62,100 @@ const colorFunctions = new Set([
   'device-cmyk',
 ])
 
-const themeBranch = /prefers-color-scheme|data-(?:ds-)?(?:dark-theme|theme(?:-source)?)\b/i
-
-const normalize = (value: string): string => css.generate(css.parse(value, { context: 'value' }))
+const THEME_BRANCH = /prefers-color-scheme|data-(?:ds-)?(?:dark-theme|theme(?:-source)?)\b/i
 
 const kebab = (name: string): string =>
   name.startsWith('--') ? name : name.replace(/[A-Z]/g, (s) => `-${s.toLowerCase()}`)
 
-let cachedContract: ContractRules | undefined
+const normalizeValue = (value: string): string =>
+  css.generate(css.parse(value, { context: 'value' }))
 
-export function loadDefaultContract(): ContractRules {
-  cachedContract ??= JSON.parse(
+let cachedDefaultContract: ContractRules | undefined
+const compiledContracts = new WeakMap<ContractRules, CompiledContract>()
+
+function defaultContract(): ContractRules {
+  cachedDefaultContract ??= JSON.parse(
     readFileSync(new URL('./ui-contract.json', import.meta.url), 'utf8'),
   ) as ContractRules
-  return cachedContract
+  return cachedDefaultContract
 }
 
-function inspector(file: string, rules: ContractRules) {
+function compileContract(rules: ContractRules): CompiledContract {
+  let compiled = compiledContracts.get(rules)
+  if (compiled) return compiled
+
+  const normalizeEntries = (entries: ContractRuleEntry[]): CompiledRuleEntry[] =>
+    entries.map((entry) => ({ ...entry, normalizedValue: normalizeValue(entry.value) }))
+
+  compiled = {
+    tokens: rules.tokens,
+    localBindings: normalizeEntries(rules.localBindings),
+    decorations: normalizeEntries(rules.decorations),
+  }
+  compiledContracts.set(rules, compiled)
+  return compiled
+}
+
+function checkValueNode(
+  node: css.CssNode,
+  property: string,
+  decoration: boolean,
+  line: number,
+  tokens: Record<string, unknown>,
+  report: (line: number, message: string) => void,
+): void {
+  if (node.type === 'Raw') {
+    report(line, '无法解析样式值')
+    return
+  }
+
+  if (node.type === 'Function' && typeof node.name === 'string') {
+    const name = css.ident.decode(node.name).toLowerCase()
+    if (name === 'var') {
+      const first = node.children?.first
+      const token =
+        first?.type === 'Identifier' && typeof first.name === 'string'
+          ? css.ident.decode(first.name)
+          : ''
+      if (OWNED_VAR.test(token) && !Object.hasOwn(tokens, token)) {
+        report(line, `未登记的宿主 token：${token}`)
+      }
+      return
+    }
+    if (name === 'light-dark') {
+      report(line, '禁止使用 light-dark()')
+      return
+    }
+    if (!decoration && COLOR_FUNCTIONS.has(name)) {
+      report(line, `禁止硬编码颜色：${name}()`)
+    }
+    return
+  }
+
+  if (!decoration && node.type === 'Hash' && typeof node.value === 'string') {
+    report(line, `禁止硬编码颜色：#${node.value}`)
+    return
+  }
+
+  if (
+    !decoration &&
+    node.type === 'Identifier' &&
+    typeof node.name === 'string' &&
+    (PAINT_PROP.test(property) || property.startsWith('--'))
+  ) {
+    const name = css.ident.decode(node.name).toLowerCase()
+    if (
+      name !== 'transparent' &&
+      name !== 'currentcolor' &&
+      css.lexer.matchType('color', name).matched
+    ) {
+      report(line, `禁止硬编码颜色：${name}`)
+    }
+  }
+}
+
+function createInspector(file: string, rules: ContractRules) {
+  const compiled = compileContract(rules)
   const errors: string[] = []
   const report = (line: number, message: string) => errors.push(`${file}:${line}: ${message}`)
 
@@ -90,63 +166,31 @@ function inspector(file: string, rules: ContractRules) {
     line: number,
     conditional = false,
   ): void {
-    let property = css.ident.decode(rawProperty)
-    if (!property.startsWith('--')) property = property.toLowerCase()
+    const decoded = css.ident.decode(rawProperty)
+    const property = decoded.startsWith('--') ? decoded : decoded.toLowerCase()
     const normalized = css.generate(valueNode)
 
-    const matches = (entry: ContractRuleEntry) =>
+    const matches = (entry: CompiledRuleEntry) =>
       !conditional &&
       entry.file === file &&
       entry.selector === selector &&
       entry.property === property &&
-      normalize(entry.value) === normalized
+      entry.normalizedValue === normalized
 
-    if (owned.test(property) && !rules.localBindings.some(matches)) {
-      report(line, `不允许重定义宿主变量 ${property}；仅允许契约列出的局部重绑`)
+    if (OWNED_VAR.test(property) && !compiled.localBindings.some(matches)) {
+      report(line, `禁止重定义宿主变量：${property}`)
     }
-    if (property === 'color-scheme') report(line, '明暗主题由 DSH 宿主管理')
+    if (property === 'color-scheme') {
+      report(line, '禁止声明 color-scheme')
+    }
 
-    const decoration = rules.decorations.some(matches)
-    css.walk(valueNode, (node) => {
-      if (node.type === 'Raw') report(line, '无法解析样式值；不能跳过 UI 检查')
-      if (node.type === 'Function' && typeof node.name === 'string') {
-        const name = css.ident.decode(node.name).toLowerCase()
-        if (name === 'var') {
-          const first = node.children?.first
-          const token =
-            first?.type === 'Identifier' && typeof first.name === 'string'
-              ? css.ident.decode(first.name)
-              : ''
-          if (owned.test(token) && !Object.hasOwn(rules.tokens, token)) {
-            report(line, `未登记的 DSH token ${token}；先核对固定版本官方来源与语义`)
-          }
-        }
-        if (name === 'light-dark') report(line, '不要在插件自行分支明暗配色；使用 DSH 语义 token')
-        if (!decoration && colorFunctions.has(name)) {
-          report(line, `硬编码颜色 ${name}()；使用 DSH 语义 token`)
-        }
-      }
-      if (!decoration && node.type === 'Hash' && typeof node.value === 'string') {
-        report(line, `硬编码颜色 #${node.value}；使用 DSH 语义 token`)
-      }
-      if (
-        !decoration &&
-        node.type === 'Identifier' &&
-        typeof node.name === 'string' &&
-        (paint.test(property) || property.startsWith('--'))
-      ) {
-        const name = css.ident.decode(node.name).toLowerCase()
-        if (
-          !['transparent', 'currentcolor'].includes(name) &&
-          css.lexer.matchType('color', name).matched
-        ) {
-          report(line, `硬编码颜色 ${name}；使用 DSH 语义 token`)
-        }
-      }
-    })
+    const decoration = compiled.decorations.some(matches)
+    css.walk(valueNode, (node) =>
+      checkValueNode(node, property, decoration, line, compiled.tokens, report),
+    )
   }
 
-  function value(property: string, source: string, line: number): void {
+  function inlineValue(property: string, source: string, line: number): void {
     try {
       declaration(
         property,
@@ -160,51 +204,38 @@ function inspector(file: string, rules: ContractRules) {
     }
   }
 
-  return { errors, report, declaration, value }
+  return { errors, report, declaration, inlineValue }
 }
 
 export function checkCss(
   source: string,
   file: string,
-  rules: ContractRules = loadDefaultContract(),
+  rules: ContractRules = defaultContract(),
 ): string[] {
-  const check = inspector(file, rules)
-  let ast: css.CssNode
-  try {
-    ast = css.parse(source, {
-      positions: true,
-      parseCustomProperty: true,
-      onParseError(error) {
-        throw error
-      },
-    })
-  } catch (error) {
-    const line = (error as { line?: number }).line ?? 1
-    const message = error instanceof Error ? error.message : String(error)
-    check.report(line, `无法解析 CSS：${message}`)
-    return check.errors
-  }
+  const ast = parseCssSheet(source, file)
+  if (typeof ast === 'string') return [ast]
 
+  const inspector = createInspector(file, rules)
   let ruleDepth = 0
+
   css.walk(ast, {
     enter(node) {
       if (node.type === 'Rule') ruleDepth++
       const line = node.loc?.start.line ?? 1
 
-      if (node.type === 'Raw') check.report(line, '无法解析 CSS；不能跳过 UI 检查')
-      if (node.type === 'Atrule' && node.prelude && themeBranch.test(css.generate(node.prelude))) {
-        check.report(line, '不要根据系统明暗重建主题；继承 DSH token')
+      if (node.type === 'Raw') inspector.report(line, '无法解析 CSS 节点')
+      if (node.type === 'Atrule' && node.prelude && THEME_BRANCH.test(css.generate(node.prelude))) {
+        inspector.report(line, '禁止使用明暗主题媒体查询')
       }
-      if (node.type === 'AttributeSelector' && themeBranch.test(css.generate(node))) {
-        check.report(line, '不要根据宿主主题属性分支配色；继承 DSH token')
+      if (node.type === 'AttributeSelector' && THEME_BRANCH.test(css.generate(node))) {
+        inspector.report(line, '禁止使用宿主主题属性选择器')
       }
       if (
         node.type === 'Declaration' &&
         typeof node.property === 'string' &&
-        node.value &&
-        typeof node.value === 'object'
+        isCssNode(node.value)
       ) {
-        check.declaration(
+        inspector.declaration(
           node.property,
           node.value,
           this.rule?.prelude ? css.generate(this.rule.prelude) : '',
@@ -218,174 +249,117 @@ export function checkCss(
     },
   })
 
-  return [...new Set(check.errors)]
+  return [...new Set(inspector.errors)]
 }
+
+const isStyleMember = (node: SourceNode | undefined): boolean =>
+  node?.type === 'MemberExpression' && identifierOrString(node.property) === 'style'
 
 export function checkSource(
   source: string,
   file: string,
-  rules: ContractRules = loadDefaultContract(),
+  rules: ContractRules = defaultContract(),
 ): string[] {
-  const check = inspector(file, rules)
-  let ast: SourceAstNode
-  try {
-    ast = parseSource(source, {
-      sourceType: 'module',
-      plugins: ['typescript', 'jsx'],
-    }) as unknown as SourceAstNode
-  } catch (error) {
-    const line = (error as { loc?: { line?: number } }).loc?.line ?? 1
-    const message = error instanceof Error ? error.message : String(error)
-    check.report(line, `无法解析源码：${message}`)
-    return check.errors
-  }
+  const ast = parseSourceModule(source, file)
+  if (typeof ast === 'string') return [ast]
 
-  const lineOf = (node: SourceAstNode) => node.loc?.start?.line ?? 1
+  const inspector = createInspector(file, rules)
 
-  const nameOf = (node: SourceAstNode | undefined): string => {
-    if (!node) return ''
-    if (node.type === 'StringLiteral' && typeof node.value === 'string') return node.value
-    return typeof node.name === 'string' ? node.name : ''
-  }
-
-  const isStyle = (node: SourceAstNode | undefined): boolean =>
-    node?.type === 'MemberExpression' && nameOf(node.property) === 'style'
-
-  function expression(property: string, node: SourceAstNode | undefined): void {
+  function inspectExpression(property: string, node: SourceNode | undefined): void {
     if (!node) return
     if (node.type === 'StringLiteral' || node.type === 'NumericLiteral') {
-      check.value(property, String(node.value), lineOf(node))
+      inspector.inlineValue(property, String(node.value), lineOf(node))
     } else if (node.type === 'TemplateLiteral' && !node.expressions?.length) {
-      check.value(property, node.quasis?.[0]?.value.cooked ?? '', lineOf(node))
+      inspector.inlineValue(property, node.quasis?.[0]?.value.cooked ?? '', lineOf(node))
     } else if (node.type === 'ConditionalExpression') {
-      expression(property, node.consequent)
-      expression(property, node.alternate)
+      inspectExpression(property, node.consequent)
+      inspectExpression(property, node.alternate)
     } else if (
-      node.type &&
-      ['TSAsExpression', 'TSSatisfiesExpression', 'TSNonNullExpression'].includes(node.type)
+      node.type === 'TSAsExpression' ||
+      node.type === 'TSSatisfiesExpression' ||
+      node.type === 'TSNonNullExpression'
     ) {
-      expression(property, node.expression)
-    } else if (paint.test(property) || owned.test(property)) {
-      check.report(lineOf(node), `无法静态检查 ${property}；将颜色或宿主变量写入 CSS 语义类`)
+      inspectExpression(property, node.expression)
+    } else if (PAINT_PROP.test(property) || OWNED_VAR.test(property)) {
+      inspector.report(lineOf(node), `样式属性 ${property} 不支持动态表达式`)
     }
   }
 
-  function visit(node: SourceAstNode): void {
+  walkSourceAst(ast, (node) => {
+    const line = lineOf(node)
+
     if (node.type === 'ObjectProperty') {
-      const property = kebab(nameOf(node.key))
+      const property = kebab(identifierOrString(node.key))
+      const valueNode = isSourceNode(node.value) ? node.value : undefined
       if (
-        paint.test(property) ||
+        PAINT_PROP.test(property) ||
         property === 'color-scheme' ||
         property.startsWith('--') ||
-        (node.value &&
-          typeof node.value === 'object' &&
-          (node.value as SourceAstNode).type === 'StringLiteral' &&
-          typeof (node.value as SourceAstNode).value === 'string' &&
-          ((node.value as SourceAstNode).value as string).includes('var('))
+        stringValue(valueNode)?.includes('var(')
       ) {
-        expression(property, node.value as SourceAstNode)
+        inspectExpression(property, valueNode)
       }
+      return
     }
 
     if (node.type === 'JSXAttribute') {
-      const property = kebab(nameOf(node.name as SourceAstNode | undefined))
-      if (paint.test(property)) {
-        const attrValue = node.value as SourceAstNode | undefined
-        expression(
-          property,
-          attrValue?.type === 'JSXExpressionContainer' ? attrValue.expression : attrValue,
-        )
-      }
+      const property = kebab(identifierOrString(isSourceNode(node.name) ? node.name : undefined))
+      if (!PAINT_PROP.test(property)) return
+      const attrValue = isSourceNode(node.value) ? node.value : undefined
+      inspectExpression(
+        property,
+        attrValue?.type === 'JSXExpressionContainer' ? attrValue.expression : attrValue,
+      )
+      return
     }
 
     if (
       node.type === 'AssignmentExpression' &&
       node.left?.type === 'MemberExpression' &&
-      isStyle(node.left.object)
+      isStyleMember(node.left.object)
     ) {
-      const property = kebab(nameOf(node.left.property))
-      if (property === 'css-text') check.report(lineOf(node), '不要通过 cssText 绕过 CSS 检查')
-      else expression(property, node.right)
+      const property = kebab(identifierOrString(node.left.property))
+      if (property === 'css-text') inspector.report(line, '禁止使用 style.cssText')
+      else inspectExpression(property, node.right)
+      return
     }
 
     if (node.type === 'CallExpression' && node.callee?.type === 'MemberExpression') {
-      const method = nameOf(node.callee.property)
-      if (method === 'setProperty' && isStyle(node.callee.object)) {
-        const property = node.arguments?.[0]
-        if (property?.type === 'StringLiteral' && typeof property.value === 'string') {
-          expression(property.value, node.arguments?.[1])
-        } else {
-          check.report(lineOf(node), 'style.setProperty 必须使用可检查的固定属性名')
-        }
+      const method = identifierOrString(node.callee.property)
+      if (method === 'setProperty' && isStyleMember(node.callee.object)) {
+        const property = stringValue(node.arguments?.[0])
+        if (property !== undefined) inspectExpression(property, node.arguments?.[1])
+        else inspector.report(line, 'style.setProperty 属性名必须为静态字符串')
+      } else if (method === 'setAttribute') {
+        const attrName = stringValue(node.arguments?.[0])
+        if (attrName === undefined) return
+        const property = kebab(attrName)
+        if (PAINT_PROP.test(property)) inspectExpression(property, node.arguments?.[1])
+        if (property === 'style') inspector.report(line, '禁止通过 setAttribute 设置 style')
       }
-      if (
-        method === 'setAttribute' &&
-        node.arguments?.[0]?.type === 'StringLiteral' &&
-        typeof node.arguments[0].value === 'string'
-      ) {
-        const property = kebab(node.arguments[0].value)
-        if (paint.test(property)) expression(property, node.arguments?.[1])
-        if (property === 'style') check.report(lineOf(node), '不要通过 style 字符串绕过 CSS 检查')
-      }
+      return
     }
 
-    if (
-      node.type === 'StringLiteral' &&
-      typeof node.value === 'string' &&
-      themeBranch.test(node.value)
-    ) {
-      check.report(lineOf(node), '插件不自行分支宿主明暗主题')
+    const literal = stringValue(node)
+    if (literal !== undefined && THEME_BRANCH.test(literal)) {
+      inspector.report(line, '禁止在脚本中匹配宿主主题条件')
     }
+  })
 
-    for (const [key, child] of Object.entries(node)) {
-      if (
-        ['loc', 'comments', 'leadingComments', 'trailingComments', 'innerComments'].includes(key)
-      ) {
-        continue
-      }
-      if (Array.isArray(child)) {
-        for (const item of child) {
-          if (item && typeof item === 'object' && 'type' in item) visit(item as SourceAstNode)
-        }
-      } else if (child && typeof child === 'object' && 'type' in child) {
-        visit(child as SourceAstNode)
-      }
-    }
-  }
-
-  visit(ast)
-  return [...new Set(check.errors)]
-}
-
-async function filesIn(directory: string): Promise<string[]> {
-  const entries = await readdir(directory, { withFileTypes: true })
-  const lists = await Promise.all(
-    entries.map((entry) => {
-      const name = path.join(directory, entry.name)
-      return entry.isDirectory()
-        ? filesIn(name)
-        : /\.(?:css|[cm]?[jt]sx?)$/.test(name)
-          ? Promise.resolve([name])
-          : Promise.resolve([])
-    }),
-  )
-  return lists.flat().sort()
+  return [...new Set(inspector.errors)]
 }
 
 export async function runUiContractCheck(
-  files?: string[],
-  rules: ContractRules = loadDefaultContract(),
+  rules: ContractRules = defaultContract(),
 ): Promise<{ fileCount: number; version: string; errors: string[] }> {
-  const targets =
-    files ??
-    (await filesIn(path.join(root, 'src'))).filter((file) =>
-      file.split(path.sep).includes('client'),
-    )
+  const targets = (await collectFiles(path.join(root, 'src'))).filter(
+    (file) => file.split(path.sep).includes('client') && /\.(?:css|[cm]?[jt]sx?)$/.test(file),
+  )
 
   const errors = (
     await Promise.all(
       targets.map(async (file) => {
-        const relative = path.relative(root, file).split(path.sep).join('/')
+        const relative = toPosixRelative(file)
         const source = await readFile(file, 'utf8')
         return file.endsWith('.css')
           ? checkCss(source, relative, rules)
@@ -395,13 +369,4 @@ export async function runUiContractCheck(
   ).flat()
 
   return { fileCount: targets.length, version: rules.baseline.version, errors }
-}
-
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  const explicit =
-    process.argv.length > 2 ? process.argv.slice(2).map((name) => path.resolve(name)) : undefined
-  const { fileCount, version, errors } = await runUiContractCheck(explicit)
-  for (const error of errors) console.error(error)
-  if (errors.length) process.exitCode = 1
-  else console.log(`UI 契约检查通过：${fileCount} 个文件，DSH ${version}`)
 }

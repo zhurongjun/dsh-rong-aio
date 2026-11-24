@@ -1,15 +1,11 @@
-/** UI 契约正反例：语义颜色、主题所有权与源码静态样式。 */
-
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { checkCss, checkSource } from '../../tools/lint/ui-contract.ts'
 
 const file = 'src/components/fixture/client/example.css'
 
-/** 断言 CSS 正例没有任何契约诊断。 */
 const valid = (source) => assert.deepEqual(checkCss(source, file), [])
 
-/** 断言 CSS 反例包含指定错误，保留完整诊断便于失败定位。 */
 const invalid = (source, pattern) => assert.match(checkCss(source, file).join('\n'), pattern)
 
 test('UI 契约：语义 token、组件布局、字符串和 URL 不误报', () => {
@@ -25,13 +21,16 @@ test('UI 契约：直接写入、回退值及混色中的固定颜色均报告�
     'var(--rong-color, #fff)',
     'color-mix(in srgb, currentColor, white)',
   ])
-    invalid(`.test { color: ${color} }`, /硬编码颜色/)
-  invalid('.test { color: var(--dsw-typo, currentColor) }', /未登记/)
+    invalid(`.test { color: ${color} }`, /禁止硬编码颜色/)
+  invalid('.test { color: var(--dsw-typo, currentColor) }', /未登记的宿主 token/)
 })
 
 test('UI 契约：主题由宿主管理，官方 namespace 不可自行重定义', () => {
-  invalid('.test { --dsw-menu-surface-fill: transparent }', /不允许重定义/)
-  invalid('@media (prefers-color-scheme: dark) { .test { color: currentColor } }', /继承 DSH token/)
+  invalid('.test { --dsw-menu-surface-fill: transparent }', /禁止重定义宿主变量/)
+  invalid(
+    '@media (prefers-color-scheme: dark) { .test { color: currentColor } }',
+    /明暗主题媒体查询/,
+  )
 })
 
 test('UI 契约：TSX/SVG 与 DOM 样式同样受约束，运动数字不误报', () => {
