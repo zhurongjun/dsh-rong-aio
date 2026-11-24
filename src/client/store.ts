@@ -1,4 +1,4 @@
-/** 通用客户端状态与视图辅助：订阅自托管生命期、菜单退场计时与高亮滚动。 */
+/** 通用客户端状态与视图辅助：订阅自托管生命期、请求取消作用域、菜单退场计时与高亮滚动。 */
 
 import { createStore, type StoreApi } from 'zustand/vanilla'
 
@@ -28,6 +28,62 @@ export function withLifecycle<S extends { subscribe: (listener: never) => () => 
   }
 
   return Object.assign(store, { subscribe }) as S
+}
+
+/** 识别被 AbortController 取消的异常，避免将主动中断当成失败上报。 */
+export function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'AbortError'
+}
+
+/** 请求取消作用域：追踪全部进行中的异步请求，并支持“后来居上”式替换旧请求。 */
+export function createAbortScope() {
+  const active = new Set<AbortController>()
+  let latestController: AbortController | undefined
+  let latestToken = 0
+
+  function untrack(controller: AbortController) {
+    active.delete(controller)
+    if (latestController === controller) latestController = undefined
+  }
+
+  return {
+    /** 运行可跟踪请求；完成后自动移除追踪。 */
+    async run<T>(task: (signal: AbortSignal) => Promise<T>): Promise<T> {
+      const controller = new AbortController()
+      active.add(controller)
+      try {
+        return await task(controller.signal)
+      } finally {
+        untrack(controller)
+      }
+    },
+
+    /** 取消上一轮 latest 请求并开启新一轮，返回信号与有效性判断。 */
+    latest() {
+      latestController?.abort()
+      const controller = new AbortController()
+      latestController = controller
+      active.add(controller)
+      const token = ++latestToken
+      return {
+        signal: controller.signal,
+        isCurrent: () => token === latestToken && !controller.signal.aborted,
+        abort: () => {
+          controller.abort()
+          untrack(controller)
+        },
+        finish: () => untrack(controller),
+      }
+    },
+
+    /** 中止所有未完成请求（含当前 latest 请求）。 */
+    abortAll() {
+      latestToken++
+      latestController = undefined
+      for (const controller of active) controller.abort()
+      active.clear()
+    },
+  }
 }
 
 export interface MenuPresence {

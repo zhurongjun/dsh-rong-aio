@@ -17,7 +17,7 @@ import {
   type SessionStore,
 } from '@deepseek-ai/dsh-session'
 import * as z from 'zod'
-import { isSideSession } from '../shared/side-session.ts'
+import { isSideSession } from '../shared/protocol.ts'
 
 export const prefixSchema = z.object({
   count: z.number().int().nonnegative(),

@@ -1,8 +1,9 @@
 import { type ReactElement } from 'react'
+import clsx from 'clsx'
 import { useStore } from 'zustand'
 import { Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionRow } from '../shared/protocol.ts'
-import type { SessionSelection } from './selection.ts'
+import type { SessionSelection } from './operations-store.ts'
 import { SessionActions, type SessionActionHandler } from './SessionActions.tsx'
 
 export interface MenuTarget {
@@ -88,7 +89,7 @@ export function SessionItem({ row, selection, busy, menuOpen, onMenu, onAction }
           onClick={() => selection.select([row], !selected)}
         >
           <span className="rong-session-heading">
-            <span className={row.archived ? 'rong-session-title-archived' : undefined}>
+            <span className={clsx('rong-truncate', row.archived && 'rong-session-title-archived')}>
               {row.title}
             </span>
             {row.live && (
@@ -97,7 +98,7 @@ export function SessionItem({ row, selection, busy, menuOpen, onMenu, onAction }
               </Tag>
             )}
           </span>
-          <small>{row.id}</small>
+          <small className="rong-truncate">{row.id}</small>
         </button>
         <SessionActions targets={row} archived={row.archived} busy={busy} onAction={onAction} />
       </li>

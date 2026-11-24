@@ -1,11 +1,47 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionReference } from '@deepseek-ai/dsh-api-session-controller/client'
-import type { TabId } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
+import { formatQuoteText } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SidebarRightTabInfo } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { createStore } from 'zustand/vanilla'
+import { requestJson } from '../../../client/http.ts'
 import { errorMessage } from '../../../shared/error.ts'
-import { sideTitle, type SideParent, type Permission } from '../shared/protocol.ts'
-import { command, loadDraft, loadHistory } from './api.ts'
+import type { SideCommand } from '../shared/commands.ts'
+import {
+  API,
+  sideTitle,
+  type Permission,
+  type SideDraftInfo,
+  type SideHistory,
+  type SideParent,
+} from '../shared/protocol.ts'
+
+type TabId = SidebarRightTabInfo['tab']['id']
+
+export function loadHistory(parent: string, signal?: AbortSignal) {
+  return requestJson<SideHistory>(API.slice(1) + '?' + new URLSearchParams({ parent }), {
+    signal,
+    fallbackError: '读取侧聊失败',
+  })
+}
+
+function loadDraft(parent: string, signal: AbortSignal) {
+  return requestJson<SideDraftInfo>(API.slice(1), {
+    method: 'POST',
+    body: { action: 'draft', parent } satisfies SideCommand,
+    signal,
+    fallbackError: '读取侧聊失败',
+  })
+}
+
+export function command(body: Exclude<SideCommand, { action: 'draft' }>, signal?: AbortSignal) {
+  return requestJson<{ id: string }>(API.slice(1), {
+    method: 'POST',
+    body,
+    signal,
+    fallbackError: '读取侧聊失败',
+  })
+}
 
 export interface Draft {
   key: string
@@ -129,12 +165,7 @@ export class SideClient {
             draft: {
               key: crypto.randomUUID(),
               fork,
-              text: quote
-                ? quote
-                    .split('\n')
-                    .map((line) => '> ' + line)
-                    .join('\n') + '\n\n'
-                : '',
+              text: quote ? `${formatQuoteText(quote)}\n\n` : '',
             },
           },
         })

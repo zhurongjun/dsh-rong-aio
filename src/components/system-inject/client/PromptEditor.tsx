@@ -2,10 +2,10 @@
 
 import { useState } from 'react'
 import { Button, Input, IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { ConfirmModal } from '../../../client/ConfirmModal.tsx'
 import type { Command, ConfigView } from '../shared/protocol.ts'
 import { validatePromptInput, type Prompt, type Scope } from '../shared/state.ts'
-import { Dialog } from './Dialog.tsx'
-import { ImpactConfirmDialog } from './ImpactConfirmDialog.tsx'
+import { ImpactConfirmDialog } from './Dialogs.tsx'
 import { ScopeChoice } from './ScopeChoice.tsx'
 
 export function PromptEditor({
@@ -145,23 +145,15 @@ export function PromptEditor({
           />
         </label>
       </div>
-      <Dialog
+      <ConfirmModal
         open={discarding}
-        onClose={() => setDiscarding(false)}
         title="放弃未保存的修改？"
-        actions={
-          <>
-            <Button size="sm" onClick={() => setDiscarding(false)}>
-              继续编辑
-            </Button>
-            <Button size="sm" variant="primary" onClick={onClose}>
-              放弃修改
-            </Button>
-          </>
-        }
-      >
-        <p>返回模板库后，本次未保存的修改将不会保留。</p>
-      </Dialog>
+        description="返回模板库后，本次未保存的修改将不会保留。"
+        cancelLabel="继续编辑"
+        confirmLabel="放弃修改"
+        onCancel={() => setDiscarding(false)}
+        onConfirm={onClose}
+      />
       <ImpactConfirmDialog
         target={
           confirmRename ? { kind: 'rename', references: references[initial.name] ?? [] } : null

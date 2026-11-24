@@ -1,6 +1,6 @@
 {
   "name": "dsh-rong-aio",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "自用 DSH 功能组合包：统一安装，按功能独立启停。",
   "type": "module",
   "license": "GPL-3.0-only",
@@ -111,6 +111,7 @@
     "@deepseek-ai/dsh-typert-protocol": "0.2.2-rc.5",
     "@deepseek-ai/dsh-user-approval": "0.2.2-rc.5",
     "@deepseek-ai/dsh-workspace": "0.2.2-rc.5",
+    "@floating-ui/dom": "1.8.0",
     "@types/node": "26.6.6",
     "@types/react": "18.3.31",
     "@types/react-dom": "18.3.7",

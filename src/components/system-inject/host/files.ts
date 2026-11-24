@@ -1,23 +1,14 @@
 /** 基础文件事务：内容指纹、限量读取、原子写入和按目录排序的跨进程互斥。 */
 
-import { createHash, randomUUID } from 'node:crypto'
+import { randomUUID } from 'node:crypto'
 import { open, readFile, lstat, mkdir, rename, unlink, link } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { setTimeout as delay } from 'node:timers/promises'
-
-/** 计算 UTF-8 原文的 SHA-256 内容指纹；与文件名、mtime 无关。 */
-export function fingerprint(text: string): string {
-  return createHash('sha256').update(text).digest('hex')
-}
+import { fingerprint } from '../../../host/http.ts'
 
 /** 只识别 Node ENOENT；权限、损坏和其他 IO 错误必须继续传播。 */
 export function missing(error: unknown): boolean {
   return error instanceof Error && 'code' in error && error.code === 'ENOENT'
-}
-
-/** 把未知失败转换成可呈现文本，保留 Error.message。 */
-export function message(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
 }
 
 /** 带内容指纹的文件读取结果，用于乐观版本校验。 */

@@ -6,12 +6,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { createStore } from 'zustand/vanilla'
 import { mountStyle } from '../../../client/style.ts'
-import {
-  ModelSelectorSlot,
-  type SelectorInjected,
-  type TeamCapability,
-} from './ModelSelectorSlot.tsx'
-import css from './model-selector/styles.css'
+import { ModelSelectorSlot, type SelectorInjected, type TeamCapability } from './ModelSelector.tsx'
+import css from './styles.css'
 
 export const inject = ['slots', 'modelDirectories', 'sessions', 'remote', 'remote.session']
 

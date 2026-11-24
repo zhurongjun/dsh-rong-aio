@@ -2,10 +2,11 @@
 
 import { useId, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
+import clsx from 'clsx'
 import { useStore } from 'zustand'
 import { MenuSurface, IconCheckOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
-import { createAnchoredPopover } from '../../../../client/anchored-popover.ts'
-import { createMenuPresence } from '../../../../client/store.ts'
+import { createAnchoredPopover } from '../../../client/anchored-popover.ts'
+import { createMenuPresence } from '../../../client/store.ts'
 import { SelectionButton } from './SelectionButton.tsx'
 
 function focusMenuRadio(el: HTMLButtonElement | null) {
@@ -65,6 +66,7 @@ export function OptionControl<Value extends string>({
   const id = useId()
   const enabled = open && !disabled && !busy
   const visible = menuState.expanded && enabled
+  const ready = visible && position !== null
   const { mounted } = menuState
 
   /** 先收起菜单并恢复按钮焦点，再委托业务保存；不提前改写显示值。 */
@@ -85,7 +87,7 @@ export function OptionControl<Value extends string>({
     <>
       <SelectionButton
         ref={bindAnchor}
-        className={`rong-icon-button rong-header-action ${className}`}
+        className={clsx('rong-icon-button rong-header-action', className)}
         disabled={disabled}
         inactive={!open}
         busy={busy}
@@ -125,8 +127,8 @@ export function OptionControl<Value extends string>({
             compact
             ref={bindSurface}
             id={id}
-            role={visible ? 'menu' : undefined}
-            aria-hidden={!visible || undefined}
+            role={ready ? 'menu' : undefined}
+            aria-hidden={!ready || undefined}
             aria-label={menuLabel}
             data-rong-option-menu
             data-open={visible}

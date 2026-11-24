@@ -5,8 +5,7 @@ import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-permission-presets'
 import { setApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
-import { isSideSession } from '../shared/side-session.ts'
-import type { Permission } from '../shared/protocol.ts'
+import { isSideSession, type Permission } from '../shared/protocol.ts'
 
 // Generic program execution also supports runtimes without filesystem confinement.
 const readTools = new Set(['read', 'read_image', 'glob', 'grep'])

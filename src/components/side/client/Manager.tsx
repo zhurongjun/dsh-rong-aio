@@ -10,9 +10,10 @@ import {
   IconPlusOutlineRegular,
   IconTrashOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { ConfirmModal } from '../../../client/ConfirmModal.tsx'
 import { errorMessage } from '../../../shared/error.ts'
 import type { SideRow } from '../shared/protocol.ts'
-import { ConfirmDialog, SideError } from './feedback.tsx'
+import { SideError } from './Panel.tsx'
 import { createSideHistoryStore, type SideHistoryStore } from './history-store.ts'
 import type { SideClient } from './store.ts'
 import type { SideTabs } from './tabs.ts'
@@ -119,17 +120,22 @@ export function Manager({ tabs, source }: { tabs: SideTabs; source: SessionId })
         )}
       </Menu>
       {confirm && (
-        <ConfirmDialog
+        <ConfirmModal
+          open
           destructive
-          close={() => setConfirm(undefined)}
-          action={discard ? '丢弃草稿' : '永久删除'}
-          confirm={() => void remove(confirm)}
+          confirmLabel={discard ? '丢弃草稿' : '永久删除'}
           title={discard ? '丢弃侧聊草稿？' : '永久删除侧聊？'}
           description={
             discard
               ? '将关闭「' + confirm.title + '」并丢弃未发送的内容。'
               : '将永久删除「' + confirm.title + '」的对话和工具记录。'
           }
+          onCancel={() => setConfirm(undefined)}
+          onConfirm={() => {
+            const target = confirm
+            setConfirm(undefined)
+            void remove(target)
+          }}
         />
       )}
     </>
@@ -216,7 +222,7 @@ function ListRow({
     <div className="rong-side-list-row" role="group" aria-label={entry.title}>
       <MenuItemButton onSelect={() => void pick(entry)}>
         <span className="rong-side-list-label">
-          <span className="rong-side-list-title" title={entry.title}>
+          <span className="rong-truncate" title={entry.title}>
             {entry.title}
           </span>
           {note && <small>{note}</small>}
@@ -226,7 +232,7 @@ function ListRow({
         role="menuitem"
         size="sm"
         variant="ghost"
-        className="rong-side-delete"
+        className="rong-side-delete rong-danger-button"
         aria-label={'删除 ' + entry.title}
         title={'draft' in entry ? '丢弃草稿' : '删除侧聊'}
         icon={<IconTrashOutlineRegular size={16} />}

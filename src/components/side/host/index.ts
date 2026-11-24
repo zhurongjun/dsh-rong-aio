@@ -4,13 +4,20 @@ import type {} from '@deepseek-ai/dsh-client-connection'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import * as z from 'zod'
 import type {} from '../../../shared/session-events.ts'
+import { jsonResponse, parseJsonBody, registerJsonEndpoint } from '../../../host/http.ts'
 import { errorMessage } from '../../../shared/error.ts'
 import { createSerialQueue } from '../../../shared/serial-queue.ts'
-import { isSideSession, sideSessionId } from '../shared/side-session.ts'
 import { removeSession, refreshSearchIndex } from '../../../host/remove-session.ts'
 import { commandSchema, permissionSchema, type SideCommand } from '../shared/commands.ts'
 import { sideAgents } from './agents.ts'
-import { API, sideTitle, type SideDraftInfo, type SideHistory } from '../shared/protocol.ts'
+import {
+  API,
+  isSideSession,
+  sideSessionId,
+  sideTitle,
+  type SideDraftInfo,
+  type SideHistory,
+} from '../shared/protocol.ts'
 import { restoreLegacyContext } from './context.ts'
 import { installSideInstructions } from './instructions.ts'
 import { installPermissions } from './permissions.ts'
@@ -45,7 +52,6 @@ const rowSchema = z.object({
   prefix: prefixSchema.optional(),
 })
 export async function apply(ctx: Context) {
-  const connection = ctx.connection
   const sessions = ctx.sessions
   const domain = await ctx.storageDomain.open({
     name: 'rong_aio_side',
@@ -226,41 +232,34 @@ export async function apply(ctx: Context) {
         .catch((error) => ctx.logger.warn(errorMessage(error)))
     }
   })
-  connection.fetch.register({
+  registerJsonEndpoint(ctx, {
     path: API,
-    methods: ['GET', 'POST'],
-    requestBody: 'buffered',
+    errorStatus: 409,
     async fetch(request) {
-      try {
-        if (request.method === 'GET') {
-          const parent = new URL(request.url).searchParams.get('parent')
-          if (!parent || isSideSession(parent)) throw new Error('需要主会话')
-          return Response.json(history(parent), { headers: { 'cache-control': 'no-store' } })
-        }
-        const parsed = commandSchema.safeParse(await request.json())
-        if (!parsed.success) return Response.json({ error: '侧聊参数无效' }, { status: 400 })
-        const cmd = parsed.data
-        if (cmd.action === 'draft') return Response.json(await draft(cmd.parent))
-        if (cmd.action === 'create') return Response.json(await sendFirst(cmd, request.signal))
-        return Response.json(
-          await queue.run(async () => {
-            const parent = await resolveParent(cmd.parent)
-            const id = cmd.id as SessionId
-            if (cmd.action === 'delete') await remove(parent.id, id)
-            else {
-              assertOwned(parent.id, id)
-              const agent = await agents.open(id)
-              if (cmd.action === 'permission') {
-                await chats.update(id, (row) => ({ ...row, permission: cmd.permission }))
-              }
-              sync(agent.session)
-            }
-            return { id }
-          }),
-        )
-      } catch (error) {
-        return Response.json({ error: errorMessage(error) }, { status: 409 })
+      if (request.method === 'GET') {
+        const parent = new URL(request.url).searchParams.get('parent')
+        if (!parent || isSideSession(parent)) throw new Error('需要主会话')
+        return jsonResponse(history(parent))
       }
+      const cmd = await parseJsonBody(request, commandSchema, '侧聊参数无效')
+      if (cmd.action === 'draft') return jsonResponse(await draft(cmd.parent))
+      if (cmd.action === 'create') return jsonResponse(await sendFirst(cmd, request.signal))
+      return jsonResponse(
+        await queue.run(async () => {
+          const parent = await resolveParent(cmd.parent)
+          const id = cmd.id as SessionId
+          if (cmd.action === 'delete') await remove(parent.id, id)
+          else {
+            assertOwned(parent.id, id)
+            const agent = await agents.open(id)
+            if (cmd.action === 'permission') {
+              await chats.update(id, (row) => ({ ...row, permission: cmd.permission }))
+            }
+            sync(agent.session)
+          }
+          return { id }
+        }),
+      )
     },
   })
 }

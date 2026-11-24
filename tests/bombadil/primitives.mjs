@@ -15,6 +15,7 @@ export { Tag } from '@deepseek-ai/dsh-client-ui-primitives/src/Tag.tsx'
 export { Toast } from '@deepseek-ai/dsh-client-ui-primitives/src/Toast.tsx'
 export { Tooltip } from '@deepseek-ai/dsh-client-ui-primitives/src/Tooltip.tsx'
 export { writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives/src/clipboard.ts'
+export { formatQuoteText } from '@deepseek-ai/dsh-client-ui-primitives/src/markdown/quote-text.ts'
 export {
   isBehindModal,
   useModalLayer,

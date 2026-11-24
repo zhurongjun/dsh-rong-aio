@@ -1,5 +1,6 @@
-/** 选择器瞬时状态：不复制宿主模型目录；每个会话实例独立持有菜单与操作通知。 */
+/** 选择器瞬时状态与档位预览投影：不复制宿主模型目录；每个会话实例独立持有菜单与操作通知。 */
 
+import { useStore } from 'zustand'
 import { createStore } from 'zustand/vanilla'
 
 type Pane = 'effort' | 'models'
@@ -139,3 +140,12 @@ export function createSelectorStore() {
 }
 
 export type SelectorStore = ReturnType<typeof createSelectorStore>
+
+/** 只订阅最终 effort ID；按同路由待确认操作、拖动预览、宿主已确认值依次取值。 */
+export function useEffortPreview(store: SelectorStore, routeKey: string, selected?: string) {
+  return useStore(store, (state) => {
+    if (state.operation?.routeKey === routeKey && state.operation.kind !== 'model')
+      return state.operation.effort ?? selected
+    return state.preview?.routeKey === routeKey ? state.preview.effort : selected
+  })
+}

@@ -8,11 +8,24 @@ import type {
   PropsRenderSlots,
   PropsRuntime,
 } from '@deepseek-ai/dsh-client-ui-slots'
-import { IconNewChatOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconNewChatOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { SideComposerContext } from './PermissionControl.tsx'
-import { SideError } from './feedback.tsx'
 import { DraftComposer } from './DraftComposer.tsx'
 import type { SideClient } from './store.ts'
+
+export function SideError({ message, retry }: { message: string; retry?: () => void }) {
+  if (!message) return null
+  return (
+    <div role="alert" className="rong-side-error">
+      {message}
+      {retry && (
+        <Button size="sm" onClick={retry}>
+          重试
+        </Button>
+      )}
+    </div>
+  )
+}
 
 declare module '@deepseek-ai/dsh-api-session-controller/client' {
   interface SessionReferenceSourceMap {

@@ -1,6 +1,6 @@
-/** 选择器编排：连接宿主目录、局部状态、定位与键盘流程；宿主确认结果是选模依据。 */
+/** 选择器编排与原生插槽适配：连接宿主目录、局部状态、定位、Team 能力与键盘流程。 */
 
-import { useId, useRef, useState, type CSSProperties } from 'react'
+import { useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
   isBehindModal,
@@ -8,31 +8,73 @@ import {
   Toast,
   IconWarningOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { createAnchoredPopover } from '../../../../client/anchored-popover.ts'
-import { useComposerToastAnchor } from '../../../../client/useComposerToastAnchor.ts'
-import { buildModelCatalog } from '../../shared/model-selection.ts'
-import { speedKey } from '../../shared/speed.ts'
-import { useStore } from 'zustand'
+import type {} from '@deepseek-ai/dsh-agent-team/client'
+import type {} from '@deepseek-ai/dsh-agent-team/remote'
+import { useStore, type StoreApi } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
+import { createAnchoredPopover, useComposerToastAnchor } from '../../../client/anchored-popover.ts'
+import { handlePickerKeyDown, trapFocusTabKey } from '../../../client/ModelPickerList.tsx'
+import { buildModelCatalog } from '../shared/model-selection.ts'
+import { speedKey } from '../shared/speed.ts'
 import { SelectorTrigger } from './SelectorTrigger.tsx'
 import { EffortPanel } from './EffortPanel.tsx'
 import { useModelSelection } from './useModelSelection.ts'
 import { ModelList } from './ModelList.tsx'
-import { type TeamSelection } from './team-store.ts'
-import { TeamDisableDialog } from './TeamControl.tsx'
-import { handlePopoverKeyDown } from './popover-keyboard.ts'
-import { createSelectorSession } from './selector-session.ts'
+import { TeamDisableDialog } from './HeaderControls.tsx'
+import { createSelectorSession, type TeamSelection } from './selector-session.ts'
+
+export type TeamCommand = Context['remote']['agentTeams']['setEnabled']
+export type TeamCapability = { setEnabled: TeamCommand } | undefined
+
+export interface SelectorInjected extends Omit<ModelSelectInjected, 'resolveText'> {
+  /** 只观察可选原生 Remote 的生命周期，不保存 Team 业务状态。 */
+  teamCommands: StoreApi<{ capability: TeamCapability }>
+}
+
+/** 使用宿主标准 hooks，不另建会话投影或持久化库；两种子会话身份均不呈现开关。 */
+export function ModelSelectorSlot(
+  props: PropsRuntime<'conversation.input.model'> & SelectorInjected,
+) {
+  // DSH 插槽契约通过 props 传入 hooks，不适合 React Compiler 自动记忆化；内层 ModelSelector 仍正常编译。
+  'use no memo'
+  const capability = useStore(props.teamCommands, (state) => state.capability)
+  const command = capability?.setEnabled
+  const addressedChild = props.useSession((snapshot) => snapshot.subagent !== null)
+  const listedChild = props.useSessions(
+    (state) => state.byId[props.sessionId]?.origin === 'subagent',
+  )
+  const team = props.useProjection('agentTeam')
+  const model = props.useProjection('modelSelection')
+  const selectEnabled = (enabled: boolean) => {
+    if (!command) return Promise.reject(new Error('Agent Team 服务不可用'))
+    return command(props.sessionId, enabled)
+  }
+  return (
+    <ModelSelector
+      {...props}
+      team={
+        command && team && !addressedChild && !listedChild
+          ? {
+              enabled: team.enabled,
+              ready: model !== undefined,
+              needsConfirmation: model !== undefined && model.lastUsed !== null,
+              selectEnabled,
+            }
+          : undefined
+      }
+    />
+  )
+}
 
 function focusWhenFront(el: HTMLElement | null) {
   if (el && !isBehindModal(el)) el.focus({ preventScroll: true })
 }
 
-/** 复用 DSH 模型插槽契约；available 区分本地会话与独立运行时，locked 控制交互。 */
 type Props = Omit<ModelSelectInjected, 'resolveText'> &
   Pick<PropsRuntime<'conversation.input.model'>, 'locked' | 'sessionId'> & {
-    /** 原生能力与根会话投影均可用时提供。 */
     team?: TeamSelection
   }
 
@@ -117,7 +159,6 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
   const modelId = current?.model
   const speedRoute = provider && modelId ? speedKey({ sessionId, provider, model: modelId }) : ''
 
-  /** 关闭弹层；仅显式键盘/按钮操作需要把焦点恢复到触发按钮。 */
   const close = (restoreFocus = false) => {
     actions.close()
     if (restoreFocus) popover.focusAnchor()
@@ -141,7 +182,6 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
     cancel: () => session.teamStore.cancel(),
   }
 
-  /** 进入模型列表并以当前模型在扁平结果中的位置初始化键盘高亮。 */
   const showModels = () => {
     actions.showModels(
       Math.max(
@@ -153,12 +193,38 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
     )
   }
 
-  /** 关闭时恢复入口焦点；打开时初始化面板并触发宿主目录加载。 */
   const toggle = () => {
     if (store.getState().open) close(true)
     else {
       actions.show(model ? 'effort' : 'models')
       refresh()
+    }
+  }
+
+  const onPopoverKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.nativeEvent.isComposing) return
+    if (event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      if (pane === 'models' && model) actions.setPane('effort')
+      else close(true)
+      return
+    }
+    if (pane === 'models') {
+      handlePickerKeyDown(event, {
+        container: event.currentTarget,
+        searchInput: search.current,
+        onStepHighlight: (delta) => {
+          const highlight = store.getState().highlight
+          actions.highlight(rows.length ? (highlight + delta + rows.length) % rows.length : 0)
+        },
+        onConfirm: () => {
+          const row = rows[store.getState().highlight]
+          if (row && !busy) void chooseModel(row.group.id, row.model)
+        },
+      })
+    } else {
+      trapFocusTabKey(event, event.currentTarget)
     }
   }
 
@@ -194,9 +260,9 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
             id={id}
             role="dialog"
             aria-label="模型与推理强度"
-            aria-hidden={!effectiveOpen || undefined}
+            aria-hidden={!effectiveOpen || !positioned || undefined}
             aria-busy={selecting || state.status === 'loading'}
-            className="rong-model-popover"
+            className="rong-popover-surface rong-model-popover"
             data-open={effectiveOpen}
             data-pane={pane}
             style={
@@ -207,19 +273,7 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
                 '--rong-list-height': `${Math.min(344, 52 + Math.max(1, rows.length) * 33 + groups.length * 26)}px`,
               } as CSSProperties
             }
-            onKeyDown={(event) =>
-              handlePopoverKeyDown(event, {
-                store,
-                pane,
-                hasModel: !!model,
-                busy,
-                rows,
-                menu: event.currentTarget,
-                search,
-                close,
-                chooseModel,
-              })
-            }
+            onKeyDown={onPopoverKeyDown}
             onTransitionEnd={(event) => {
               if (
                 event.target === event.currentTarget &&

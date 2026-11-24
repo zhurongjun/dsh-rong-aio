@@ -3,9 +3,10 @@
 import { join } from 'node:path'
 import { unlink } from 'node:fs/promises'
 import * as z from 'zod'
+import { errorMessage } from '../../../shared/error.ts'
 import { type FrozenSession, type InjectState, type ResolvedState } from '../shared/state.ts'
 import type { RequestFailure } from '../shared/protocol.ts'
-import { message, readVersion, withFileLocks, writeVersion } from './files.ts'
+import { readVersion, withFileLocks, writeVersion } from './files.ts'
 import { frozenSchema } from './schemas.ts'
 
 /** 定位会话的最小原生元数据，不复制完整 DSH 会话对象。 */
@@ -156,7 +157,7 @@ export class SessionStore {
         } else entry.eligible = true
       }
     } catch (error) {
-      entry.loadError = `读取会话破甲快照失败：${message(error)}`
+      entry.loadError = `读取会话破甲快照失败：${errorMessage(error, String(error))}`
     }
     this.entries.set(meta.id, entry)
     return entry
@@ -192,7 +193,7 @@ export class SessionStore {
       state: { name: null },
       busy: false,
       eligible: false,
-      loadError: `无法恢复会话破甲状态：${message(error)}`,
+      loadError: `无法恢复会话破甲状态：${errorMessage(error, String(error))}`,
     }
     this.entries.set(id, entry)
     return entry

@@ -1,0 +1,251 @@
+/* 跨组件共享基础样式与插件语义 token：由 mountStyle 按引用计数挂载并在全部停用后卸载。 */
+
+:root {
+  --rong-trigger-height: 28px;
+  --rong-picker-width: min(256px, calc(100vw - 24px));
+  --rong-picker-max-height: 344px;
+  --rong-control-gap: 8px;
+}
+
+.rong-truncate {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rong-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 输入框底部触发按钮基线：统一高度、圆角、交互背景与图标旋向。 */
+.rong-composer-trigger {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  height: var(--rong-trigger-height);
+  padding: 0 4px 0 8px;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.rong-composer-trigger:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.rong-composer-trigger:disabled {
+  cursor: default;
+  color: var(--dsw-alias-label-dimmed);
+}
+
+.rong-composer-trigger:focus-visible {
+  outline: var(--dsw-focus-ring-width) solid
+    var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+  outline-offset: 2px;
+}
+
+.rong-composer-chevron {
+  flex: none;
+  transition: transform var(--ds-transition-duration-fast) var(--ds-ease-in-out);
+}
+
+.rong-composer-trigger[aria-expanded='true'] .rong-composer-chevron {
+  transform: rotate(180deg);
+}
+
+/* 危险按钮语义色：列表删除图标与确认弹窗危险提交共用。 */
+button.rong-danger-button,
+button.rong-danger-button:hover {
+  color: var(--dsw-alias-state-error-primary);
+}
+
+button.rong-danger-button:hover:not(:disabled),
+button.rong-danger-confirm {
+  background: var(--dsw-alias-interactive-bg-hover-danger);
+}
+
+/* 统一分组模型选择器浮层与列表样式，由模型选择器与白名单选择器共用。 */
+.rong-popover-surface {
+  position: fixed;
+  z-index: 1100;
+  box-sizing: border-box;
+  width: var(--rong-picker-width);
+  max-height: calc(100dvh - 24px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--dsw-alias-label-primary);
+  box-shadow: var(--dsw-elevation-prominent);
+  font: var(--dsw-font-xs-13);
+}
+
+.rong-popover-surface button,
+.rong-popover-surface input {
+  font: inherit;
+}
+
+.rong-popover-surface button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+.rong-picker-popover {
+  max-height: min(var(--rong-picker-max-height), calc(100dvh - 24px));
+}
+
+.rong-picker-pane {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  padding: 10px 10px 8px;
+}
+
+.rong-picker-toolbar {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-items: center;
+  flex: none;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.rong-picker-back {
+  width: 26px;
+  height: 26px;
+  padding: 4px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--dsw-radius-sm);
+  background: transparent;
+  color: var(--dsw-alias-label-tertiary);
+  cursor: pointer;
+  transition: background var(--ds-transition-duration-fast) ease;
+}
+
+.rong-picker-back:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.rong-picker-back:disabled {
+  cursor: default;
+  color: var(--dsw-alias-label-dimmed);
+}
+
+.rong-picker-search {
+  min-width: 0;
+  height: 26px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 7px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: var(--dsw-radius-sm);
+  color: var(--dsw-alias-label-tertiary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.rong-picker-search > svg {
+  flex: none;
+}
+
+.rong-picker-search:focus-within {
+  border-color: var(--dsw-alias-state-business-primary);
+}
+
+.rong-picker-search input {
+  min-width: 0;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  line-height: 18px;
+}
+
+.rong-picker-search input::placeholder {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.rong-picker-list {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  min-height: 0;
+  flex: 1;
+}
+
+.rong-picker-list > div + div {
+  border-top: 1px solid var(--dsw-alias-border-l1);
+  margin-top: 5px;
+  padding-top: 5px;
+}
+
+.rong-picker-provider {
+  padding: 5px 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xxs-12);
+}
+
+.rong-picker-option {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  min-height: 33px;
+  border-radius: var(--dsw-radius-sm);
+  cursor: pointer;
+}
+
+.rong-picker-option:disabled {
+  cursor: default;
+  color: var(--dsw-alias-label-dimmed);
+}
+
+.rong-picker-option[aria-busy='true'] {
+  cursor: default;
+}
+
+.rong-picker-option > svg {
+  flex: none;
+}
+
+.rong-picker-option:not(:disabled) > svg {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.rong-picker-option[data-highlighted],
+.rong-picker-option:hover:not(:disabled) {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.rong-picker-empty {
+  margin: 6px 0;
+  padding: 5px 0;
+  text-align: center;
+  color: var(--dsw-alias-label-tertiary);
+  font: var(--dsw-font-xxs-12);
+}

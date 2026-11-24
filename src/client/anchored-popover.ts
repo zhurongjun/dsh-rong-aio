@@ -1,6 +1,16 @@
-/** 受管浮层锚点定位控制器：在 React 18 Layout Ref 挂载期同步定位并管理视口与 ResizeObserver 监听。 */
+/** 受管浮层锚点定位控制器：基于 @floating-ui/dom 在 React 18 Callback Ref 挂载期同步定位并管理视口与缩放监听。 */
 
-import type { CSSProperties } from 'react'
+import { useCallback, useRef, useState, type CSSProperties } from 'react'
+import {
+  autoUpdate,
+  computePosition,
+  flip,
+  offset,
+  shift,
+  size,
+  type Middleware,
+  type Placement,
+} from '@floating-ui/dom'
 import { createStore } from 'zustand/vanilla'
 
 export type PopoverPlacement = 'above-end' | 'side' | 'below-end'
@@ -14,6 +24,16 @@ interface AnchoredPopoverOptions {
   ) => void
 }
 
+const VIEWPORT_MARGIN = 12
+const POPOVER_GAP = 8
+const MAX_LIST_HEIGHT = 344
+
+const PLACEMENT_MAP: Record<PopoverPlacement, Placement> = {
+  'above-end': 'top-end',
+  side: 'right-start',
+  'below-end': 'bottom-end',
+}
+
 function sameStyle(previous: CSSProperties | null, next: CSSProperties): boolean {
   if (!previous) return false
   const prevKeys = Object.keys(previous) as (keyof CSSProperties)[]
@@ -21,115 +41,130 @@ function sameStyle(previous: CSSProperties | null, next: CSSProperties): boolean
   return prevKeys.length === nextKeys.length && nextKeys.every((key) => previous[key] === next[key])
 }
 
-function computePosition(
-  anchorEl: HTMLElement,
-  surfaceEl: HTMLElement,
-  placement: PopoverPlacement,
-): CSSProperties {
-  const anchor = anchorEl.getBoundingClientRect()
-  const viewport = window.visualViewport
-  const vLeft = viewport?.offsetLeft ?? 0
-  const vTop = viewport?.offsetTop ?? 0
-  const vw = viewport?.width ?? window.innerWidth
-  const vh = viewport?.height ?? window.innerHeight
-  const margin = 12
-  const gap = 8
-
-  if (placement === 'above-end') {
-    const width = surfaceEl.offsetWidth
-    const height = surfaceEl.offsetHeight
-    const x = Math.max(vLeft + margin, Math.min(anchor.right - width, vLeft + vw - width - margin))
-    const above = anchor.top - gap - height
-    const y =
-      above >= vTop + margin ? above : Math.min(anchor.bottom + gap, vTop + vh - height - margin)
-    return { left: x, top: Math.max(vTop + margin, y) }
-  }
-
-  if (placement === 'side') {
-    const width = surfaceEl.offsetWidth
-    const height = surfaceEl.offsetHeight
-    const preferredLeft = anchor.right + 6
-    const x = Math.max(
-      vLeft + margin,
-      Math.min(
-        preferredLeft + width <= vLeft + vw - margin ? preferredLeft : anchor.left - 6 - width,
-        vLeft + vw - width - margin,
-      ),
-    )
-    const y = Math.max(vTop + margin, Math.min(anchor.top - 4, vTop + vh - height - margin))
-    const originX = Math.max(0, Math.min(width, anchor.left + anchor.width / 2 - x))
-    const originY = Math.max(0, Math.min(height, anchor.top + anchor.height / 2 - y))
-    return { left: x, top: y, transformOrigin: `${originX}px ${originY}px` }
-  }
-
-  const width = Math.min(surfaceEl.offsetWidth, Math.max(0, vw - margin * 2))
-  const top = Math.max(vTop + margin, anchor.bottom + gap)
-  const bottom = Math.max(margin, vh - (anchor.top - vTop) + gap)
-  const below = Math.max(0, vTop + vh - top - margin)
-  const above = Math.max(0, anchor.top - vTop - gap - margin)
-  const opensBelow = below >= Math.min(surfaceEl.scrollHeight, above) || below >= above
-  return {
-    position: 'fixed',
-    left: Math.max(vLeft + margin, Math.min(anchor.right - width, vLeft + vw - width - margin)),
-    ...(opensBelow ? { top } : { bottom }),
-    maxHeight: Math.min(344, opensBelow ? below : above),
-  }
-}
-
 /** 创建浮层锚点定位控制器；所有 bind* 回调引用稳定，可安全传给 React 18 ref。 */
 export function createAnchoredPopover(options: AnchoredPopoverOptions) {
   const store = createStore<{ position: CSSProperties | null }>(() => ({ position: null }))
   let anchorEl: HTMLElement | null = null
   let surfaceEl: HTMLDivElement | null = null
-  let observer: ResizeObserver | undefined
+  let stopAutoUpdate: (() => void) | undefined
   let mountAbort: AbortController | undefined
+  let epoch = 0
+  let placeSequence = 0
 
   const getAnchor = () => anchorEl
   const focusAnchor = () => anchorEl?.focus()
 
   const place = () => {
-    if (!anchorEl || !surfaceEl) return
-    const next = computePosition(anchorEl, surfaceEl, options.placement)
-    if (!sameStyle(store.getState().position, next)) {
-      store.setState({ position: next })
+    const anchor = anchorEl
+    const surface = surfaceEl
+    if (!anchor || !surface || !surface.isConnected) return
+    const currentEpoch = epoch
+    const seq = ++placeSequence
+    let clampedMaxHeight: number | undefined
+
+    const middleware: Middleware[] =
+      options.placement === 'side'
+        ? [
+            offset({ mainAxis: 6, alignmentAxis: -4 }),
+            flip({ padding: VIEWPORT_MARGIN }),
+            shift({ padding: VIEWPORT_MARGIN }),
+          ]
+        : [
+            offset(POPOVER_GAP),
+            flip({ padding: VIEWPORT_MARGIN }),
+            shift({ padding: VIEWPORT_MARGIN }),
+          ]
+
+    if (options.placement === 'below-end') {
+      middleware.push(
+        size({
+          padding: VIEWPORT_MARGIN,
+          apply({ availableHeight }) {
+            clampedMaxHeight = Math.min(MAX_LIST_HEIGHT, Math.max(0, Math.floor(availableHeight)))
+          },
+        }),
+      )
     }
+
+    void computePosition(anchor, surface, {
+      strategy: 'fixed',
+      placement: PLACEMENT_MAP[options.placement],
+      middleware,
+    }).then(({ x, y }) => {
+      if (
+        currentEpoch !== epoch ||
+        seq !== placeSequence ||
+        anchorEl !== anchor ||
+        surfaceEl !== surface ||
+        !surface.isConnected
+      ) {
+        return
+      }
+      const left = Math.round(x)
+      const top = Math.round(y)
+      let next: CSSProperties
+      if (options.placement === 'side') {
+        const rect = anchor.getBoundingClientRect()
+        const originX = Math.max(
+          0,
+          Math.min(surface.offsetWidth, rect.left + rect.width / 2 - left),
+        )
+        const originY = Math.max(
+          0,
+          Math.min(surface.offsetHeight, rect.top + rect.height / 2 - top),
+        )
+        next = {
+          position: 'fixed',
+          left,
+          top,
+          transformOrigin: `${originX}px ${originY}px`,
+        }
+      } else if (options.placement === 'below-end') {
+        next = {
+          position: 'fixed',
+          left,
+          top,
+          maxHeight: clampedMaxHeight ?? MAX_LIST_HEIGHT,
+        }
+      } else {
+        next = { position: 'fixed', left, top }
+      }
+      if (!sameStyle(store.getState().position, next)) {
+        store.setState({ position: next })
+      }
+    })
+  }
+
+  const syncTracking = () => {
+    epoch++
+    stopAutoUpdate?.()
+    stopAutoUpdate = undefined
+    if (!anchorEl || !surfaceEl) return
+    stopAutoUpdate = autoUpdate(anchorEl, surfaceEl, place)
   }
 
   const bindAnchor = (node: HTMLElement | null) => {
+    if (node === anchorEl) return
     anchorEl = node
-    if (node && surfaceEl) place()
+    syncTracking()
   }
 
   const bindContent = (node: HTMLElement | null) => {
-    if (!node) return
-    observer?.observe(node)
-    place()
+    if (node) place()
   }
 
   const bindSurface = (node: HTMLDivElement | null) => {
-    observer?.disconnect()
-    observer = undefined
+    if (node === surfaceEl) return
     mountAbort?.abort()
     mountAbort = undefined
     surfaceEl = node
+    syncTracking()
     if (!node) {
       if (store.getState().position !== null) store.setState({ position: null })
       return
     }
-
-    place()
-    observer = new ResizeObserver(place)
-    observer.observe(node)
-    if (anchorEl) observer.observe(anchorEl)
-    if (node.firstElementChild instanceof HTMLElement) observer.observe(node.firstElementChild)
-
     mountAbort = new AbortController()
-    const { signal } = mountAbort
-    window.addEventListener('resize', place, { signal })
-    window.addEventListener('scroll', place, { capture: true, signal })
-    window.visualViewport?.addEventListener('resize', place, { signal })
-    window.visualViewport?.addEventListener('scroll', place, { signal })
-    options.onMount?.(node, signal, { getAnchor })
+    options.onMount?.(node, mountAbort.signal, { getAnchor })
   }
 
   return {
@@ -145,3 +180,17 @@ export function createAnchoredPopover(options: AnchoredPopoverOptions) {
 }
 
 export type AnchoredPopover = ReturnType<typeof createAnchoredPopover>
+
+/** 为输入框插槽组件提供触发器引用与 Toast 宿主卡片锚点，不在渲染期间读取 ref.current。 */
+export function useComposerToastAnchor() {
+  const triggerRef = useRef<HTMLButtonElement | null>(null)
+  const [toastAnchor, setToastAnchor] = useState<HTMLElement | null>(null)
+
+  const bindTrigger = useCallback((node: HTMLButtonElement | null) => {
+    triggerRef.current = node
+    const card = node?.closest<HTMLElement>('[data-composer-card]') ?? null
+    setToastAnchor((previous) => (previous === card ? previous : card))
+  }, [])
+
+  return { triggerRef, bindTrigger, toastAnchor }
+}

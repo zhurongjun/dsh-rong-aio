@@ -12,12 +12,11 @@ import {
 import { errorMessage } from '../../../shared/error.ts'
 import type { Route } from '../shared/protocol.ts'
 import type { CatalogPrompt, Prompt, Scope } from '../shared/state.ts'
-import { ImpactConfirmDialog } from './ImpactConfirmDialog.tsx'
+import { ImpactConfirmDialog } from './Dialogs.tsx'
 import { PromptEditor } from './PromptEditor.tsx'
 import type { InjectStore } from './store.ts'
 import { TemplateLibrary, type LibraryView } from './TemplateLibrary.tsx'
-import { Whitelist } from './Whitelist.tsx'
-import { routeKey } from './whitelist-models.ts'
+import { routeKey, Whitelist } from './Whitelist.tsx'
 
 interface EditingSession {
   key: number

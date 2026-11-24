@@ -2,27 +2,15 @@
 
 import { useRef, useState, type KeyboardEvent } from 'react'
 import type { ModelReasoningEffort } from '@deepseek-ai/dsh-api-session-controller/types'
-import { clamp, detentAt } from '../../shared/slider-motion.ts'
+import { clamp, detentAt } from '../shared/slider-motion.ts'
 import { createSliderMotion } from './slider-motion-controller.ts'
 
-/** 本视图所需的输入契约；数据保存与宿主副作用由外层负责。 */
 interface Props {
-  /** 模型目录提供的明确档位，顺序即滑杆方向。 */
   efforts: readonly ModelReasoningEffort[]
-
-  /** 面板投影后的显示 ID；手势、待确认和已确认状态共用此受控值。 */
   selected: string | undefined
-
-  /** 锁定或弹层关闭时禁止交互并退出 Tab 顺序。 */
   disabled: boolean
-
-  /** 请求处理中只阻止新手势，保留当前焦点和视觉状态。 */
   busy: boolean
-
-  /** 仅同步拖动标题；undefined 清理预览，不发请求。 */
   onPreview: (id: string | undefined) => void
-
-  /** 提交与待确认预览交给控制器；滑杆不持有异步请求副本。 */
   onCommit: (id: string) => Promise<boolean>
 }
 
@@ -37,9 +25,7 @@ export function EffortSlider({ efforts, selected, disabled, busy, onPreview, onC
   const target = Math.max(0, index) / Math.max(1, efforts.length - 1)
   const [motion] = useState(createSliderMotion)
 
-  /** 取消正在进行的拖动并清理预览与失焦监听；不提交未完成选择。 */
   const cancel = () => {
-    // 松手后的 blur / lostpointercapture 不得取消正在等待宿主确认的预览。
     if (!drag.current) return
     drag.current = null
     dragAbort.current?.abort()
@@ -48,18 +34,15 @@ export function EffortSlider({ efforts, selected, disabled, busy, onPreview, onC
     onPreview(undefined)
   }
 
-  /** 把屏幕横坐标换算为滑块圆心在有效轨道中的 0–1 位置。 */
   const point = (el: HTMLElement, clientX: number) => {
     const rect = el.getBoundingClientRect()
     return clamp((clientX - rect.left - 14) / Math.max(1, rect.width - 28), 0, 1)
   }
 
-  /** 只发布档位 ID；面板、入口与滑杆从同一 store 投影显示。 */
   const show = (next: number) => {
     onPreview(efforts[next]?.id)
   }
 
-  /** 松手和键盘只发一次提交；保存、拒绝回退及跨挂载清理由控制器负责。 */
   const commit = (next: number) => {
     if (blocked) return
     const effort = efforts[next]
@@ -67,7 +50,6 @@ export function EffortSlider({ efforts, selected, disabled, busy, onPreview, onC
     void onCommit(effort.id)
   }
 
-  /** Escape 取消拖动；方向键和 Home/End 直接提交合法档位。 */
   const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape' && drag.current) {
       event.preventDefault()

@@ -1,4 +1,4 @@
-/** 白名单视图：已授权卡片与独立新增菜单；显示名不参与授权身份比较。 */
+/** 白名单视图与路由展示工具：已授权卡片与独立新增菜单；显示名不参与授权身份比较。 */
 
 import { useRef, useState } from 'react'
 import {
@@ -8,9 +8,28 @@ import {
   IconTrashOutlineRegular,
   Input,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { matchesQueryWords } from '../../../shared/model-search.ts'
 import type { CatalogRoute, Route } from '../shared/protocol.ts'
 import { WhitelistModelPicker } from './WhitelistModelPicker.tsx'
-import { matchingRoutes, modelLabel, providerLabel, routeKey } from './whitelist-models.ts'
+
+/** 不拼接可歧义分隔符；同名模型在不同提供商下仍是两个独立授权。 */
+export const routeKey = (route: Route) => JSON.stringify([route.provider, route.model])
+
+/** 优先使用目录显示名，失联或缺失时保持原始 model 标识可读。 */
+export const modelLabel = (route: CatalogRoute) => route.modelName || route.model
+
+/** 优先使用提供商展示名；目录不可用不隐藏仍存在的授权条目。 */
+export const providerLabel = (route: CatalogRoute) => route.providerName || route.provider
+
+/** 与模型选择器保持多词、大小写无关的搜索语义，同时匹配显示名和精确标识。 */
+export function matchingRoutes(routes: CatalogRoute[], query: string) {
+  return routes.filter((route) =>
+    matchesQueryWords(
+      [route.provider, route.model, providerLabel(route), modelLabel(route)].join(' '),
+      query,
+    ),
+  )
+}
 
 /** 白名单只维护精确路由；目录失联时保留已有卡片，用原始标识回退显示。 */
 export function Whitelist({
@@ -21,22 +40,11 @@ export function Whitelist({
   onAdd,
   onRemove,
 }: {
-  /** 用户配置中已确认的精确授权条目。 */
   whitelist: Route[]
-
-  /** 模型目录，给卡片补充可读名称，不增加授权。 */
   routes: CatalogRoute[]
-
-  /** 部分提供商目录加载失败的可读诊断。 */
   catalogErrors: string[]
-
-  /** 宿主结果未确认或保存中时阻止授权编辑。 */
   disabled: boolean
-
-  /** 保存新增精确路由；本视图不乐观插入卡片。 */
   onAdd: (route: Route) => void
-
-  /** 保存移除授权；已有会话的后续请求会重新检查。 */
   onRemove: (route: Route) => void
 }) {
   const [query, setQuery] = useState('')
@@ -81,12 +89,16 @@ export function Whitelist({
           {cards.map((route) => (
             <li className="rong-inject-whitelist-card" key={routeKey(route)}>
               <span className="rong-inject-whitelist-info">
-                <strong title={route.model}>{modelLabel(route)}</strong>
-                <small title={route.provider}>{providerLabel(route)}</small>
+                <strong className="rong-truncate" title={route.model}>
+                  {modelLabel(route)}
+                </strong>
+                <small className="rong-truncate" title={route.provider}>
+                  {providerLabel(route)}
+                </small>
               </span>
               <Button
                 size="sm"
-                className="rong-inject-whitelist-remove"
+                className="rong-inject-whitelist-remove rong-danger-button"
                 icon={<IconTrashOutlineRegular size={16} />}
                 disabled={disabled}
                 aria-label={`删除 ${modelLabel(route)}（${providerLabel(route)}）的授权`}

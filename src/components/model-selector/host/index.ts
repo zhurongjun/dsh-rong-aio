@@ -6,6 +6,12 @@ import type {} from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-storage-domain'
 import type {} from '@deepseek-ai/dsh-settings'
 import * as z from 'zod'
+import {
+  HttpError,
+  jsonResponse,
+  parseQueryParams,
+  registerJsonEndpoint,
+} from '../../../host/http.ts'
 import { speedKey, speedRuleFor, type SpeedMode, type SpeedRule } from '../shared/speed.ts'
 import { createSpeedTransport } from './speed-transport.ts'
 import type {} from '../../../shared/session-events.ts'
@@ -19,6 +25,7 @@ const identitySchema = z.object({
 })
 
 const modeSchema = z.enum(['standard', 'fast', 'ultrafast'])
+const speedCommandSchema = identitySchema.extend({ mode: modeSchema })
 
 // 公开 domain 声明格式；schema 和存储版本一起维护，不依赖后端文件路径。
 const spec = {
@@ -69,50 +76,47 @@ export async function apply(ctx: Context): Promise<void> {
   })
   const transport = createSpeedTransport()
   ctx.effect(() => () => transport.dispose())
-  const connection = ctx.connection
-  connection.fetch.register({
+
+  registerJsonEndpoint(ctx, {
     path: '/api/rong-aio.speed',
-    methods: ['GET', 'POST'],
-    requestBody: 'buffered',
-
-    /** 校验完整身份和当前能力；读取返回确认状态，写入落盘后才返回成功。 */
+    errorStatus: 503,
+    formatError: () => ({ message: '无法读取或保存速度设置，请重试' }),
     async fetch(request) {
-      const input: unknown =
-        request.method === 'GET'
-          ? Object.fromEntries(new URL(request.url).searchParams)
-          : await request.json().catch(() => null)
-      const parsed = identitySchema.safeParse(input)
-      if (!parsed.success) return Response.json({ error: '无效的会话或模型标识' }, { status: 400 })
-      const identity = parsed.data
-      try {
-        const model = await ctx.llm.resolveModelInfo(identity.provider, identity.model)
-        const rule = speedRuleFor(identity.model, model?.name)
-        const modes = rule ? modesForRoute(ctx, identity.provider, rule) : []
-        const supported = modes.length > 1
-        const key = speedKey(identity)
-
-        // 写入前同时核验档位语法和实际协议能力，不能让客户端自报支持。
-        if (request.method === 'POST') {
-          const requested = modeSchema.safeParse((input as Record<string, unknown>).mode)
-          if (!requested.success || !modes.includes(requested.data)) {
-            return Response.json({ error: '当前模型不支持此速度档位' }, { status: 400 })
-          }
-          await table.put(key, requested.data)
-        }
-        const saved = table.get(key) ?? 'standard'
-        return Response.json(
-          {
-            mode: modes.includes(saved) ? saved : 'standard',
-            modes,
-            ...(!supported
-              ? { reason: rule ? '当前连接协议暂不支持速度参数' : '此模型不在支持规则内' }
-              : {}),
-          },
-          { headers: { 'cache-control': 'no-store' } },
-        )
-      } catch {
-        return Response.json({ error: '无法读取或保存速度设置，请重试' }, { status: 503 })
+      let identity: z.infer<typeof identitySchema>
+      let requested: SpeedMode | undefined
+      if (request.method === 'GET') {
+        identity = parseQueryParams(request, identitySchema, '无效的会话或模型标识')
+      } else {
+        const raw: unknown = await request.json().catch(() => undefined)
+        const idParsed = identitySchema.safeParse(raw)
+        if (!idParsed.success) throw new HttpError(400, '无效的会话或模型标识')
+        identity = idParsed.data
+        const cmdParsed = speedCommandSchema.safeParse(raw)
+        if (!cmdParsed.success) throw new HttpError(400, '当前模型不支持此速度档位')
+        requested = cmdParsed.data.mode
       }
+
+      const model = await ctx.llm.resolveModelInfo(identity.provider, identity.model)
+      const rule = speedRuleFor(identity.model, model?.name)
+      const modes = rule ? modesForRoute(ctx, identity.provider, rule) : []
+      const supported = modes.length > 1
+      const key = speedKey(identity)
+
+      // 写入前同时核验档位语法和实际协议能力，不能让客户端自报支持。
+      if (requested !== undefined) {
+        if (!modes.includes(requested)) {
+          throw new HttpError(400, '当前模型不支持此速度档位')
+        }
+        await table.put(key, requested)
+      }
+      const saved = table.get(key) ?? 'standard'
+      return jsonResponse({
+        mode: modes.includes(saved) ? saved : 'standard',
+        modes,
+        ...(!supported
+          ? { reason: rule ? '当前连接协议暂不支持速度参数' : '此模型不在支持规则内' }
+          : {}),
+      })
     },
   })
 

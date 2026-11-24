@@ -2,7 +2,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type {} from '@deepseek-ai/dsh-session'
 import * as z from 'zod'
-import { errorMessage } from '../../../shared/error.ts'
+import { jsonResponse, parseJsonBody, registerJsonEndpoint } from '../../../host/http.ts'
 import { createSerialQueue } from '../../../shared/serial-queue.ts'
 import { API } from '../shared/protocol.ts'
 import { listSessions, openDirectory } from './catalog.ts'
@@ -27,32 +27,23 @@ const command = z.discriminatedUnion('action', [
 ])
 
 export function apply(ctx: Context) {
-  const connection = ctx.connection
   const sessions = ctx.sessions
   const queue = createSerialQueue('会话管理组件已停用')
   ctx.effect(() => () => queue.close())
-  connection.fetch.register({
+  registerJsonEndpoint(ctx, {
     path: API,
-    methods: ['GET', 'POST'],
-    requestBody: 'buffered',
+    errorStatus: 500,
     async fetch(request) {
-      try {
-        if (request.method === 'GET') {
-          return Response.json(await listSessions(ctx, sessions, request.signal), {
-            headers: { 'cache-control': 'no-store' },
-          })
-        }
-        const body: unknown = await request.json().catch(() => undefined)
-        const parsed = command.safeParse(body)
-        if (!parsed.success)
-          return Response.json({ error: '操作参数无效或尚未确认删除' }, { status: 400 })
-        if (parsed.data.action === 'open-directory')
-          return Response.json(await openDirectory(ctx, parsed.data.target, request.signal))
-        const { action, targets } = parsed.data
-        return Response.json(await queue.run(() => applyBatch(ctx, sessions, action, targets)))
-      } catch (error) {
-        return Response.json({ error: errorMessage(error) }, { status: 500 })
+      if (request.method === 'GET') {
+        return jsonResponse(await listSessions(ctx, sessions, request.signal))
       }
+      const data = await parseJsonBody(request, command, '操作参数无效或尚未确认删除')
+      if (data.action === 'open-directory') {
+        return jsonResponse(await openDirectory(ctx, data.target, request.signal))
+      }
+      return jsonResponse(
+        await queue.run(() => applyBatch(ctx, sessions, data.action, data.targets)),
+      )
     },
   })
 }

@@ -1,7 +1,7 @@
 /** 滑杆绘制控制器：Layout Ref 挂载期运行 RAF 与粒子 DOM 更新，卸载时取消帧调度。 */
 
-import { advanceMotion } from '../../shared/slider-motion.ts'
-import { energyFor, particlesFor } from '../../shared/particle-motion.ts'
+import { advanceMotion } from '../shared/slider-motion.ts'
+import { energyFor, particlesFor } from '../shared/particle-motion.ts'
 
 /** 动画拥有滑杆位置 CSS 变量和粒子 DOM；逐帧位移不进入 React / Zustand 状态。 */
 export function createSliderMotion() {

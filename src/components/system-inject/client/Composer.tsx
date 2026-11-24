@@ -11,24 +11,17 @@ import {
   IconCheckOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { useComposerToastAnchor } from '../../../client/useComposerToastAnchor.ts'
+import { useComposerToastAnchor } from '../../../client/anchored-popover.ts'
 import { stateLabel, type InjectState } from '../shared/state.ts'
 import { Settings } from './Settings.tsx'
 import type { InjectStore } from './store.ts'
 import { sessionState } from './session-state.ts'
 import { ArmorIcon } from './ArmorIcon.tsx'
-import { Dialog } from './Dialog.tsx'
-import { SnapshotDialog } from './SnapshotDialog.tsx'
+import { SettingsModal, SnapshotDialog } from './Dialogs.tsx'
 
-/** 原生输入框插槽输入与本组件注入的依赖；独立运行时通过 available 排除。 */
 type Props = PropsRuntime<'conversation.input.left'> & {
-  /** 此会话长期持有的权威视图与通知确认状态。 */
   store: InjectStore
-
-  /** 按固定工作区获取管理 store，不允许管理页切换工程。 */
   settingsFor: (workspace?: string) => InjectStore
-
-  /** 当前输入框是否属于可接管的本地会话。 */
   available: boolean
 }
 
@@ -60,13 +53,11 @@ function ActiveComposer({
   const saving = useStore(store, (state) => state.saving)
   const dismissedNotice = useStore(store, (state) => state.dismissedNotice)
 
-  // 本次视图的弹层状态；权威选择、通知和模板数据均留在 store。
   const [open, setOpen] = useState(false)
   const [manage, setManage] = useState(false)
   const [snapshotOpen, setSnapshotOpen] = useState(false)
   const { bindTrigger, toastAnchor } = useComposerToastAnchor()
 
-  // 统一展示链路：不再把模型、快照文件存在性或最近错误作为开启状态来源。
   const view = data?.session
   const readOnly = !!view && !view.resolved.editable
   const menuOpen = open && !readOnly
@@ -75,13 +66,11 @@ function ActiveComposer({
   const statusLabel = view ? stateLabel(view.resolved) : '未破甲'
   const choice = view?.resolved.state
 
-  /** 先关闭选择菜单，再提交候选。拒绝只产生通知，原名称、图标和光晕继续来自权威视图。 */
   const choose = (state: InjectState) => {
     setOpen(false)
     void store.execute({ type: 'select', sessionId, state })
   }
 
-  // 交互资格来自宿主 busy/editable 与传输状态，不能由菜单预览提前修改。
   const disabled = saving || !verified || !!view?.busy || !view
   return (
     <>
@@ -102,7 +91,7 @@ function ActiveComposer({
           <button
             ref={bindTrigger}
             type="button"
-            className="rong-inject-trigger"
+            className="rong-composer-trigger rong-inject-trigger"
             data-active={active ? 'true' : 'false'}
             aria-label={`破甲模式：${statusLabel}`}
             aria-haspopup={readOnly ? 'dialog' : 'menu'}
@@ -117,11 +106,14 @@ function ActiveComposer({
             <span className="rong-inject-trigger-icon" aria-hidden="true">
               <ArmorIcon active={active} />
             </span>
-            <span className="rong-inject-trigger-label" title={statusLabel}>
+            <span className="rong-truncate" title={statusLabel}>
               {statusLabel}
             </span>
             {!readOnly && (
-              <span className="rong-inject-trigger-chevron" aria-hidden="true">
+              <span
+                className="rong-inject-trigger-chevron rong-composer-chevron"
+                aria-hidden="true"
+              >
                 <IconChevronDownOutlineRegular size={14} />
               </span>
             )}
@@ -159,12 +151,12 @@ function ActiveComposer({
               >
                 <span className="rong-inject-menu-label">
                   <span
-                    className="rong-inject-menu-name"
+                    className="rong-inject-menu-name rong-truncate"
                     title={`${item.display_name} · ${item.name} · ${item.file}`}
                   >
                     {item.display_name}
                   </span>
-                  <small className="rong-inject-menu-detail">
+                  <small className="rong-inject-menu-detail rong-truncate">
                     {item.scope === 'user' ? '用户' : '工程'}
                     {item.conflict ? ' · 名称冲突' : ''}
                   </small>
@@ -193,17 +185,16 @@ function ActiveComposer({
         />
       )}
       {manage && (
-        <Dialog
+        <SettingsModal
           open
           onClose={() => {
             setManage(false)
             void store.refresh()
           }}
           title="破甲模式"
-          size="content"
         >
           <Settings key={view?.workspace ?? ''} store={settingsFor(view?.workspace)} />
-        </Dialog>
+        </SettingsModal>
       )}
       {notice && (
         <Toast

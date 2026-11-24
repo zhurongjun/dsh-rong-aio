@@ -1,8 +1,9 @@
 /** 用户白名单配置：严格校验格式，缓存解析结果但每次重新读取内容指纹。 */
 
 import * as z from 'zod'
+import { errorMessage } from '../../../shared/error.ts'
 import { routeSchema } from './schemas.ts'
-import { message, readVersion, writeVersion } from './files.ts'
+import { readVersion, writeVersion } from './files.ts'
 import type { Paths } from './paths.ts'
 
 // 配置只维护用户白名单；不接受未定义字段，避免拼写错误被静默忽略。
@@ -62,7 +63,7 @@ export class ConfigStore {
       this.parsed = { revision, value }
       return structuredClone(this.parsed)
     } catch (error) {
-      return { revision, value: empty, error: `${path}：${message(error)}` }
+      return { revision, value: empty, error: `${path}：${errorMessage(error, String(error))}` }
     }
   }
 

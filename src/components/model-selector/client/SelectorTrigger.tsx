@@ -8,12 +8,10 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelReasoningEffort } from '@deepseek-ai/dsh-api-session-controller/types'
 import { FastIcon } from './SelectorIcons.tsx'
-import { SPEED_LABELS } from '../../shared/speed.ts'
-import type { SelectorStore } from './selector-store.ts'
+import { SPEED_LABELS } from '../shared/speed.ts'
+import { useEffortPreview, type SelectorStore } from './selector-store.ts'
 import type { SpeedStore } from './speed-store.ts'
-import { useEffortPreview } from './useEffortPreview.ts'
 
-/** 本视图所需的输入契约；数据保存与宿主副作用由外层负责。 */
 interface Props {
   store: SelectorStore
   routeKey: string
@@ -47,7 +45,7 @@ export const SelectorTrigger = forwardRef<HTMLButtonElement, Props>(function Sel
     <button
       ref={ref}
       type="button"
-      className="rong-model-trigger"
+      className="rong-composer-trigger rong-model-trigger"
       disabled={locked}
       aria-label={`选择模型与推理强度：${modelName}${effort ? `，${effort.name}` : ''}${fastActive ? `，${SPEED_LABELS[mode]}模式` : ''}`}
       aria-haspopup="dialog"
@@ -62,12 +60,9 @@ export const SelectorTrigger = forwardRef<HTMLButtonElement, Props>(function Sel
       ) : (
         <IconDataOutlineRegular size={16} className="rong-trigger-icon" />
       )}
-      <span className="rong-trigger-name">{modelName}</span>
-      <span className="rong-trigger-effort">{effort?.name}</span>
-      <IconChevronDownOutlineRegular
-        size={12}
-        className={open ? 'rong-chevron rong-open' : 'rong-chevron'}
-      />
+      <span className="rong-trigger-name rong-truncate">{modelName}</span>
+      <span className="rong-trigger-effort rong-truncate">{effort?.name}</span>
+      <IconChevronDownOutlineRegular size={12} className="rong-composer-chevron" />
     </button>
   )
 })

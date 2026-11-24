@@ -9,7 +9,7 @@ import {
 import type { SessionRow } from '../shared/protocol.ts'
 import type { SessionActionHandler } from './SessionActions.tsx'
 import { SessionItem, type MenuTarget } from './SessionItem.tsx'
-import type { SessionSelection } from './selection.ts'
+import type { SessionSelection } from './operations-store.ts'
 
 interface GroupSelectionProps {
   members: SessionRow[]
@@ -75,7 +75,7 @@ export function WorkspaceGroup({
         >
           <Folder size={16} className="rong-session-folder" />
           <IconTriangleRightFillRegular size={16} className="rong-session-arrow" />
-          <span>{workspace.title}</span>
+          <span className="rong-truncate">{workspace.title}</span>
         </button>
         <WorkspaceCheckbox members={members} selection={selection} busy={busy} />
       </div>

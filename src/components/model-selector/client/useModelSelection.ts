@@ -7,20 +7,18 @@ import type {
   ModelCatalogModel,
   ModelSelection,
 } from '@deepseek-ai/dsh-api-session-controller/types'
-import { errorMessage } from '../../../../shared/error.ts'
+import { errorMessage } from '../../../shared/error.ts'
 import {
   currentEffortOf,
   currentModelOf,
   effortsOf,
   selectionFor,
-} from '../../shared/model-selection.ts'
+} from '../shared/model-selection.ts'
 import type { SelectionOperation } from './selector-store.ts'
 import type { SelectorSession } from './selector-session.ts'
 
 interface Props extends Omit<ModelSelectInjected, 'resolveText'> {
-  /** 会话级控制器；持有 store、目录订阅与卸载标记。 */
   session: SelectorSession
-  /** 宿主会话锁，具有最高交互优先级。 */
   locked: boolean
 }
 
@@ -40,14 +38,12 @@ export function useModelSelection({ directory, select, load, available, locked, 
   const selected = currentEffortOf(model, current)
   const routeKey = JSON.stringify([current?.provider, current?.model, efforts.map((e) => e.id)])
 
-  /** 保存期间重开面板复用当前目录，避免并发 load 改写请求阶段与拒绝错误的归属。 */
   const refresh = () => {
     if (store.getState().operation || directory.getSnapshot().pending !== null) return
     actions.startLoad()
     load()
   }
 
-  /** 提交前同时核对宿主 pending 与本实例操作，拒绝或异常只通知一次且保留 current。 */
   const submit = async (selection: ModelSelection, kind: SelectionOperation['kind']) => {
     if (!available || locked || directory.getSnapshot().pending !== null) return false
     const id = actions.startSelection({
@@ -68,7 +64,6 @@ export function useModelSelection({ directory, select, load, available, locked, 
     }
   }
 
-  /** 相同档位只结束手势；合法新档位与 Reset 共享提交及预览流程。 */
   const chooseEffort = async (
     value: string,
     kind: 'effort' | 'reset' = 'effort',
@@ -85,7 +80,6 @@ export function useModelSelection({ directory, select, load, available, locked, 
     }
   }
 
-  /** 模型成功后回到强度面板；失败不提前显示候选模型或其 Fast 状态。 */
   const chooseModel = async (provider: string, next: ModelCatalogModel) => {
     const result = await submit(selectionFor(provider, next), 'model')
     if (result && session.isMounted()) actions.setPane('effort')

@@ -6,7 +6,7 @@ import {
   Menu,
   MenuItemButton,
 } from '@deepseek-ai/dsh-client-ui-primitives'
-import { ConfirmDialog } from './feedback.tsx'
+import { ConfirmModal } from '../../../client/ConfirmModal.tsx'
 import { selectedSessionOf, type SideClient } from './store.ts'
 
 export const SideComposerContext = createContext<SideClient | null>(null)
@@ -82,18 +82,20 @@ export function PermissionControl({ store }: { store: SideClient }) {
           跟随主会话
         </MenuItemButton>
       </Menu>
-      {confirm && (
-        <ConfirmDialog
-          action="跟随主会话"
-          close={() => setConfirm(false)}
-          confirm={() => void store.setPermission('follow')}
-          title="跟随主会话权限？"
-          description={
-            (parentPermission ? '主会话当前权限为 ' + parentPermission + '。' : '') +
-            '这条侧聊将跟随主会话的权限，并单独处理审批。'
-          }
-        />
-      )}
+      <ConfirmModal
+        open={confirm}
+        title="跟随主会话权限？"
+        description={
+          (parentPermission ? '主会话当前权限为 ' + parentPermission + '。' : '') +
+          '这条侧聊将跟随主会话的权限，并单独处理审批。'
+        }
+        confirmLabel="跟随主会话"
+        onCancel={() => setConfirm(false)}
+        onConfirm={() => {
+          setConfirm(false)
+          void store.setPermission('follow')
+        }}
+      />
     </>
   )
 }

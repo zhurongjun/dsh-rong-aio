@@ -13,8 +13,7 @@ import {
 import type { SessionRow } from '../shared/protocol.ts'
 import { SessionGroups } from './SessionGroups.tsx'
 import { SessionActions, DeleteConfirmation, type SessionActionHandler } from './SessionActions.tsx'
-import type { SessionSelection } from './selection.ts'
-import { createSessionOperationsStore } from './operations-store.ts'
+import { createSessionOperationsStore, type SessionSelection } from './operations-store.ts'
 
 const tabs = [
   {

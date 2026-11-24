@@ -4,9 +4,8 @@ import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { createStore } from 'zustand/vanilla'
 import { withLifecycle } from '../../../client/store.ts'
 import { errorMessage } from '../../../shared/error.ts'
-import type { SideRow } from '../shared/protocol.ts'
-import { isSideSession } from '../shared/side-session.ts'
-import { loadHistory } from './api.ts'
+import { isSideSession, type SideRow } from '../shared/protocol.ts'
+import { loadHistory } from './store.ts'
 import type { SideTabs } from './tabs.ts'
 
 function sameRows(left: SideRow[] | undefined, right: SideRow[]) {

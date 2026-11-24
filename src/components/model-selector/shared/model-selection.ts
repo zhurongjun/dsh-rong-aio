@@ -5,6 +5,7 @@ import type {
   ModelProviderGroup,
   ModelSelection,
 } from '@deepseek-ai/dsh-api-session-controller/types'
+import { matchesQueryWords } from '../../../shared/model-search.ts'
 
 /** 目录顺序就是适配器定义的强度顺序，不创建虚拟 Default 档。 */
 export function effortsOf(model: ModelCatalogModel | undefined) {
@@ -59,14 +60,12 @@ export function currentEffortOf(
 
 /** 支持大小写无关的多词搜索，provider/model ID 只作匹配，不解析其结构。 */
 export function filterModels(groups: readonly ModelProviderGroup[], query: string) {
-  const words = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean)
   return groups
     .map((group) => ({
       ...group,
-      models: group.models.filter((model) => {
-        const text = `${group.name} ${group.id} ${model.name} ${model.id}`.toLocaleLowerCase()
-        return words.every((word) => text.includes(word))
-      }),
+      models: group.models.filter((model) =>
+        matchesQueryWords(`${group.name} ${group.id} ${model.name} ${model.id}`, query),
+      ),
     }))
     .filter((group) => group.models.length > 0)
 }

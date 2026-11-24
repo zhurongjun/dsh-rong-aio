@@ -1,5 +1,7 @@
 /** 破甲业务协调器：统一解析、选词/选模校验、文件编辑及首次请求捕获和提交。 */
 
+import { fingerprint } from '../../../host/http.ts'
+import { errorMessage } from '../../../shared/error.ts'
 import { createSerialQueue } from '../../../shared/serial-queue.ts'
 import { exportMarkdown } from './markdown.ts'
 import { resolveState, prefixMatches, type ResolvedState } from '../shared/state.ts'
@@ -8,8 +10,8 @@ import { ConfigStore } from './config-store.ts'
 import { PromptCatalog } from './prompt-catalog.ts'
 import type { Paths } from './paths.ts'
 import type { SessionEntry, SessionStore } from './session-store.ts'
-import { fingerprint, message, removeVersion, withFileLocks, writeVersion } from './files.ts'
-import { selectionError } from './selection-error.ts'
+import { removeVersion, withFileLocks, writeVersion } from './files.ts'
+import { selectionError } from './guards.ts'
 
 /**
  * 破甲模式的宿主事务边界。
@@ -67,7 +69,7 @@ export class Controller {
   /** 记录实际请求失败并返回可抛出的 Error。会话不存在时只返回错误，不创建状态。 */
   fail(id: string, error: unknown): Error {
     const entry = this.sessions.entries.get(id)
-    const text = message(error)
+    const text = errorMessage(error, String(error))
     if (entry) entry.error = { id: ++this.failureId, message: text }
     return new Error(text, { cause: error })
   }
@@ -155,7 +157,7 @@ export class Controller {
   /** 构造未提交选择的结构化拒绝。notify=false 用于选模调用者自行呈现，避免重复 Toast。 */
   private reject(id: string, reason: unknown, notify = true) {
     const noticeId = ++this.failureId
-    const text = message(reason)
+    const text = errorMessage(reason, String(reason))
     if (notify) this.sessions.get(id).error = { id: noticeId, message: text }
     return selectionError(id, noticeId, text)
   }

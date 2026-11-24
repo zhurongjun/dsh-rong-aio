@@ -1,6 +1,6 @@
 import type { Session } from '@deepseek-ai/dsh-session'
 import type { Context } from '@deepseek-ai/cordis'
-import { isSideSession } from '../shared/side-session.ts'
+import { isSideSession } from '../shared/protocol.ts'
 
 declare module '@deepseek-ai/dsh-llm' {
   interface MessageSourceMap {

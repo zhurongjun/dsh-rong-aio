@@ -1,15 +1,18 @@
-/** Fast 请求状态：按完整会话/模型路由隔离读取与保存，拒绝迟到响应和重复提交。 */
+/** Fast 请求状态与视图订阅：按完整会话/模型路由隔离读取与保存，拒绝迟到响应和重复提交。 */
 
+import { useStore } from 'zustand'
+import { useShallow } from 'zustand/react/shallow'
 import { createStore } from 'zustand/vanilla'
-import { requestJson } from '../../../../client/http.ts'
-import { errorMessage } from '../../../../shared/error.ts'
+import { requestJson } from '../../../client/http.ts'
+import { createAbortScope, isAbortError } from '../../../client/store.ts'
+import { errorMessage } from '../../../shared/error.ts'
 import {
   SPEED_LABELS,
   speedKey,
   type SpeedIdentity,
   type SpeedMode,
   type SpeedState,
-} from '../../shared/speed.ts'
+} from '../shared/speed.ts'
 
 /** 未取得本路由有效数据时的保守显示值：标准档且无可交互能力。 */
 export const EMPTY_SPEED: SpeedState = { mode: 'standard', modes: [] }
@@ -44,7 +47,7 @@ export interface State {
   saving: boolean
 }
 
-/** 请求与组件生命周期分离；AbortController 留在闭包内。 */
+/** 请求与组件生命周期分离；AbortController 留在请求作用域闭包内。 */
 export function createSpeedStore(onError: (message: string) => void) {
   const store = createStore<State>(() => ({
     key: '',
@@ -53,25 +56,21 @@ export function createSpeedStore(onError: (message: string) => void) {
     loading: false,
     saving: false,
   }))
+  const scope = createAbortScope()
   let identity: SpeedIdentity | undefined
-  let reading: AbortController | undefined
-  let writing: AbortController | undefined
+  let writing = false
 
   const report = (error: unknown) => onError(errorMessage(error, '无法保存速度设置'))
 
   const dispose = () => {
-    reading?.abort()
-    writing?.abort()
-    reading = undefined
-    writing = undefined
+    scope.abortAll()
+    writing = false
     identity = undefined
   }
 
   return Object.assign(store, {
     sync(next: SpeedIdentity | undefined, open: boolean) {
       const key = next ? speedKey(next) : ''
-      reading?.abort()
-      reading = undefined
       if (key !== store.getState().key) {
         dispose()
         store.setState({
@@ -84,27 +83,28 @@ export function createSpeedStore(onError: (message: string) => void) {
       identity = next
 
       const shouldRead = !!next && !writing && (open || !store.getState().received)
-      store.setState({ loading: shouldRead, saving: !!writing })
-      if (!next || !shouldRead) return () => {}
-      const controller = new AbortController()
-      reading = controller
-      void requestSpeed(next, controller.signal)
+      store.setState({ loading: shouldRead, saving: writing })
+      if (!next || !shouldRead) {
+        scope.latest().abort()
+        return () => {}
+      }
+      const req = scope.latest()
+      void requestSpeed(next, req.signal)
         .then((value) => {
-          if (controller.signal.aborted) return
+          if (!req.isCurrent()) return
           store.setState({
             value: { ...value, modes: [...value.modes] },
             received: true,
           })
         })
         .catch((error: unknown) => {
-          if (!controller.signal.aborted) report(error)
+          if (req.isCurrent() && !isAbortError(error)) report(error)
         })
         .finally(() => {
-          if (reading !== controller) return
-          reading = undefined
-          if (!controller.signal.aborted) store.setState({ loading: false })
+          if (req.isCurrent()) store.setState({ loading: false })
+          req.finish()
         })
-      return () => controller.abort()
+      return req.abort
     },
 
     async select(key: string, mode: SpeedMode) {
@@ -120,21 +120,21 @@ export function createSpeedStore(onError: (message: string) => void) {
       ) {
         return
       }
-      const controller = new AbortController()
-      writing = controller
+      const activeIdentity = identity
+      writing = true
       store.setState({ saving: true })
       try {
-        const value = await requestSpeed(identity, controller.signal, mode)
-        if (!controller.signal.aborted) {
-          store.setState({ value: { ...value, modes: [...value.modes] } })
-        }
+        await scope.run(async (signal) => {
+          const value = await requestSpeed(activeIdentity, signal, mode)
+          if (!signal.aborted) {
+            store.setState({ value: { ...value, modes: [...value.modes] } })
+          }
+        })
       } catch (error) {
-        if (!controller.signal.aborted) report(error)
+        if (!isAbortError(error)) report(error)
       } finally {
-        if (writing === controller) {
-          writing = undefined
-          if (!controller.signal.aborted) store.setState({ saving: false })
-        }
+        writing = false
+        store.setState({ saving: false })
       }
     },
     dispose,
@@ -142,3 +142,16 @@ export function createSpeedStore(onError: (message: string) => void) {
 }
 
 export type SpeedStore = ReturnType<typeof createSpeedStore>
+
+/** 在订阅时按路由屏蔽旧状态，不等待 effect 清理，避免模型切换闪现旧图标。 */
+export function useSpeedSelection(store: SpeedStore, key: string) {
+  const view = useStore(
+    store,
+    useShallow((state) => ({
+      state: state.key === key ? state.value : EMPTY_SPEED,
+      loading: !!key && (state.key !== key || !state.received || state.loading),
+      saving: state.key === key && state.saving,
+    })),
+  )
+  return { ...view, select: (mode: SpeedMode) => store.select(key, mode) }
+}

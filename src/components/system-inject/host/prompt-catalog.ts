@@ -4,7 +4,9 @@ import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
 import { importMarkdown } from './markdown.ts'
 import type { CatalogPrompt, Prompt, Scope } from '../shared/state.ts'
-import { fingerprint, message, missing, readVersion } from './files.ts'
+import { fingerprint } from '../../../host/http.ts'
+import { errorMessage } from '../../../shared/error.ts'
+import { missing, readVersion } from './files.ts'
 import type { Paths } from './paths.ts'
 
 /**
@@ -52,7 +54,7 @@ export class PromptCatalog {
               try {
                 parsed = { revision: version.revision, prompt: importMarkdown(version.text) }
               } catch (error) {
-                parsed = { revision: version.revision, error: message(error) }
+                parsed = { revision: version.revision, error: errorMessage(error, String(error)) }
               }
 
               // 限制编辑过的历史路径占用，清空后仍可从文件重建。
@@ -68,11 +70,11 @@ export class PromptCatalog {
               conflict: false,
             })
           } catch (error) {
-            errors.push(`${file}：${message(error)}`)
+            errors.push(`${file}：${errorMessage(error, String(error))}`)
           }
         }
       } catch (error) {
-        if (!missing(error)) errors.push(`${directory}：${message(error)}`)
+        if (!missing(error)) errors.push(`${directory}：${errorMessage(error, String(error))}`)
       }
     }
 

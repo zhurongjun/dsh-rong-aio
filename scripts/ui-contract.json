@@ -135,14 +135,49 @@
       "source": "packages/client/ui-theme/src/styles/focus.css#L3",
       "role": "焦点"
     },
+    "--dsw-font-xs-13": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L234",
+      "role": "排版"
+    },
+    "--dsw-font-xs-strong-13": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L241",
+      "role": "排版"
+    },
     "--dsw-font-xs-13-font-size": {
       "kind": "theme",
       "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L238",
       "role": "排版"
     },
+    "--dsw-font-s-14": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L220",
+      "role": "排版"
+    },
+    "--dsw-font-s-strong-14": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L227",
+      "role": "排版"
+    },
+    "--dsw-font-base-strong-16": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L213",
+      "role": "排版"
+    },
     "--dsw-font-xxs-12": {
       "kind": "theme",
       "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L248",
+      "role": "排版"
+    },
+    "--dsw-font-xxs-strong-12": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L255",
+      "role": "排版"
+    },
+    "--dsw-font-xxxs-11": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/gradient-shadow-text.css#L262",
       "role": "排版"
     },
     "--dsw-font-xxs-12-font-size": {
@@ -159,6 +194,16 @@
       "kind": "theme",
       "source": "packages/client/ui-theme/src/styles/base.css#L15",
       "role": "状态切换淡入淡出"
+    },
+    "--ds-transition-duration-fast": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/base.css#L16",
+      "role": "交互控件快速过渡"
+    },
+    "--dsw-alias-interactive-bg-hover-danger": {
+      "kind": "theme",
+      "source": "packages/client/ui-theme/src/styles/design-platform.css#L240",
+      "role": "危险操作按钮悬停与确认底色"
     },
     "--ds-ease-in-out": {
       "kind": "theme",
@@ -240,21 +285,21 @@
       "reason": "侧聊草稿使用宿主聊天输入卡片的描边与阴影"
     },
     {
-      "file": "src/components/model-selector/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/styles.css",
       "selector": ".rong-model-popover",
       "property": "--dsw-elevation-stroke-color",
       "value": "var(--dsw-alias-border-l1)",
       "reason": "官方 elevation 留出的描边颜色入口，仅作用于本弹层"
     },
     {
-      "file": "src/components/model-selector/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/styles.css",
       "selector": ".rong-model-popover",
       "property": "--dsh-scrollbar-thumb",
       "value": "var(--dsw-alias-scrollbar-bg-l2)",
       "reason": "共享滚动条允许在浮层重绑到 L2 语义"
     },
     {
-      "file": "src/components/model-selector/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/styles.css",
       "selector": ".rong-model-popover",
       "property": "--dsh-scrollbar-thumb-hover",
       "value": "var(--dsw-alias-scrollbar-hover-l2)",
@@ -263,28 +308,28 @@
   ],
   "decorations": [
     {
-      "file": "src/components/model-selector/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/styles.css",
       "selector": ".rong-effort-thumb",
       "property": "background",
       "value": "#fff",
       "reason": "滑块白色图形，两种主题均固定白色，保持既定视觉"
     },
     {
-      "file": "src/components/model-selector/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/styles.css",
       "selector": ".rong-effort-thumb",
       "property": "box-shadow",
       "value": "0 1px 4px #00000024, inset 0 0 0 1px #00000005",
       "reason": "滑块微阴影是局部图形，不套用菜单 elevation"
     },
     {
-      "file": "src/components/model-selector/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/styles.css",
       "selector": ".rong-effort-star>i",
       "property": "background",
       "value": "#fff",
       "reason": "向左流动的白色粒子，颜色属于特色装饰"
     },
     {
-      "file": "src/components/model-selector/client/model-selector/styles.css",
+      "file": "src/components/model-selector/client/styles.css",
       "selector": ".rong-effort-star>i",
       "property": "box-shadow",
       "value": "0 0 4px #ffffffd9",

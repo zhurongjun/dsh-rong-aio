@@ -2,31 +2,19 @@
 
 import { createStore } from 'zustand/vanilla'
 import { requestConditionalJson, requestJson } from '../../../client/http.ts'
-import { withLifecycle } from '../../../client/store.ts'
+import { createAbortScope, isAbortError, withLifecycle } from '../../../client/store.ts'
 import { errorMessage } from '../../../shared/error.ts'
-import { API, type Command, type StateView } from '../shared/protocol.ts'
-import { isInjectSelectionError } from '../shared/selection-error.ts'
+import { API, isInjectSelectionError, type Command, type StateView } from '../shared/protocol.ts'
 import type { Prompt } from '../shared/state.ts'
 import { sessionState } from './session-state.ts'
 
 /** 传输与展示状态，不保存第二份模板库、模型授权或会话解析结果。 */
 interface State {
-  /** 最近一次接受的宿主视图；明确拒绝不会清除已确认选择。 */
   data?: StateView
-
-  /** 通信、读取或未知保存失败；与宿主结构化拒绝通知分开。 */
   error?: string
-
-  /** 读取/保存未知失败的单调递增序号；避免同文案重试被旧 dismissedNotice 吞掉。 */
   errorId: number
-
-  /** 写命令进行中，阻止并发写入和轮询覆盖。 */
   saving: boolean
-
-  /** 视图是否由有效响应确认；读取失败时不宣称当前状态可信。 */
   verified: boolean
-
-  /** 本地已关闭的通知键，跨组件重新挂载保留以免重复提示。 */
   dismissedNotice?: string
 }
 
@@ -34,7 +22,7 @@ interface State {
  * 创建固定范围的破甲客户端 store。
  *
  * sessionId 存在时绑定会话；否则 workspace 为空表示全局设置，非空表示当前工程设置。
- * 范围在创建后不变。AbortController、ETag 和请求版本留在闭包内。
+ * 范围在创建后不变。ETag 和请求生命周期留在闭包作用域内。
  */
 export function createInjectStore(
   sessionId?: string,
@@ -53,10 +41,8 @@ export function createInjectStore(
         : '')
 
   let disposed = false
-  let reading: AbortController | undefined
-  let version = 0
+  const scope = createAbortScope()
   let lastEtag: string | undefined
-  const requests = new Set<AbortController>()
   let retainCount = 0
   let timer: ReturnType<typeof setInterval> | undefined
   let pollMs = 0
@@ -108,20 +94,10 @@ export function createInjectStore(
     return data
   }
 
-  async function postCommand(command: Command): Promise<StateView> {
-    const controller = new AbortController()
-    requests.add(controller)
-    try {
-      const data = await requestJson<StateView>(endpoint, {
-        method: 'POST',
-        body: command,
-        signal: controller.signal,
-        fallbackError: '无法读取破甲模式状态',
-      })
-      return validateView(data)
-    } finally {
-      requests.delete(controller)
-    }
+  function postRpc<T>(body: object, fallbackError: string): Promise<T> {
+    return scope.run((signal) =>
+      requestJson<T>(endpoint, { method: 'POST', body, signal, fallbackError }),
+    )
   }
 
   /** 已冻结且无待确认错误/通知的会话放缓轮询频率至 2500ms（配合 ETag 304 零渲染），既降开销又不漏发后拒绝通知。 */
@@ -157,7 +133,7 @@ export function createInjectStore(
     if (!sessionId || noticeId === undefined || disposed || acknowledging) return
     acknowledging = true
     try {
-      await postCommand({ type: 'acknowledge-error', sessionId, noticeId })
+      await postRpc({ type: 'acknowledge-error', sessionId, noticeId }, '无法读取破甲模式状态')
       if (pendingAcknowledgement === noticeId) pendingAcknowledgement = undefined
       if (!disposed) {
         const current = store.getState().data
@@ -180,20 +156,16 @@ export function createInjectStore(
 
   async function refresh(invalidate = false) {
     if (disposed || store.getState().saving) return
-    const token = ++version
     if (invalidate) store.setState({ verified: false })
-    const controller = new AbortController()
-    requests.add(controller)
-    reading?.abort()
-    reading = controller
+    const req = scope.latest()
     try {
       const etag = store.getState().data ? lastEtag : undefined
       const result = await requestConditionalJson<StateView>(endpoint, {
         etag,
-        signal: controller.signal,
+        signal: req.signal,
         fallbackError: '无法读取破甲模式状态',
       })
-      if (disposed || token !== version) return
+      if (disposed || !req.isCurrent()) return
       if (!result.modified) {
         const s = store.getState()
         if (!s.verified || s.error !== undefined) {
@@ -205,16 +177,14 @@ export function createInjectStore(
       }
       void acknowledgeNotice()
     } catch (error) {
-      if (disposed || token !== version || (error instanceof Error && error.name === 'AbortError'))
-        return
+      if (disposed || !req.isCurrent() || isAbortError(error)) return
       store.setState((state) => ({
         error: errorMessage(error, '读取失败'),
         errorId: state.errorId + 1,
         verified: false,
       }))
     } finally {
-      requests.delete(controller)
-      if (reading === controller) reading = undefined
+      req.finish()
     }
   }
 
@@ -246,7 +216,7 @@ export function createInjectStore(
         timer = undefined
         pollMs = 0
         if (typeof window !== 'undefined') detach()
-        reading?.abort()
+        scope.latest().abort()
         emitBlock(undefined)
         onRelease?.()
       }
@@ -280,11 +250,10 @@ export function createInjectStore(
 
     async execute(command: Command): Promise<boolean> {
       if (disposed || store.getState().saving) return false
-      version++
-      reading?.abort()
+      scope.latest().abort()
       store.setState({ saving: true, error: undefined })
       try {
-        const result = await postCommand(command)
+        const result = validateView(await postRpc<StateView>(command, '无法读取破甲模式状态'))
         accept(result)
         return !disposed
       } catch (error) {
@@ -314,35 +283,19 @@ export function createInjectStore(
     },
 
     async parseMarkdown(markdown: string): Promise<Prompt> {
-      const controller = new AbortController()
-      requests.add(controller)
-      try {
-        const result = await requestJson<{ prompt: Prompt }>(endpoint, {
-          method: 'POST',
-          body: { type: 'parse-markdown', markdown },
-          signal: controller.signal,
-          fallbackError: '导入失败',
-        })
-        return result.prompt
-      } finally {
-        requests.delete(controller)
-      }
+      const result = await postRpc<{ prompt: Prompt }>(
+        { type: 'parse-markdown', markdown },
+        '导入失败',
+      )
+      return result.prompt
     },
 
     async formatMarkdown(template: Prompt): Promise<string> {
-      const controller = new AbortController()
-      requests.add(controller)
-      try {
-        const result = await requestJson<{ markdown: string }>(endpoint, {
-          method: 'POST',
-          body: { type: 'format-markdown', template },
-          signal: controller.signal,
-          fallbackError: '导出失败',
-        })
-        return result.markdown
-      } finally {
-        requests.delete(controller)
-      }
+      const result = await postRpc<{ markdown: string }>(
+        { type: 'format-markdown', template },
+        '导出失败',
+      )
+      return result.markdown
     },
 
     retain,
@@ -354,7 +307,7 @@ export function createInjectStore(
       clearInterval(timer)
       timer = undefined
       pollMs = 0
-      for (const controller of requests) controller.abort()
+      scope.abortAll()
     },
   })
 

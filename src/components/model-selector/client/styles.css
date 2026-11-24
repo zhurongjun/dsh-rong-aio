@@ -2,32 +2,14 @@
 
 /* 输入框入口：紧凑排版与宿主响应式折叠变量。 */
 .rong-model-trigger {
-  display: flex;
-  align-items: center;
   gap: 5px;
-  min-width: 0;
   max-width: min(360px, 45cqw);
-  height: 28px;
-  padding: 0 4px 0 8px;
-  border: 0;
-  border-radius: var(--dsw-radius-sm);
-  background: transparent;
-  color: var(--dsw-alias-label-secondary);
-  font: inherit;
-  font-size: var(--dsw-font-xs-13-font-size);
-  cursor: pointer;
-}
-
-.rong-model-trigger:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
+  font: var(--dsw-font-xs-13);
 }
 
 .rong-trigger-name,
 .rong-trigger-effort {
   display: var(--dsh-composer-model-text-display, block);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .rong-trigger-effort {
@@ -47,35 +29,13 @@
   color: var(--dsw-alias-label-primary);
 }
 
-.rong-chevron {
-  flex: none;
-  transition: transform 150ms ease;
-}
-
-.rong-chevron.rong-open {
-  transform: rotate(180deg);
-}
-
-/* 主弹层：几何、定位与合成层；材质透明度独立于根节点缩放。 */
+/* 主弹层：高度过渡与材质淡入；基础几何和列表由共享 base.css 提供。 */
 .rong-model-popover {
-  position: fixed;
-  z-index: 1100;
-  box-sizing: border-box;
-  width: min(256px, calc(100vw - 24px));
   height: 98px;
-  max-height: calc(100dvh - 24px);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  color: var(--dsw-alias-label-primary);
-  box-shadow: var(--dsw-elevation-prominent);
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
-  font-family: inherit;
-  font-size: var(--dsw-font-xs-13-font-size);
   transform-origin: bottom right;
-  /* 挂载期间保持同一合成层；根节点不淡入，避免结束时切换毛玻璃的背景采样。 */
   transform: translate3d(0, 0, 0) scale(1);
   transition:
     height 180ms cubic-bezier(0.19, 1, 0.22, 1),
@@ -89,7 +49,6 @@
   flex: 1;
 }
 
-/* 0.2.2-rc.3 MenuSurface 的首个子层是官方材质；与内容分别淡入，不修改材质本身。 */
 .rong-model-popover > [aria-hidden='true']:first-child,
 .rong-model-content {
   opacity: 1;
@@ -132,17 +91,7 @@
   }
 }
 
-.rong-model-popover button,
-.rong-model-popover input {
-  font: inherit;
-}
-
-.rong-model-popover button {
-  -webkit-tap-highlight-color: transparent;
-}
-
-.rong-model-popover button:disabled,
-.rong-model-trigger:disabled {
+.rong-model-popover button:disabled {
   cursor: default;
   color: var(--dsw-alias-label-dimmed);
 }
@@ -153,8 +102,7 @@
 }
 
 .rong-model-popover button:focus-visible,
-.rong-effort-slider:focus-visible,
-.rong-model-trigger:focus-visible {
+.rong-effort-slider:focus-visible {
   outline: var(--dsw-focus-ring-width) solid
     var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
   outline-offset: 2px;
@@ -163,6 +111,10 @@
 /* 强度页头：Team 紧邻 Fast，标题保留剩余宽度，滑杆几何不变。 */
 .rong-effort-pane {
   padding: 10px 13px 14px;
+  animation: rong-pane-in 150ms ease-out;
+}
+
+.rong-model-popover .rong-picker-pane {
   animation: rong-pane-in 150ms ease-out;
 }
 
@@ -190,7 +142,7 @@
   background: transparent;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
-  transition: background 100ms ease;
+  transition: background var(--ds-transition-duration-fast) ease;
 }
 
 .rong-icon-button:hover:not(:disabled) {
@@ -202,7 +154,7 @@
   height: 26px;
   padding: 5px;
   margin: -3px -5px;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-sm);
   color: var(--dsw-alias-label-tertiary);
 }
 
@@ -233,7 +185,7 @@
   font-size: 14px;
   font-weight: 600;
   line-height: 20px;
-  transition: color 100ms ease;
+  transition: color var(--ds-transition-duration-fast) ease;
 }
 
 .rong-model-label {
@@ -252,9 +204,6 @@
 
 .rong-model-name {
   display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--dsw-alias-label-secondary);
   font: var(--dsw-font-xxs-12);
 }
@@ -339,7 +288,7 @@
   border-radius: 12px 0 0 12px;
   overflow: hidden;
   pointer-events: none;
-  transition: opacity 0.2s ease;
+  transition: opacity var(--ds-transition-duration) ease;
 }
 
 /* 每颗星保持固定高度，连续从右向左横穿；内联负相位避免起点聚集。 */
@@ -382,129 +331,6 @@
   }
 }
 
-/* 模型列表：紧凑返回/搜索栏、提供商分组和键盘高亮。 */
-.rong-models-pane {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  flex: 1;
-  padding: 10px 10px 8px;
-  animation: rong-pane-in 150ms ease-out;
-}
-
-.rong-models-toolbar {
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
-  align-items: center;
-  flex-shrink: 0;
-  gap: 6px;
-  margin-bottom: 8px;
-}
-
-.rong-models-back {
-  width: 26px;
-  height: 26px;
-  padding: 4px;
-  border-radius: var(--dsw-radius-sm);
-}
-
-.rong-search {
-  min-width: 0;
-  height: 26px;
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0 7px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-sm);
-  color: var(--dsw-alias-label-tertiary);
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.rong-search > svg {
-  flex: none;
-}
-
-.rong-search:focus-within {
-  border-color: var(--dsw-alias-state-business-primary);
-}
-
-.rong-search input {
-  min-width: 0;
-  width: 100%;
-  padding: 0;
-  border: 0;
-  outline: 0;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  line-height: 18px;
-}
-
-.rong-search input::placeholder {
-  color: var(--dsw-alias-label-tertiary);
-}
-
-.rong-model-list {
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  min-height: 0;
-  flex: 1;
-}
-
-.rong-model-list > div + div {
-  border-top: 1px solid var(--dsw-alias-border-l1);
-  margin-top: 5px;
-  padding-top: 5px;
-}
-
-.rong-provider-name {
-  padding: 5px 8px;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsw-font-xxs-12-font-size);
-}
-
-.rong-model-option {
-  width: 100%;
-  border: 0;
-  background: transparent;
-  color: var(--dsw-alias-label-primary);
-  text-align: left;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 10px;
-  min-height: 33px;
-  border-radius: 7px;
-  cursor: pointer;
-}
-
-.rong-model-option > span {
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-.rong-model-option > svg {
-  color: var(--dsw-alias-state-business-primary);
-  flex: none;
-}
-
-.rong-model-option[data-highlighted],
-.rong-model-option:hover:not(:disabled) {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-
-.rong-empty {
-  margin: 6px 0;
-  padding: 5px 0;
-  text-align: center;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: var(--dsw-font-xxs-12-font-size);
-}
-
 .rong-error {
   display: flex;
   gap: 8px;
@@ -512,7 +338,7 @@
   min-height: 42px;
   max-height: 58px;
   padding: 4px 12px 10px;
-  font-size: var(--dsw-font-xxs-12-font-size);
+  font: var(--dsw-font-xxs-12);
   color: var(--dsw-alias-label-secondary);
 }
 
@@ -531,18 +357,6 @@
   background: transparent;
   color: var(--dsw-alias-state-business-primary);
   cursor: pointer;
-}
-
-.rong-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-  border: 0;
 }
 
 @keyframes rong-pane-in {
@@ -566,13 +380,10 @@
   padding: 4px;
   box-sizing: border-box;
   color: var(--dsw-alias-label-primary);
-  /* 只在此短生命周期菜单上保留合成层，避免结束时再切换层；不改变 backdrop root。 */
   transform: translate3d(0, 0, 0) scale(1);
   transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-/* 0.2.2-rc.3 MenuSurface 的首个 aria-hidden 子层是官方材质层。直接淡入该层，
-   避免祖先 opacity < 1 改变 backdrop root，最后一帧才突然采样到真实背景。 */
 .rong-option-menu > [aria-hidden='true']:first-child,
 .rong-option-items {
   opacity: 1;
@@ -615,9 +426,7 @@
   border-radius: var(--dsw-radius-sm);
   background: transparent;
   color: inherit;
-  font: inherit;
-  font-size: var(--dsw-font-xs-13-font-size);
-  line-height: 20px;
+  font: var(--dsw-font-xs-13);
   text-align: left;
   white-space: nowrap;
   cursor: pointer;

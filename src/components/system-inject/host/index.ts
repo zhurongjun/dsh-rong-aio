@@ -11,18 +11,20 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-workspace'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-session-persistence'
-import { API, type StateView } from '../shared/protocol.ts'
+import {
+  etagJsonResponse,
+  jsonResponse,
+  parseJsonBody,
+  registerJsonEndpoint,
+} from '../../../host/http.ts'
+import { sessionDirectory, sessionRoot } from '../../../host/session-location.ts'
+import { API, isInjectSelectionError, type StateView } from '../shared/protocol.ts'
 import { Controller } from './controller.ts'
-import { fingerprint } from './files.ts'
+import { currentModel, guardRequest, hasRequestHistory, installSelectionGuard } from './guards.ts'
 import { exportMarkdown, importMarkdown } from './markdown.ts'
 import { Paths } from './paths.ts'
 import { rpcSchema } from './schemas.ts'
-import { SessionStore, type SessionMeta, type SessionEntry } from './session-store.ts'
-import { sessionDirectory, sessionRoot } from '../../../host/session-location.ts'
-import { guardRequest } from './request-guard.ts'
-import { installSelectionGuard } from './model-selection.ts'
-import { currentModel, hasRequestHistory } from './session-reader.ts'
-import { isInjectSelectionError } from '../shared/selection-error.ts'
+import { SessionStore, type SessionEntry, type SessionMeta } from './session-store.ts'
 
 export const inject = [
   'agents',
@@ -140,107 +142,78 @@ export async function apply(ctx: Context): Promise<void> {
     })(),
   )
 
-  // HTTP 入口：校验范围与命令，返回文件或会话投影；通知错误保留可识别协议。
-  const connection = ctx.connection
-  connection.fetch.register({
+  registerJsonEndpoint(ctx, {
     path: API,
-    methods: ['GET', 'POST'],
-    requestBody: 'buffered',
-
-    /** 校验会话/工程范围，执行可选命令，再返回同一范围的权威视图；异常返回 409。 */
+    errorStatus: 409,
+    formatError: (error) => ({
+      message: error instanceof Error ? error.message : '无法读取或保存破甲设置',
+      ...(isInjectSelectionError(error)
+        ? {
+            code: (error as { code: string }).code,
+            details: (error as { details: unknown }).details,
+          }
+        : {}),
+    }),
     async fetch(request) {
-      try {
-        let parsedCommand
-        if (request.method === 'POST') {
-          const parsed = rpcSchema.safeParse(await request.json().catch(() => null))
-          if (!parsed.success)
-            return Response.json(
-              { error: '设置格式无效，请检查名称、正文和精确模型标识' },
-              { status: 400 },
-            )
-          if (parsed.data.type === 'parse-markdown') {
-            return Response.json(
-              { prompt: importMarkdown(parsed.data.markdown) },
-              { headers: { 'cache-control': 'no-store' } },
-            )
-          }
-          if (parsed.data.type === 'format-markdown') {
-            return Response.json(
-              { markdown: exportMarkdown(parsed.data.template) },
-              { headers: { 'cache-control': 'no-store' } },
-            )
-          }
-          parsedCommand = parsed.data
-        }
-        const url = new URL(request.url)
-        const id = url.searchParams.get('sessionId') || undefined
-        if (id) await initialize(id)
-        const workspace = id
-          ? (sessions.get(id).meta.cwd ?? '')
-          : (url.searchParams.get('workspace') ?? '')
-        if (
-          workspace &&
-          !ctx.workspaceRegistry.list().some((item) => item.path === workspace) &&
-          ![...sessions.entries.values()].some((entry) => entry.meta.cwd === workspace)
+      let parsedCommand
+      if (request.method === 'POST') {
+        const parsed = await parseJsonBody(
+          request,
+          rpcSchema,
+          '设置格式无效，请检查名称、正文和精确模型标识',
         )
-          throw new Error('工作区未在 DSH 中注册')
-        if (parsedCommand) {
-          if ('sessionId' in parsedCommand) await initialize(parsedCommand.sessionId)
-          await controller.command(parsedCommand, workspace)
+        if (parsed.type === 'parse-markdown') {
+          return jsonResponse({ prompt: importMarkdown(parsed.markdown) })
         }
-        const view = await controller.view(id, workspace)
-        const catalogErrors: string[] = []
-        const routes = id
-          ? []
-          : (
-              await Promise.all(
-                ctx.llm.listProviders().map(async (provider) => {
-                  try {
-                    return (await ctx.llm.listModels(provider.id)).map((model) => ({
-                      provider: provider.id,
-                      model: model.id,
-                      providerName: provider.name || provider.id,
-                      modelName: model.name || model.id,
-                    }))
-                  } catch {
-                    catalogErrors.push(`${provider.id} 的模型目录暂时无法读取`)
-                    return []
-                  }
-                }),
-              )
-            ).flat()
-        const data: StateView = {
-          ...view,
-          references: id ? {} : controller.references(),
-          routes,
-          catalogErrors,
+        if (parsed.type === 'format-markdown') {
+          return jsonResponse({ markdown: exportMarkdown(parsed.template) })
         }
-        const payload = JSON.stringify(data)
-        const etag = `"${fingerprint(payload)}"`
-        if (request.method === 'GET' && request.headers.get('if-none-match') === etag) {
-          return new Response(null, {
-            status: 304,
-            headers: { etag, 'cache-control': 'no-store' },
-          })
-        }
-        return new Response(payload, {
-          status: 200,
-          headers: { 'content-type': 'application/json', 'cache-control': 'no-store', etag },
-        })
-      } catch (error) {
-        return Response.json(
-          {
-            error: error instanceof Error ? error.message : '无法读取或保存破甲设置',
-            ...(isInjectSelectionError(error)
-              ? {
-                  code: (error as { code: string }).code,
-                  details: (error as { details: unknown }).details,
-                }
-              : {}),
-          },
-          { status: 409 },
-        )
+        parsedCommand = parsed
       }
+      const url = new URL(request.url)
+      const id = url.searchParams.get('sessionId') || undefined
+      if (id) await initialize(id)
+      const workspace = id
+        ? (sessions.get(id).meta.cwd ?? '')
+        : (url.searchParams.get('workspace') ?? '')
+      if (
+        workspace &&
+        !ctx.workspaceRegistry.list().some((item) => item.path === workspace) &&
+        ![...sessions.entries.values()].some((entry) => entry.meta.cwd === workspace)
+      )
+        throw new Error('工作区未在 DSH 中注册')
+      if (parsedCommand) {
+        if ('sessionId' in parsedCommand) await initialize(parsedCommand.sessionId)
+        await controller.command(parsedCommand, workspace)
+      }
+      const view = await controller.view(id, workspace)
+      const catalogErrors: string[] = []
+      const routes = id
+        ? []
+        : (
+            await Promise.all(
+              ctx.llm.listProviders().map(async (provider) => {
+                try {
+                  return (await ctx.llm.listModels(provider.id)).map((model) => ({
+                    provider: provider.id,
+                    model: model.id,
+                    providerName: provider.name || provider.id,
+                    modelName: model.name || model.id,
+                  }))
+                } catch {
+                  catalogErrors.push(`${provider.id} 的模型目录暂时无法读取`)
+                  return []
+                }
+              }),
+            )
+          ).flat()
+      const data: StateView = {
+        ...view,
+        references: id ? {} : controller.references(),
+        routes,
+        catalogErrors,
+      }
+      return etagJsonResponse(request, data)
     },
   })
 }

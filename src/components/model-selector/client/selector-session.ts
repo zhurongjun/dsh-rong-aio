@@ -1,8 +1,12 @@
-/** Agent Team 状态机：权威值只来自原生投影，本地只维护提交中与关闭确认弹窗状态。 */
+/** 会话级选择器控制器：统一托管目录订阅、速度同步、Agent Team 与退出定时器生命周期。 */
 
+import type { ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { createStore } from 'zustand/vanilla'
-import { errorMessage } from '../../../../shared/error.ts'
+import { withLifecycle } from '../../../client/store.ts'
+import { errorMessage } from '../../../shared/error.ts'
+import { createSelectorStore } from './selector-store.ts'
+import { createSpeedStore } from './speed-store.ts'
 
 export interface TeamSelection {
   /** 原生 agentTeam 投影中的已保存值。 */
@@ -73,4 +77,55 @@ export function createTeamStore(reportError: (message: string) => void, isMounte
   })
 }
 
-export type TeamStore = ReturnType<typeof createTeamStore>
+export function createSelectorSession(
+  sessionId: string,
+  directory: ModelSelectInjected['directory'],
+) {
+  let mounted = false
+  let lastSpeedSync = ''
+
+  const rawSelectorStore = createSelectorStore()
+  const actions = rawSelectorStore.getState().actions
+  const speedStore = createSpeedStore(actions.reportError)
+  const teamStore = createTeamStore(actions.reportError, () => mounted)
+
+  const syncSpeed = () => {
+    const current = directory.getSnapshot().current
+    const open = rawSelectorStore.getState().open
+    const nextTuple = `${current?.provider ?? ''}\0${current?.model ?? ''}\0${open ? 1 : 0}`
+    if (nextTuple === lastSpeedSync) return
+    lastSpeedSync = nextTuple
+    speedStore.sync(
+      current ? { sessionId, provider: current.provider, model: current.model } : undefined,
+      open,
+    )
+  }
+
+  const selectorStore = withLifecycle(rawSelectorStore, () => {
+    mounted = true
+    syncSpeed()
+    const stopDirectory = directory.subscribe(syncSpeed)
+    const stopSelector = rawSelectorStore.subscribe(syncSpeed)
+    return () => {
+      mounted = false
+      lastSpeedSync = ''
+      stopDirectory()
+      stopSelector()
+      actions.dispose()
+      speedStore.dispose()
+    }
+  })
+
+  return {
+    selectorStore,
+    speedStore,
+    teamStore,
+    directorySource: {
+      subscribe: (notify: () => void) => directory.subscribe(notify),
+      getSnapshot: () => directory.getSnapshot(),
+    },
+    isMounted: () => mounted,
+  }
+}
+
+export type SelectorSession = ReturnType<typeof createSelectorSession>

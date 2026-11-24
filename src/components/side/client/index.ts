@@ -5,18 +5,62 @@ import type {} from '@deepseek-ai/dsh-client-ui-commands/client'
 import type {} from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { Button, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
+import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SidebarRightTabInfo } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
 import { mountStyle } from '../../../client/style.ts'
-import { isSideSession } from '../shared/side-session.ts'
+import { isSideSession } from '../shared/protocol.ts'
 import { Conversation, Panel, TabTitle } from './Panel.tsx'
 import { Manager } from './Manager.tsx'
 import { EmbeddedPermission } from './PermissionControl.tsx'
 import { kind, SideTabs, resource, claimsSide } from './tabs.ts'
 import css from './styles.css'
-import { filterNavigation } from './catalog.ts'
 import zh from '../locale/zh.json'
 import en from '../locale/en.json'
+
+/** Keep the native identity map intact for the embedded Conversation while omitting side rows from navigation. */
+function filterNavigation(ctx: Context) {
+  const list = ctx.sessions.list
+  const original = list.getSnapshot
+  const cache = new WeakMap<SessionListState, SessionListState>()
+  const visible = () => {
+    const all = original.call(list)
+    const previous = cache.get(all)
+    if (previous) return previous
+    const ids = all.ids.filter((id) => !isSideSession(id))
+    const view = ids.length === all.ids.length ? all : { ...all, ids }
+    cache.set(all, view)
+    return view
+  }
+  list.getSnapshot = visible
+  ctx.effect(() => () => {
+    if (list.getSnapshot === visible) list.getSnapshot = original
+  })
+  const sessions = ctx.sessions
+  const descriptor = Object.getOwnPropertyDescriptor(sessions, 'search')
+  const search = sessions.search
+  const searchMain: typeof search = async function (this: typeof sessions, query, signal) {
+    const result = await search.call(this, query, signal)
+    if (!result.ok) return result
+    return {
+      ...result,
+      value: {
+        ...result.value,
+        items: result.value.items.filter((item) => !isSideSession(item.sessionId)),
+      },
+    }
+  }
+  Object.defineProperty(sessions, 'search', {
+    configurable: true,
+    writable: true,
+    value: searchMain,
+  })
+  ctx.effect(() => () => {
+    if (Object.getOwnPropertyDescriptor(sessions, 'search')?.value !== searchMain) return
+    if (descriptor) Object.defineProperty(sessions, 'search', descriptor)
+    else Reflect.deleteProperty(sessions, 'search')
+  })
+}
 
 export const inject = [
   'slots',

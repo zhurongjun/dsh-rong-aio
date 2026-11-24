@@ -1,37 +1,65 @@
 /** 强度面板：组合 Fast、Team、模型标题、Reset 和受控滑杆，共享确认状态与运动投影。 */
 
 import { forwardRef } from 'react'
+import { IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
   ModelCatalogModel,
   ModelReasoningEffort,
 } from '@deepseek-ai/dsh-api-session-controller/types'
-import { defaultEffortOf } from '../../shared/model-selection.ts'
-import type { SelectorStore } from './selector-store.ts'
+import { defaultEffortOf } from '../shared/model-selection.ts'
+import { useEffortPreview, type SelectorStore } from './selector-store.ts'
 import type { SpeedStore } from './speed-store.ts'
-import { useEffortPreview } from './useEffortPreview.ts'
-import { EffortHeading } from './EffortHeading.tsx'
 import { EffortSlider } from './EffortSlider.tsx'
-import { SpeedControl } from './SpeedControl.tsx'
+import { SpeedControl, TeamControl } from './HeaderControls.tsx'
 import { SelectionButton } from './SelectionButton.tsx'
 import { ResetIcon } from './SelectorIcons.tsx'
-import { TeamControl } from './TeamControl.tsx'
-import type { TeamSelection, TeamInteraction } from './team-store.ts'
+import type { TeamSelection, TeamInteraction } from './selector-session.ts'
+
+/** 纯标题视图；短暂忙碌不置灰，模型名入口保持同一按钮与键盘焦点。 */
+const EffortHeading = forwardRef<
+  HTMLButtonElement,
+  {
+    efforts: readonly ModelReasoningEffort[]
+    selected: ModelReasoningEffort | undefined
+    modelName: string
+    disabled: boolean
+    inactive: boolean
+    busy: boolean
+    onClick(): void
+  }
+>(function EffortHeading({ efforts, selected, modelName, disabled, inactive, busy, onClick }, ref) {
+  const title = selected?.name ?? (efforts.length ? '请选择强度' : '推理强度')
+  return (
+    <SelectionButton
+      ref={ref}
+      className="rong-model-heading"
+      onClick={onClick}
+      disabled={disabled}
+      inactive={inactive}
+      busy={busy}
+    >
+      <span className="rong-effort-title">{title}</span>
+      <span className="rong-model-label">
+        <span className="rong-model-name rong-truncate" title={modelName}>
+          {modelName}
+        </span>
+        <IconChevronRightOutlineRegular size={10} />
+      </span>
+    </SelectionButton>
+  )
+})
 
 interface Props {
-  /** 会话交互和速度 store；仅订阅本面板使用的投影。 */
   store: SelectorStore
   speedStore: SpeedStore
   team?: TeamSelection
   teamInteraction: TeamInteraction
-  /** 档位目录与速度各自的路由身份；effort 不属于速度身份。 */
   routeKey: string
   speedRoute: string
-  /** 下列数据只来自宿主已确认选择。 */
   model: ModelCatalogModel | undefined
   modelName: string
   efforts: readonly ModelReasoningEffort[]
   selected: ModelReasoningEffort | undefined
-  /** 关闭只停止交互；宿主锁表示不可用，提交中只阻止操作而不改变图标外观。 */
   open: boolean
   locked: boolean
   selecting: boolean
@@ -120,7 +148,7 @@ export const EffortPanel = forwardRef<HTMLButtonElement, Props>(function EffortP
           onCommit={chooseEffort}
         />
       ) : (
-        <p className="rong-empty">
+        <p className="rong-picker-empty">
           {model ? '此模型未提供可选推理强度' : '当前模型不可用，请重新选择'}
         </p>
       )}

@@ -1,10 +1,11 @@
+import clsx from 'clsx'
 import {
   Button,
-  Modal,
   IconArchiveOutlineRegular,
   IconArchiveOffOutlineRegular,
   IconTrashOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { ConfirmModal } from '../../../client/ConfirmModal.tsx'
 import type { Action, SessionRow } from '../shared/protocol.ts'
 import { actionLabels } from './operations-store.ts'
 
@@ -36,7 +37,7 @@ export function SessionActions({
       <Button
         size="sm"
         variant={single ? 'ghost' : 'outline'}
-        className={action === 'delete' ? 'rong-session-danger' : undefined}
+        className={clsx(action === 'delete' && 'rong-danger-button')}
         aria-label={label}
         title={label}
         icon={<Icon size={16} />}
@@ -67,28 +68,16 @@ export function DeleteConfirmation({
   confirm: () => void
 }) {
   return (
-    <Modal
+    <ConfirmModal
       open={items.length > 0}
-      onClose={busy ? () => {} : cancel}
       title={'永久删除 ' + items.length + ' 个会话？'}
-      closeLabel="关闭"
       description="将从磁盘删除所列会话的日志和专属文件。此操作无法撤销。"
-      footer={
-        <>
-          <Button data-modal-autofocus disabled={busy} onClick={cancel}>
-            取消
-          </Button>
-          <Button
-            variant="outline"
-            className="rong-session-danger rong-session-confirm"
-            icon={<IconTrashOutlineRegular size={16} />}
-            disabled={busy}
-            onClick={confirm}
-          >
-            永久删除
-          </Button>
-        </>
-      }
+      destructive
+      busy={busy}
+      confirmLabel="永久删除"
+      confirmIcon={<IconTrashOutlineRegular size={16} />}
+      onCancel={cancel}
+      onConfirm={confirm}
     >
       <ul className="rong-session-targets">
         {items.map((row) => (
@@ -98,6 +87,6 @@ export function DeleteConfirmation({
           </li>
         ))}
       </ul>
-    </Modal>
+    </ConfirmModal>
   )
 }
