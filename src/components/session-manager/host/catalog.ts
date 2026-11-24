@@ -9,6 +9,7 @@ import type {} from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-workspace'
 import type { SessionRow, Target } from '../shared/protocol.ts'
 import { collectSessionLineage } from './lineage.ts'
+import { inspectSessionBlock } from './occupancy.ts'
 
 function directoryOf(location?: SessionLocation) {
   return location?.kind === 'jsonl' ? dirname(location.path) : undefined
@@ -84,6 +85,15 @@ export async function listSessions(
     })
   }
 
+  const blocked = await Promise.all(
+    Array.from(headers.values(), async (header) =>
+      (await inspectSessionBlock(ctx, sessions, header.id, header.origin, signal)) !== undefined
+        ? header.id
+        : undefined,
+    ),
+  )
+  const liveIds = new Set(blocked.filter((id): id is SessionId => id !== undefined))
+
   const rows: SessionRow[] = Array.from(headers.values(), (header) => {
     const { id, cwd, createdAt } = header
     const subagent = header.origin === 'subagent'
@@ -105,7 +115,7 @@ export async function listSessions(
       workspace: meta.workspace,
       directory,
       canOpenDirectory: desktopAvailable && !!directory,
-      live: !!sessions.get(id),
+      live: liveIds.has(id),
       archived: meta.archived,
       subagent,
       ...(parentId !== undefined ? { parentId } : {}),

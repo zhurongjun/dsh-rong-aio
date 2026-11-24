@@ -207,41 +207,48 @@ export async function runtime(
   })
 
   const openedDirectories: string[] = []
-  provideStub(ctx, 'sessionController', {
-    canOpenWorkspacePath: () => true,
-    async openWorkspacePath({ path }: { path: string }) {
-      openedDirectories.push(path)
-      return { opened: true }
-    },
-    async selectModel(selection: {
-      sessionId: string
-      provider: string
-      model: string
-      reasoningEffort?: string
-    }) {
-      const target = ctx.agents.get(selection.sessionId as SessionId)
-      assert.ok(target, `missing agent ${selection.sessionId}`)
-      target.model.select(selection as never)
-      return { selected: selection }
-    },
-    async resolveAgent(id: string) {
-      const live = ctx.agents.get(id as SessionId)
-      if (live) return { agent: live }
-      const stored = await ctx.sessionPersistence.stat(id as SessionId)
-      if (!stored || stored.header.origin === 'subagent') {
-        return { error: new Error('不存在的会话') }
-      }
-      const resumed = await ctx.agents.resume({
-        resumeSessionId: id as SessionId,
-        agentOptions: route,
+  ctx.plugin({
+    name: 'session-controller-stub',
+    inject: ['agents'],
+    apply(controllerCtx) {
+      provideStub(controllerCtx, 'sessionController', {
+        canOpenWorkspacePath: () => true,
+        async openWorkspacePath({ path }: { path: string }) {
+          openedDirectories.push(path)
+          return { opened: true }
+        },
+        async selectModel(selection: {
+          sessionId: string
+          provider: string
+          model: string
+          reasoningEffort?: string
+        }) {
+          const target = controllerCtx.agents.get(selection.sessionId as SessionId)
+          assert.ok(target, `missing agent ${selection.sessionId}`)
+          target.model.select(selection as never)
+          return { selected: selection }
+        },
+        async resolveAgent(id: string) {
+          const live = controllerCtx.agents.get(id as SessionId)
+          if (live) return { agent: live }
+          const persistence = controllerCtx.get('sessionPersistence')
+          const stored = await persistence?.stat(id as SessionId)
+          if (!stored || stored.header.origin === 'subagent') {
+            return { error: new Error('不存在的会话') }
+          }
+          const resumed = await controllerCtx.agents.resume({
+            resumeSessionId: id as SessionId,
+            agentOptions: route,
+          })
+          return { agent: resumed.agent }
+        },
+        async prompt({ sessionId, content }: { sessionId: string; content: never }) {
+          const target = controllerCtx.agents.get(sessionId as SessionId)
+          assert.ok(target, `missing agent ${sessionId}`)
+          target.followup(createUserMessage({ source: { kind: 'user' }, content }))
+          return { accepted: true }
+        },
       })
-      return { agent: resumed.agent }
-    },
-    async prompt({ sessionId, content }: { sessionId: string; content: never }) {
-      const target = ctx.agents.get(sessionId as SessionId)
-      assert.ok(target, `missing agent ${sessionId}`)
-      target.followup(createUserMessage({ source: { kind: 'user' }, content }))
-      return { accepted: true }
     },
   })
 

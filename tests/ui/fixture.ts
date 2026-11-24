@@ -102,6 +102,8 @@ export async function serve(
   ] as const) {
     await storedSession(f, id, workspace)
   }
+  await f.ctx.sessionController.resolveAgent('alpha' as SessionId)
+  await f.ctx.sessionController.resolveAgent('second-session' as SessionId)
   await storedSession(f, 'first-sub', first, undefined, {
     parentSession: 'first-session' as SessionId,
     origin: 'subagent',

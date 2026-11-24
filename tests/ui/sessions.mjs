@@ -30,6 +30,7 @@ export async function workspaces(u) {
 
   await u.tab('已归档')
   await u.until(() => row(u, 'alpha') && row(u, 'beta'), '两个归档工作区均可见')
+  u.check(!row(u, 'alpha').textContent.includes('DSH 占用中'), '已浏览并归档的会话不显示占用')
 
   const groups = u.all('ul[aria-label="研发"]')
   const list = row(u, 'alpha').closest('ul')
@@ -134,6 +135,10 @@ export async function operations(u) {
       missingGroup?.contains(subrow(u, 'orphan-sub')) &&
       !subrow(u, 'orphan-sub').querySelector('button[aria-pressed]'),
     '主会话展示多级嵌套子会话与层级计数，缺失主会话汇聚孤立子会话',
+  )
+  u.check(
+    row(u, 'second-session') && !row(u, 'second-session').textContent.includes('DSH 占用中'),
+    '已浏览的未归档会话不显示占用',
   )
 
   const toggleSub = () =>

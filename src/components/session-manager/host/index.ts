@@ -7,8 +7,10 @@ import { createSerialQueue } from '../../../shared/serial-queue.ts'
 import { API } from '../shared/protocol.ts'
 import { listSessions, openDirectory } from './catalog.ts'
 import { applyBatch } from './batch.ts'
+import { installSessionOccupancy } from './occupancy.ts'
 
 export const inject = [
+  'agents',
   'connection',
   'sessions',
   'sessionQuery',
@@ -28,6 +30,7 @@ const command = z.discriminatedUnion('action', [
 ])
 
 export function apply(ctx: Context) {
+  installSessionOccupancy(ctx)
   const queue = createSerialQueue('会话管理组件已停用')
   ctx.effect(() => () => queue.close())
 

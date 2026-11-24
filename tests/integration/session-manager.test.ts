@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import { access, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { test } from 'node:test'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { runtime, storedSession } from './helpers/runtime.ts'
 
 test('列表查询、批量归档复原、打开工作区及过期目标隔离', async (t) => {
@@ -427,4 +428,109 @@ test('主会话缺失时聚合多级孤立子会话并支持统一归档、复�
       false,
     )
   }
+})
+
+test('已通过 DSH 浏览激活的空闲会话（含已归档）不视为占用且可直接删除', async (t) => {
+  const f = await runtime(t)
+  const browsedOpen = await storedSession(f, 'browsed-open', undefined, '浏览过的未归档会话')
+  const browsedArchived = await storedSession(
+    f,
+    'browsed-archived',
+    undefined,
+    '浏览过的已归档会话',
+  )
+  const api = 'rong-aio.session-manager'
+
+  await f.ctx.sessionController.resolveAgent(browsedOpen.target.id as never)
+  await f.ctx.sessionController.resolveAgent(browsedArchived.target.id as never)
+  assert.ok(f.ctx.sessions.get(browsedOpen.target.id as never))
+  assert.ok(f.ctx.agents.get(browsedOpen.target.id as never))
+  assert.ok(f.ctx.sessions.get(browsedArchived.target.id as never))
+  assert.ok(f.ctx.agents.get(browsedArchived.target.id as never))
+
+  const archiveRes = await f.request(api, { action: 'archive', targets: [browsedArchived.target] })
+  assert.deepEqual(await archiveRes.json(), { outcomes: [{ id: browsedArchived.target.id }] })
+
+  const rows = (await (await f.request(api)).json()) as Array<{
+    id: string
+    archived: boolean
+    live: boolean
+  }>
+  const openRow = rows.find((row) => row.id === browsedOpen.target.id)
+  const archivedRow = rows.find((row) => row.id === browsedArchived.target.id)
+  assert.equal(openRow?.archived, false)
+  assert.equal(openRow?.live, false)
+  assert.equal(archivedRow?.archived, true)
+  assert.equal(archivedRow?.live, false)
+
+  const removed: string[] = []
+  f.ctx.on('api-session/removed' as never, (id: string) => {
+    removed.push(id)
+  })
+
+  const deleteRes = await f.request(api, {
+    action: 'delete',
+    confirmed: true,
+    targets: [browsedOpen.target, browsedArchived.target],
+  })
+  assert.deepEqual(await deleteRes.json(), {
+    outcomes: [{ id: browsedOpen.target.id }, { id: browsedArchived.target.id }],
+  })
+
+  for (const item of [browsedOpen, browsedArchived]) {
+    assert.equal(f.ctx.sessions.get(item.target.id as never), undefined)
+    assert.equal(f.ctx.agents.get(item.target.id as never), undefined)
+    await assert.rejects(access(item.directory), { code: 'ENOENT' })
+    assert.equal(await f.ctx.sessionPersistence.stat(item.target.id as never), undefined)
+  }
+  assert.deepEqual(
+    f.ctx.workspaceRegistry.list()[0].sessionIds.filter((id) => id !== f.agent.id),
+    [],
+  )
+  assert.equal(f.ctx.workspaceRegistry.archivedSessionIds.length, 0)
+  assert.deepEqual(removed, [browsedOpen.target.id, browsedArchived.target.id])
+})
+
+test('浏览会话正在执行对话回合时仍标记为占用并拒绝删除，空闲后恢复可删', async (t) => {
+  const started = Promise.withResolvers<void>()
+  const release = Promise.withResolvers<void>()
+  const f = await runtime(t, {
+    async *reply() {
+      started.resolve()
+      await release.promise
+      yield { type: 'finish' as const, reason: { kind: 'stop' as const } }
+    },
+  })
+  const busy = await storedSession(f, 'browsed-running')
+  const resolved = await f.ctx.sessionController.resolveAgent(busy.target.id as never)
+  assert.ok('agent' in resolved)
+  const api = 'rong-aio.session-manager'
+
+  resolved.agent.followup(
+    createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text: '运行中' }] }),
+  )
+  await started.promise
+
+  const runningRows = (await (await f.request(api)).json()) as Array<{ id: string; live: boolean }>
+  assert.equal(runningRows.find((row) => row.id === busy.target.id)?.live, true)
+
+  const blocked = (await (
+    await f.request(api, { action: 'delete', confirmed: true, targets: [busy.target] })
+  ).json()) as { outcomes: Array<{ id: string; error?: string }> }
+  assert.match(blocked.outcomes[0].error ?? '', /占用/)
+  await access(busy.directory)
+
+  release.resolve()
+  await resolved.agent.whenIdle()
+
+  const idleRows = (await (await f.request(api)).json()) as Array<{ id: string; live: boolean }>
+  assert.equal(idleRows.find((row) => row.id === busy.target.id)?.live, false)
+
+  const deleted = await f.request(api, {
+    action: 'delete',
+    confirmed: true,
+    targets: [busy.target],
+  })
+  assert.deepEqual(await deleted.json(), { outcomes: [{ id: busy.target.id }] })
+  await assert.rejects(access(busy.directory), { code: 'ENOENT' })
 })
