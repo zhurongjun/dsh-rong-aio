@@ -49,7 +49,6 @@ export interface Draft {
   text: string
 }
 
-/** 侧聊标签生命周期：草稿（含创建中会话过渡态）、重连中、或已绑定原生会话。 */
 export type SidePhase =
   | { kind: 'loading' }
   | { kind: 'draft'; draft: Draft; creatingSessionId?: string }
@@ -108,11 +107,11 @@ export class SideClient {
     this.isFloating = floating
   }
 
-  /** 由视图挂载回调驱动标签身份同步与会话接入，避免在 Effect 中重复桥接。 */
   syncSurface(role: 'title' | 'panel', active: boolean, isFloating?: boolean, quote?: string) {
     if (role === 'panel') this.panelActive = active
     if (!active) return
     if (isFloating !== undefined) this.setFloating(isFloating)
+
     const entered = this.enter(quote)
     if (role === 'panel') {
       void entered.then(() => {
@@ -126,8 +125,14 @@ export class SideClient {
     this.view.setState(fields)
   }
 
+  private cancelPermissionRefresh() {
+    this.permissionVersion++
+    this.permissionAbort?.abort()
+  }
+
   private async run(task: () => Promise<void>) {
     if (this.view.getState().busy || this.lifetime.signal.aborted) return
+
     this.patch({ busy: true, error: '' })
     try {
       await task()
@@ -143,11 +148,13 @@ export class SideClient {
       const { fork, rows, parentPermission } = await loadDraft(this.source, this.lifetime.signal)
       this.lifetime.signal.throwIfAborted()
       this.parent = fork.parent
+
       const addressId = this.addressId
       let row = rows.find((r) => (addressId ? r.id === addressId : r.tabKey === this.key))
-      // An existing single-page layout used one last-selected id per parent.
-      if (!row && this.legacyTab)
+      if (!row && this.legacyTab) {
         row = rows.find((r) => r.id === sessionStorage.getItem('rong-side:last:' + fork.parent))
+      }
+
       if (row) {
         this.patch({
           parentPermission,
@@ -178,9 +185,11 @@ export class SideClient {
     signal.throwIfAborted()
     if (!this.sessions.list.getSnapshot().byId[id as SessionId]) await this.sessions.refresh()
     signal.throwIfAborted()
+
     const ref = this.sessions.retain(id as SessionId, { source: 'rongSide' })
     const release = () => ref.release()
     signal.addEventListener('abort', release, { once: true })
+
     try {
       await ref.ready
       signal.throwIfAborted()
@@ -198,6 +207,7 @@ export class SideClient {
     const { phase } = this.view.getState()
     const parent = this.parent
     if (phase.kind !== 'connecting' || !parent) return
+
     const id = phase.selected
     return this.run(async () => {
       await command({ action: 'open', id, parent }, this.lifetime.signal)
@@ -225,19 +235,24 @@ export class SideClient {
     const parent = this.parent
     const { phase, checkingPermission } = this.view.getState()
     if (!parent || checkingPermission) return
+
     const id = selectedSessionOf(phase)
     const token = ++this.permissionVersion
     this.permissionAbort?.abort()
+
     const controller = new AbortController()
     this.permissionAbort = controller
     const abortRefresh = () => controller.abort()
     this.lifetime.signal.addEventListener('abort', abortRefresh, { once: true })
     this.patch({ checkingPermission: true, error: '' })
+
     try {
       const { rows, parentPermission } = await loadHistory(parent, controller.signal)
       if (this.lifetime.signal.aborted || token !== this.permissionVersion) return
+
       const row = id && rows.find((r) => r.id === id)
       if (id && !row) throw new Error('找不到这条侧聊')
+
       this.patch({
         parentPermission,
         checkingPermission: false,
@@ -255,10 +270,10 @@ export class SideClient {
 
   setPermission(permission: Permission) {
     const parent = this.parent
-    const { phase, busy } = this.view.getState()
-    if (!parent || busy || permission === this.view.getState().permission) return
-    this.permissionVersion++
-    this.permissionAbort?.abort()
+    const { phase, busy, permission: currentPermission } = this.view.getState()
+    if (!parent || busy || permission === currentPermission) return
+
+    this.cancelPermissionRefresh()
     if (phase.kind === 'ready') {
       return this.run(async () => {
         await command(
@@ -268,17 +283,19 @@ export class SideClient {
         this.patch({ permission, checkingPermission: false })
       })
     }
+
     if (phase.kind === 'draft' && !phase.creatingSessionId) {
       this.patch({ permission, checkingPermission: false })
     }
   }
 
   send() {
-    const { phase } = this.view.getState()
+    const { phase, permission } = this.view.getState()
     if (phase.kind !== 'draft' || phase.creatingSessionId || !phase.draft.text.trim()) return
-    this.permissionVersion++
-    this.permissionAbort?.abort()
+
+    this.cancelPermissionRefresh()
     const draft = phase.draft
+
     return this.run(async () => {
       const { id } = await command(
         {
@@ -287,11 +304,12 @@ export class SideClient {
           tabKey: this.key,
           key: draft.key,
           text: draft.text,
-          permission: this.view.getState().permission,
+          permission,
         },
         this.lifetime.signal,
       )
       this.lifetime.signal.throwIfAborted()
+
       this.patch({
         phase: { kind: 'draft', draft, creatingSessionId: id },
         title: sideTitle(draft.text),

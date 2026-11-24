@@ -54,9 +54,9 @@ function teamEnabledAtHeader(
   return enabled === true
 }
 
-/** Owns only the DSH agent handles created or resumed by the side plugin. */
 export function sideAgents(ctx: Context, permissionOf: (id: string) => Permission | undefined) {
   const handles = new Map<SessionId, AgentHandle>()
+
   function configure(scoped: Context) {
     installModelSelection(scoped)
     scoped.inject(['commands'], (bound) => {
@@ -76,8 +76,10 @@ export function sideAgents(ctx: Context, permissionOf: (id: string) => Permissio
   }
 
   async function fork(parent: Agent, id: SessionId, cut: SessionObservation) {
-    if (parent.session.header.createdAt !== cut.header.createdAt)
+    if (parent.session.header.createdAt !== cut.header.createdAt) {
       throw new Error('主会话已更换，请重新打开侧聊')
+    }
+
     const events = cut.events
     const lastHeaderSeq = lastRequestHeaderSeq(events)
     const boundary = forkBoundary(events, lastHeaderSeq)
@@ -90,6 +92,7 @@ export function sideAgents(ctx: Context, permissionOf: (id: string) => Permissio
     const fallback = parent.model.current() ?? ctx.agentDefaultModel.currentSelection()
     const presets = parent.ctx.get('agentPresets')
     const agentPreset = presets?.composedPreset(parent.ctx)
+
     const handle = await ctx.agents.create({
       sessionId: id,
       seed,
@@ -102,7 +105,6 @@ export function sideAgents(ctx: Context, permissionOf: (id: string) => Permissio
         ...(lastHeaderSeq !== undefined && { parentSession: parent.id }),
       },
       setup(scoped, agent) {
-        // Pending input at the parent's cut belongs exclusively to its own driver.
         agent.inbox.clear()
         configure(scoped)
         presets?.composeFrom(scoped, parent.ctx)
@@ -110,14 +112,18 @@ export function sideAgents(ctx: Context, permissionOf: (id: string) => Permissio
         if (teamEnabled !== undefined) agent.session.append('team/mode', { enabled: teamEnabled })
       },
     })
+
     handles.set(id, handle)
     return handle.agent
   }
+
   async function open(id: SessionId) {
     const active = ctx.agents.get(id)
     if (active) return active
+
     const stat = await ctx.sessionPersistence.stat(id)
     if (!stat) throw new Error('找不到侧聊日志')
+
     const handle = await ctx.agents.resume({
       resumeSessionId: id,
       setup: async (scoped) => {
@@ -129,9 +135,11 @@ export function sideAgents(ctx: Context, permissionOf: (id: string) => Permissio
         }
       },
     })
+
     handles.set(id, handle)
     return handle.agent
   }
+
   async function release(id: SessionId, flushTo?: SessionStore) {
     const handle = handles.get(id)
     if (!handle) {
@@ -142,6 +150,7 @@ export function sideAgents(ctx: Context, permissionOf: (id: string) => Permissio
     await handle.dispose()
     handles.delete(id)
   }
+
   return {
     fork,
     open,

@@ -15,8 +15,6 @@ const subagents =
 const permissions =
   "You may request approval for an operation the user explicitly requests after this boundary, including a read-only operation, when the side conversation's current permissions and approval policy allow it. Only the user can change the side conversation's permission mode in its composer. If the user explicitly requests a mutation, keep it minimal, local to the request, and avoid disrupting the main session."
 
-// DSH routes without tool-update support omit developer messages. Use DSH's
-// in-history system-reminder framing so the rule survives provider projection.
 const policy = `<system-reminder>
 You are in a side conversation, not the main session.
 
@@ -79,28 +77,29 @@ export function installSideInstructions(
     for (let i = cut.inheritedEventCount; i < events.length; i++) {
       const event = events[i]
       if (event.type !== 'user/message') continue
-      // An earlier side question belongs to an existing conversation. Inserting
-      // a new boundary after it would reclassify that question as parent history.
       if (event.data.source.kind === 'rong-side-boundary' || event.data.source.kind === 'user') {
         initialized.add(session)
         return result
       }
       if (event.data.source.kind === 'rong-side-instructions') hasPolicy = true
     }
+
     const messages = []
-    if (!hasPolicy)
+    if (!hasPolicy) {
       messages.push(
         createUserMessage({
           source: { kind: 'rong-side-instructions', form: 'notice', summary: '侧聊规则' },
           content: [{ type: 'text', text: policy }],
         }),
       )
+    }
     messages.push(
       createUserMessage({
         source: { kind: 'rong-side-boundary', form: 'notice', summary: '父会话历史边界' },
         content: [{ type: 'text', text: boundary(parent) }],
       }),
     )
+
     return { ...result, messages: [...messages, ...result.messages] }
   })
 }

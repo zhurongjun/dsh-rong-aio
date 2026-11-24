@@ -18,6 +18,7 @@ export const inject = [
   'storageDomain',
   'loader',
 ]
+
 const target = z.strictObject({ id: z.string().min(1), createdAt: z.number().int().nonnegative() })
 const targets = z.array(target).min(1)
 const command = z.discriminatedUnion('action', [
@@ -27,22 +28,24 @@ const command = z.discriminatedUnion('action', [
 ])
 
 export function apply(ctx: Context) {
-  const sessions = ctx.sessions
   const queue = createSerialQueue('会话管理组件已停用')
   ctx.effect(() => () => queue.close())
+
   registerJsonEndpoint(ctx, {
     path: API,
     errorStatus: 500,
     async fetch(request) {
       if (request.method === 'GET') {
-        return jsonResponse(await listSessions(ctx, sessions, request.signal))
+        return jsonResponse(await listSessions(ctx, ctx.sessions, request.signal))
       }
+
       const data = await parseJsonBody(request, command, '操作参数无效或尚未确认删除')
       if (data.action === 'open-directory') {
         return jsonResponse(await openDirectory(ctx, data.target, request.signal))
       }
+
       return jsonResponse(
-        await queue.run(() => applyBatch(ctx, sessions, data.action, data.targets)),
+        await queue.run(() => applyBatch(ctx, ctx.sessions, data.action, data.targets)),
       )
     },
   })

@@ -53,6 +53,12 @@ function BatchToolbar({
   )
 }
 
+function emptyStatusText(busy: boolean, hasFilter: boolean, archived: boolean): string {
+  if (busy) return '正在读取会话…'
+  if (hasFilter) return '没有匹配的会话'
+  return archived ? '暂无已归档会话' : '暂无未归档会话'
+}
+
 export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promise<void> }) {
   const [ops] = useState(() => createSessionOperationsStore(refreshSidebar))
   const { rows, busy, notice, errors, pendingDelete } = useStore(
@@ -75,9 +81,11 @@ export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promi
     cancelDelete,
     confirmDelete,
   } = ops
+
   const [tab, setTab] = useState<'archived' | 'open'>('archived')
   const [query, setQuery] = useState('')
   const [searchRevision, setSearchRevision] = useState(0)
+
   const archived = tab === 'archived'
   const filter = query.trim().toLowerCase()
   const visible = rows.filter(
@@ -111,6 +119,7 @@ export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promi
           icon={<IconRefreshOutlineRegular size={16} />}
         />
       </div>
+
       <Input
         aria-label="搜索会话"
         placeholder="搜索标题、工作区或会话 ID"
@@ -122,6 +131,7 @@ export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promi
           selection.replace([])
         }}
       />
+
       <div role="tabpanel" id="rong-session-panel" aria-labelledby={'rong-session-' + tab}>
         <BatchToolbar
           visible={visible}
@@ -130,6 +140,7 @@ export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promi
           busy={busy}
           onAction={onAction}
         />
+
         {visible.length ? (
           <SessionGroups
             key={tab}
@@ -143,23 +154,17 @@ export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promi
             feedback={feedback}
           />
         ) : (
-          <p role="status">
-            {busy
-              ? '正在读取会话…'
-              : filter
-                ? '没有匹配的会话'
-                : archived
-                  ? '暂无已归档会话'
-                  : '暂无未归档会话'}
-          </p>
+          <p role="status">{emptyStatusText(busy, !!filter, archived)}</p>
         )}
       </div>
+
       {notice &&
         (notice.toast ? (
           <Toast text={notice.text} tone="success" onDone={dismissNotice} />
         ) : (
           <div role="status">{notice.text}</div>
         ))}
+
       {errors.length > 0 && (
         <ul role="alert">
           {errors.map((error, index) => (
@@ -167,6 +172,7 @@ export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promi
           ))}
         </ul>
       )}
+
       <DeleteConfirmation
         items={pendingDelete}
         busy={busy}

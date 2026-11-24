@@ -2,6 +2,7 @@ import type { Permission } from './commands.ts'
 
 export const API = '/api/rong-aio.side'
 export type { Permission } from './commands.ts'
+
 export interface SideRow {
   id: string
   tabKey?: string
@@ -11,11 +12,12 @@ export interface SideRow {
   permission: Permission
   pending: boolean
 }
+
 export interface SideHistory {
   rows: SideRow[]
   parentPermission: string
 }
-/** Parent identity fixed when a draft opens. The first send chooses the log position. */
+
 export interface SideParent {
   parent: string
   createdAt: number

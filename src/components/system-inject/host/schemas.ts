@@ -1,8 +1,5 @@
-/** 宿主侧 Zod 严格校验契约；仅运行在 Node 宿主，不打入浏览器产物。 */
-
 import * as z from 'zod'
 
-/** 破甲词索引规则：大小写敏感，允许字母、数字、点、连字符和下划线。 */
 export const nameSchema = z
   .string()
   .min(1)
@@ -10,8 +7,7 @@ export const nameSchema = z
   .regex(/^[A-Za-z0-9._-]+$/)
   .refine((value) => value !== '.' && value !== '..', 'name 不能为 . 或 ..')
 
-/** 显式选词的输入契约；null 表示关闭，不提供继承默认规则的空状态。 */
-export const selectionSchema = z.object({ name: nameSchema.nullable() }).strict()
+const selectionSchema = z.object({ name: nameSchema.nullable() }).strict()
 
 const snapshotSchema = z
   .object({

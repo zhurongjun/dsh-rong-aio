@@ -1,5 +1,3 @@
-/** 选择器编排与原生插槽适配：连接宿主目录、局部状态、定位、Team 能力与键盘流程。 */
-
 import { useId, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react'
 import { createPortal } from 'react-dom'
 import {
@@ -26,32 +24,31 @@ import { ModelList } from './ModelList.tsx'
 import { TeamDisableDialog } from './HeaderControls.tsx'
 import { createSelectorSession, type TeamSelection } from './selector-session.ts'
 
-export type TeamCommand = Context['remote']['agentTeams']['setEnabled']
-export type TeamCapability = { setEnabled: TeamCommand } | undefined
+export type TeamCapability =
+  { setEnabled: Context['remote']['agentTeams']['setEnabled'] } | undefined
 
 export interface SelectorInjected extends Omit<ModelSelectInjected, 'resolveText'> {
-  /** 只观察可选原生 Remote 的生命周期，不保存 Team 业务状态。 */
   teamCommands: StoreApi<{ capability: TeamCapability }>
 }
 
-/** 使用宿主标准 hooks，不另建会话投影或持久化库；两种子会话身份均不呈现开关。 */
 export function ModelSelectorSlot(
   props: PropsRuntime<'conversation.input.model'> & SelectorInjected,
 ) {
-  // DSH 插槽契约通过 props 传入 hooks，不适合 React Compiler 自动记忆化；内层 ModelSelector 仍正常编译。
   'use no memo'
-  const capability = useStore(props.teamCommands, (state) => state.capability)
-  const command = capability?.setEnabled
+
+  const command = useStore(props.teamCommands, (state) => state.capability?.setEnabled)
   const addressedChild = props.useSession((snapshot) => snapshot.subagent !== null)
   const listedChild = props.useSessions(
     (state) => state.byId[props.sessionId]?.origin === 'subagent',
   )
   const team = props.useProjection('agentTeam')
   const model = props.useProjection('modelSelection')
+
   const selectEnabled = (enabled: boolean) => {
     if (!command) return Promise.reject(new Error('Agent Team 服务不可用'))
     return command(props.sessionId, enabled)
   }
+
   return (
     <ModelSelector
       {...props}
@@ -78,21 +75,17 @@ type Props = Omit<ModelSelectInjected, 'resolveText'> &
     team?: TeamSelection
   }
 
-/** 让会话切换重新建立瞬时 UI 状态；独立运行时提前跳过渲染，避免创建会话订阅。 */
 export function ModelSelector(props: Props) {
   if (!props.available) return null
   return <Selector key={props.sessionId} {...props} />
 }
 
-/**
- * 单会话外壳负责菜单生命周期、定位和键盘导航；数据与提交由控制器负责。
- * 子视图只订阅各自需要的投影，粒子逐帧运动与请求刷新互不驱动。
- */
 function Selector({ locked, available, directory, load, select, sessionId, team }: Props) {
   const [session] = useState(() => createSelectorSession(sessionId, directory))
   const store = session.selectorStore
   const actions = store.getState().actions
   const speedStore = session.speedStore
+
   const { open, mounted, pane, query, error, errorSequence } = useStore(
     store,
     useShallow((state) => ({
@@ -148,16 +141,18 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
       },
     }),
   )
-  const position = useStore(popover.store, (state) => state.position)
+
+  const position = useStore(popover.store, (s) => s.position)
   const positioned = position !== null
   const effectiveOpen = open && !locked
 
   const { groups, rows } = buildModelCatalog(state.groups, query)
   const busy = selecting || locked
   const modelName = model?.name ?? current?.model ?? '选择模型'
-  const provider = current?.provider
-  const modelId = current?.model
-  const speedRoute = provider && modelId ? speedKey({ sessionId, provider, model: modelId }) : ''
+  const speedRoute =
+    current?.provider && current.model
+      ? speedKey({ sessionId, provider: current.provider, model: current.model })
+      : ''
 
   const close = (restoreFocus = false) => {
     actions.close()
@@ -194,8 +189,9 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
   }
 
   const toggle = () => {
-    if (store.getState().open) close(true)
-    else {
+    if (store.getState().open) {
+      close(true)
+    } else {
       actions.show(model ? 'effort' : 'models')
       refresh()
     }
@@ -203,6 +199,7 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
 
   const onPopoverKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.nativeEvent.isComposing) return
+
     if (event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
@@ -210,6 +207,7 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
       else close(true)
       return
     }
+
     if (pane === 'models') {
       handlePickerKeyDown(event, {
         container: event.currentTarget,
@@ -253,6 +251,7 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
         id={id}
         onToggle={toggle}
       />
+
       {mounted &&
         createPortal(
           <MenuSurface
@@ -268,8 +267,6 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
             style={
               {
                 ...(position ?? { visibility: 'hidden' }),
-
-                // 内距 18 + 工具栏 26 + 间距 8；无结果时也留一行显示状态。
                 '--rong-list-height': `${Math.min(344, 52 + Math.max(1, rows.length) * 33 + groups.length * 26)}px`,
               } as CSSProperties
             }
@@ -279,8 +276,9 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
                 event.target === event.currentTarget &&
                 event.propertyName === 'transform' &&
                 !effectiveOpen
-              )
+              ) {
                 actions.unmount()
+              }
             }}
           >
             <div key={pane} className="rong-model-content" ref={bindContent}>
@@ -321,6 +319,7 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
                   chooseModel={chooseModel}
                 />
               )}
+
               {(visibleError || state.failures.length > 0) && (
                 <div className="rong-error" role="alert">
                   <span>
@@ -332,6 +331,7 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
                   </button>
                 </div>
               )}
+
               <span className="rong-sr-only" role="status" aria-live="polite">
                 {selecting ? '正在保存选择' : ''}
               </span>
@@ -339,7 +339,9 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
           </MenuSurface>,
           document.body,
         )}
+
       <TeamDisableDialog interaction={teamInteraction} disabled={locked || !team?.ready} />
+
       {error && (
         <Toast
           key={errorSequence}

@@ -1,5 +1,3 @@
-/** 受管浮层锚点定位控制器：基于 @floating-ui/dom 在 React 18 Callback Ref 挂载期同步定位并管理视口与缩放监听。 */
-
 import { useCallback, useRef, useState, type CSSProperties } from 'react'
 import {
   autoUpdate,
@@ -34,6 +32,10 @@ const PLACEMENT_MAP: Record<PopoverPlacement, Placement> = {
   'below-end': 'bottom-end',
 }
 
+function clamp(value: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, value))
+}
+
 function sameStyle(previous: CSSProperties | null, next: CSSProperties): boolean {
   if (!previous) return false
   const prevKeys = Object.keys(previous) as (keyof CSSProperties)[]
@@ -41,7 +43,26 @@ function sameStyle(previous: CSSProperties | null, next: CSSProperties): boolean
   return prevKeys.length === nextKeys.length && nextKeys.every((key) => previous[key] === next[key])
 }
 
-/** 创建浮层锚点定位控制器；所有 bind* 回调引用稳定，可安全传给 React 18 ref。 */
+function buildPositionStyle(
+  placement: PopoverPlacement,
+  anchor: HTMLElement,
+  surface: HTMLDivElement,
+  left: number,
+  top: number,
+  maxHeight: number | undefined,
+): CSSProperties {
+  if (placement === 'side') {
+    const rect = anchor.getBoundingClientRect()
+    const originX = clamp(rect.left + rect.width / 2 - left, 0, surface.offsetWidth)
+    const originY = clamp(rect.top + rect.height / 2 - top, 0, surface.offsetHeight)
+    return { position: 'fixed', left, top, transformOrigin: `${originX}px ${originY}px` }
+  }
+  if (placement === 'below-end') {
+    return { position: 'fixed', left, top, maxHeight: maxHeight ?? MAX_LIST_HEIGHT }
+  }
+  return { position: 'fixed', left, top }
+}
+
 export function createAnchoredPopover(options: AnchoredPopoverOptions) {
   const store = createStore<{ position: CSSProperties | null }>(() => ({ position: null }))
   let anchorEl: HTMLElement | null = null
@@ -58,23 +79,16 @@ export function createAnchoredPopover(options: AnchoredPopoverOptions) {
     const anchor = anchorEl
     const surface = surfaceEl
     if (!anchor || !surface || !surface.isConnected) return
+
     const currentEpoch = epoch
     const seq = ++placeSequence
     let clampedMaxHeight: number | undefined
 
-    const middleware: Middleware[] =
-      options.placement === 'side'
-        ? [
-            offset({ mainAxis: 6, alignmentAxis: -4 }),
-            flip({ padding: VIEWPORT_MARGIN }),
-            shift({ padding: VIEWPORT_MARGIN }),
-          ]
-        : [
-            offset(POPOVER_GAP),
-            flip({ padding: VIEWPORT_MARGIN }),
-            shift({ padding: VIEWPORT_MARGIN }),
-          ]
-
+    const middleware: Middleware[] = [
+      offset(options.placement === 'side' ? { mainAxis: 6, alignmentAxis: -4 } : POPOVER_GAP),
+      flip({ padding: VIEWPORT_MARGIN }),
+      shift({ padding: VIEWPORT_MARGIN }),
+    ]
     if (options.placement === 'below-end') {
       middleware.push(
         size({
@@ -100,35 +114,15 @@ export function createAnchoredPopover(options: AnchoredPopoverOptions) {
       ) {
         return
       }
-      const left = Math.round(x)
-      const top = Math.round(y)
-      let next: CSSProperties
-      if (options.placement === 'side') {
-        const rect = anchor.getBoundingClientRect()
-        const originX = Math.max(
-          0,
-          Math.min(surface.offsetWidth, rect.left + rect.width / 2 - left),
-        )
-        const originY = Math.max(
-          0,
-          Math.min(surface.offsetHeight, rect.top + rect.height / 2 - top),
-        )
-        next = {
-          position: 'fixed',
-          left,
-          top,
-          transformOrigin: `${originX}px ${originY}px`,
-        }
-      } else if (options.placement === 'below-end') {
-        next = {
-          position: 'fixed',
-          left,
-          top,
-          maxHeight: clampedMaxHeight ?? MAX_LIST_HEIGHT,
-        }
-      } else {
-        next = { position: 'fixed', left, top }
-      }
+
+      const next = buildPositionStyle(
+        options.placement,
+        anchor,
+        surface,
+        Math.round(x),
+        Math.round(y),
+        clampedMaxHeight,
+      )
       if (!sameStyle(store.getState().position, next)) {
         store.setState({ position: next })
       }
@@ -159,10 +153,12 @@ export function createAnchoredPopover(options: AnchoredPopoverOptions) {
     mountAbort = undefined
     surfaceEl = node
     syncTracking()
+
     if (!node) {
       if (store.getState().position !== null) store.setState({ position: null })
       return
     }
+
     mountAbort = new AbortController()
     options.onMount?.(node, mountAbort.signal, { getAnchor })
   }
@@ -181,7 +177,6 @@ export function createAnchoredPopover(options: AnchoredPopoverOptions) {
 
 export type AnchoredPopover = ReturnType<typeof createAnchoredPopover>
 
-/** 为输入框插槽组件提供触发器引用与 Toast 宿主卡片锚点，不在渲染期间读取 ref.current。 */
 export function useComposerToastAnchor() {
   const triggerRef = useRef<HTMLButtonElement | null>(null)
   const [toastAnchor, setToastAnchor] = useState<HTMLElement | null>(null)

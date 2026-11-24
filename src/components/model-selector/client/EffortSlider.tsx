@@ -1,5 +1,3 @@
-/** 滑杆手势层：指针拖动只预览，释放才提交；键盘直接选择，取消手势不提交。 */
-
 import { useRef, useState, type KeyboardEvent } from 'react'
 import type { ModelReasoningEffort } from '@deepseek-ai/dsh-api-session-controller/types'
 import { clamp, detentAt } from '../shared/slider-motion.ts'
@@ -14,16 +12,31 @@ interface Props {
   onCommit: (id: string) => Promise<boolean>
 }
 
-/** 可访问的离散档位滑杆；视觉位置由连续动画驱动，但提交值始终是目录 ID。 */
+function targetIndexForKey(key: string, current: number, count: number): number | null {
+  if (key === 'Home') return 0
+  if (key === 'End') return count - 1
+  if (key === 'ArrowRight' || key === 'ArrowUp') return clamp(current + 1, 0, count - 1)
+  if (key === 'ArrowLeft' || key === 'ArrowDown') return clamp(current - 1, 0, count - 1)
+  return null
+}
+
+function trackPosition(el: HTMLElement, clientX: number): number {
+  const rect = el.getBoundingClientRect()
+  return clamp((clientX - rect.left - 14) / Math.max(1, rect.width - 28), 0, 1)
+}
+
 export function EffortSlider({ efforts, selected, disabled, busy, onPreview, onCommit }: Props) {
   const index = efforts.findIndex((effort) => effort.id === selected)
   const [dragging, setDragging] = useState(false)
   const drag = useRef<{ pointer: number; index: number } | null>(null)
   const dragAbort = useRef<AbortController | null>(null)
+  const [motion] = useState(createSliderMotion)
+
   const blocked = disabled || busy
   const activeDragging = dragging && !blocked
   const target = Math.max(0, index) / Math.max(1, efforts.length - 1)
-  const [motion] = useState(createSliderMotion)
+  const hasSelection = index >= 0
+  const effortCount = efforts.length
 
   const cancel = () => {
     if (!drag.current) return
@@ -34,20 +47,9 @@ export function EffortSlider({ efforts, selected, disabled, busy, onPreview, onC
     onPreview(undefined)
   }
 
-  const point = (el: HTMLElement, clientX: number) => {
-    const rect = el.getBoundingClientRect()
-    return clamp((clientX - rect.left - 14) / Math.max(1, rect.width - 28), 0, 1)
-  }
-
-  const show = (next: number) => {
-    onPreview(efforts[next]?.id)
-  }
-
   const commit = (next: number) => {
-    if (blocked) return
-    const effort = efforts[next]
-    if (!effort) return
-    void onCommit(effort.id)
+    const effort = !blocked ? efforts[next] : undefined
+    if (effort) void onCommit(effort.id)
   }
 
   const keyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -58,24 +60,13 @@ export function EffortSlider({ efforts, selected, disabled, busy, onPreview, onC
       return
     }
     if (blocked || efforts.length < 2) return
-    const base = Math.max(0, index)
-    const next =
-      event.key === 'Home'
-        ? 0
-        : event.key === 'End'
-          ? efforts.length - 1
-          : ['ArrowRight', 'ArrowUp'].includes(event.key)
-            ? base + 1
-            : ['ArrowLeft', 'ArrowDown'].includes(event.key)
-              ? base - 1
-              : null
+
+    const next = targetIndexForKey(event.key, Math.max(0, index), efforts.length)
     if (next === null) return
     event.preventDefault()
-    void commit(clamp(next, 0, efforts.length - 1))
+    commit(next)
   }
 
-  const hasSelection = index >= 0
-  const effortCount = efforts.length
   const bindRoot = (el: HTMLDivElement | null) => {
     motion.bindRoot(el)
     if (!el) {
@@ -114,25 +105,29 @@ export function EffortSlider({ efforts, selected, disabled, busy, onPreview, onC
         event.preventDefault()
         event.currentTarget.focus()
         event.currentTarget.setPointerCapture(event.pointerId)
+
         dragAbort.current?.abort()
         const abort = new AbortController()
         dragAbort.current = abort
         window.addEventListener('blur', cancel, { signal: abort.signal })
-        const next = Math.round(point(event.currentTarget, event.clientX) * (efforts.length - 1))
+
+        const next = Math.round(
+          trackPosition(event.currentTarget, event.clientX) * (efforts.length - 1),
+        )
         drag.current = { pointer: event.pointerId, index: next }
         setDragging(true)
-        show(next)
+        onPreview(efforts[next]?.id)
       }}
       onPointerMove={(event) => {
         if (drag.current?.pointer !== event.pointerId) return
         const next = detentAt(
-          point(event.currentTarget, event.clientX),
+          trackPosition(event.currentTarget, event.clientX),
           drag.current.index,
           efforts.length,
         )
         if (next !== drag.current.index) {
           drag.current.index = next
-          show(next)
+          onPreview(efforts[next]?.id)
         }
       }}
       onPointerUp={(event) => {
@@ -140,11 +135,12 @@ export function EffortSlider({ efforts, selected, disabled, busy, onPreview, onC
         const next = drag.current.index
         dragAbort.current?.abort()
         dragAbort.current = null
+
         if (blocked) cancel()
         else {
           drag.current = null
           setDragging(false)
-          void commit(next)
+          commit(next)
         }
         event.currentTarget.releasePointerCapture(event.pointerId)
       }}

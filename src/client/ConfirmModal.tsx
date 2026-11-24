@@ -1,5 +1,3 @@
-/** 通用危险与常规确认弹窗：统一基于宿主 Modal 与 Button，保证取消按钮默认获得初始焦点。 */
-
 import type { ReactNode } from 'react'
 import clsx from 'clsx'
 import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -21,7 +19,6 @@ export interface ConfirmModalProps {
   children?: ReactNode
 }
 
-/** 受管确认弹窗：忙碌期间锁定关闭与双端按钮，常规确认高亮主操作，危险操作使用警示描边按钮。 */
 export function ConfirmModal({
   open,
   title,

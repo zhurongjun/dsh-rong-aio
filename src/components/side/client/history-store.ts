@@ -1,5 +1,3 @@
-/** 侧聊历史订阅 store：列表展开订阅时启动加载与状态监听，收起卸载时自动中止。 */
-
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { createStore } from 'zustand/vanilla'
 import { withLifecycle } from '../../../client/store.ts'

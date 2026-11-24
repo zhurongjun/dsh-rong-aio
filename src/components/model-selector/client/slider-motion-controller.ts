@@ -1,9 +1,41 @@
-/** 滑杆绘制控制器：Layout Ref 挂载期运行 RAF 与粒子 DOM 更新，卸载时取消帧调度。 */
-
 import { advanceMotion } from '../shared/slider-motion.ts'
 import { energyFor, particlesFor } from '../shared/particle-motion.ts'
 
-/** 动画拥有滑杆位置 CSS 变量和粒子 DOM；逐帧位移不进入 React / Zustand 状态。 */
+function syncSparkles(el: HTMLDivElement, position: number, active: boolean) {
+  el.style.opacity = String(0.6 + 0.4 * (active ? energyFor(position) : 0))
+  const particles = active ? particlesFor(position) : []
+  while (el.childElementCount > particles.length) el.lastElementChild!.remove()
+
+  particles.forEach((particle, index) => {
+    let star = el.children[index] as HTMLSpanElement | undefined
+    if (!star) {
+      star = document.createElement('span')
+      star.className = 'rong-effort-star'
+      star.style.top = `${particle.y}%`
+
+      const light = document.createElement('i')
+      light.style.opacity = String(particle.brightness)
+      light.style.transform = `scale(${particle.brightness.toFixed(3)})`
+      star.append(light)
+      el.append(star)
+    }
+
+    star.style.animationDuration = `${particle.duration.toFixed(3)}s`
+    star.style.animationDelay = `${particle.delay.toFixed(3)}s`
+  })
+}
+
+function syncTicks(el: HTMLDivElement, position: number, active: boolean, count: number) {
+  const denom = Math.max(1, count - 1)
+  Array.from(el.children).forEach((tick, index) => {
+    if (active && index / denom <= position) {
+      if (!tick.hasAttribute('data-passed')) tick.setAttribute('data-passed', 'true')
+    } else {
+      tick.removeAttribute('data-passed')
+    }
+  })
+}
+
 export function createSliderMotion() {
   let rootEl: HTMLDivElement | null = null
   let sparklesEl: HTMLDivElement | null = null
@@ -16,34 +48,8 @@ export function createSliderMotion() {
 
   function paint(position: number) {
     rootEl?.style.setProperty('--rong-position', String(position))
-    if (sparklesEl) {
-      sparklesEl.style.opacity = String(0.6 + 0.4 * (goal.hasSelection ? energyFor(position) : 0))
-      const particles = goal.hasSelection ? particlesFor(position) : []
-      while (sparklesEl.childElementCount > particles.length) sparklesEl.lastElementChild!.remove()
-      particles.forEach((particle, index) => {
-        let star = sparklesEl!.children[index] as HTMLSpanElement | undefined
-        if (!star) {
-          star = document.createElement('span')
-          star.className = 'rong-effort-star'
-          star.style.top = `${particle.y}%`
-          const light = document.createElement('i')
-          light.style.opacity = String(particle.brightness)
-          light.style.transform = `scale(${particle.brightness.toFixed(3)})`
-          star.append(light)
-          sparklesEl!.append(star)
-        }
-        star.style.animationDuration = `${particle.duration.toFixed(3)}s`
-        star.style.animationDelay = `${particle.delay.toFixed(3)}s`
-      })
-    }
-    if (ticksEl) {
-      Array.from(ticksEl.children).forEach((tick, index) => {
-        const passed = goal.hasSelection && index / Math.max(1, goal.count - 1) <= position
-        if (passed) {
-          if (!tick.hasAttribute('data-passed')) tick.setAttribute('data-passed', 'true')
-        } else tick.removeAttribute('data-passed')
-      })
-    }
+    if (sparklesEl) syncSparkles(sparklesEl, position, goal.hasSelection)
+    if (ticksEl) syncTicks(ticksEl, position, goal.hasSelection, goal.count)
   }
 
   function step() {

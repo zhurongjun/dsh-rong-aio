@@ -1,16 +1,14 @@
-/** 会话管理操作状态机：订阅激活时加载目录并托管 AbortController，操作统一经由 store 方法驱动。 */
-
 import { createStore } from 'zustand/vanilla'
 import { requestJson } from '../../../client/http.ts'
 import { withLifecycle } from '../../../client/store.ts'
 import { errorMessage } from '../../../shared/error.ts'
 import { API, type Action, type BatchResult, type SessionRow } from '../shared/protocol.ts'
 
-// 选择属于当前设置页。行订阅自己的 ID，组头订阅三态，批量工具栏读取完整集合。
-export function createSelection() {
+function createSelection() {
   const store = createStore<ReadonlySet<string>>(() => new Set<string>())
   return {
     store,
+
     select(rows: readonly SessionRow[], checked: boolean) {
       const current = store.getState()
       const next = new Set(current)
@@ -20,6 +18,7 @@ export function createSelection() {
       }
       if (next.size !== current.size) store.setState(next, true)
     },
+
     replace(ids: readonly string[]) {
       if (ids.length || store.getState().size) store.setState(new Set(ids), true)
     },
@@ -68,6 +67,7 @@ export function createSessionOperationsStore(refreshSidebar: () => Promise<void>
   async function run(task: (signal: AbortSignal) => Promise<void>) {
     const signal = lifetime?.signal
     if (running || !signal) return
+
     running = true
     store.setState({ busy: true, errors: [], notice: undefined })
     try {
@@ -98,15 +98,17 @@ export function createSessionOperationsStore(refreshSidebar: () => Promise<void>
         ...(action === 'delete' && { confirmed: true }),
       })
       if (signal.aborted) return
-      store.setState({ pendingDelete: [] })
+
       const failed = outcomes.filter((result) => result.error)
       const titles = new Map(items.map((row) => [row.id, row.title]))
       const messages = failed.map(
-        (result) => (titles.get(result.id) ?? result.id) + '：' + result.error,
+        (result) => `${titles.get(result.id) ?? result.id}：${result.error}`,
       )
       if (warning) messages.push(warning)
+
       const succeeded = outcomes.length - failed.length
       store.setState({
+        pendingDelete: [],
         errors: messages,
         ...(succeeded || action !== 'delete'
           ? {
@@ -117,6 +119,7 @@ export function createSessionOperationsStore(refreshSidebar: () => Promise<void>
             }
           : {}),
       })
+
       selection.replace(failed.map((result) => result.id))
       await reload(signal, action === 'delete' && succeeded > 0)
     })
@@ -124,20 +127,24 @@ export function createSessionOperationsStore(refreshSidebar: () => Promise<void>
   const api = Object.assign(store, {
     selection,
     refresh,
+
     onAction(action: Action, items: SessionRow[]) {
       if (running || !items.length) return
       if (action === 'delete') store.setState({ pendingDelete: items })
       else void perform(action, items)
     },
+
     async openDirectory({ id, createdAt }: SessionRow) {
       const signal = lifetime?.signal
       if (signal) await request(signal, { action: 'open-directory', target: { id, createdAt } })
     },
+
     feedback(text: string, failed = false) {
       if (!lifetime) return
       if (failed) store.setState({ errors: [text] })
       else store.setState({ errors: [], notice: { text } })
     },
+
     dismissNotice: () => store.setState({ notice: undefined }),
     cancelDelete: () => store.setState({ pendingDelete: [] }),
     confirmDelete: () => {

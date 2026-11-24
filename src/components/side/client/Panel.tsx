@@ -32,6 +32,7 @@ declare module '@deepseek-ai/dsh-api-session-controller/client' {
     rongSide: unknown
   }
 }
+
 declare module '@deepseek-ai/dsh-client-ui-slots' {
   interface SlotMap {
     'rong.side.conversation': { kind: 'single'; scope: 'session' }
@@ -42,9 +43,11 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     }
   }
 }
+
 function ChatView(props: ConversationViewsProps) {
   return <>{props.renderSlot('conversation.session', { view: 'chat' })}</>
 }
+
 export function Conversation({
   renderFactorySlot,
 }: PropsRuntime<'rong.side.conversation'> & PropsRenderFactories) {
@@ -54,6 +57,7 @@ export function Conversation({
     { slots: { views: ChatView } },
   )
 }
+
 export function TabTitle({
   store,
   isFloating,
@@ -66,18 +70,21 @@ export function TabTitle({
   const title = useStore(store.view, (s) => s.title) || '新侧聊'
   const bindTitle = (el: HTMLSpanElement | null) =>
     store.syncSurface('title', el !== null, isFloating, quote)
+
   return (
     <span ref={bindTitle} title={title}>
       {title}
     </span>
   )
 }
+
 type PanelProps = PropsRuntime<'sidebar.right.pane.tab'> &
   PropsRenderSlots<'rong.side.conversation'> & {
     store: SideClient
     isFloating?: boolean
     quote?: string
   }
+
 export function Panel({ store, isFloating, quote, SessionProvider, renderSlot }: PanelProps) {
   const reference = useStore(store.view, (s) =>
     s.phase.kind === 'ready' ? s.phase.reference : undefined,
@@ -89,7 +96,8 @@ export function Panel({ store, isFloating, quote, SessionProvider, renderSlot }:
   )
   const bindPanel = (el: HTMLDivElement | null) =>
     store.syncSurface('panel', el !== null, isFloating, quote)
-  if (reference)
+
+  if (reference) {
     return (
       <div ref={bindPanel} className="rong-side-chat">
         <SideComposerContext.Provider value={store}>
@@ -100,6 +108,8 @@ export function Panel({ store, isFloating, quote, SessionProvider, renderSlot }:
         <SideError message={error} />
       </div>
     )
+  }
+
   return (
     <div ref={bindPanel} className="rong-side-panel">
       <div className="rong-side-welcome">

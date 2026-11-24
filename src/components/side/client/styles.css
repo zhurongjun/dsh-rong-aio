@@ -146,8 +146,6 @@
   padding: 0;
 }
 
-/* DSH exposes a display:contents anchor for each slot. Only replace the
-   process-wide preset picker when this side composer's policy control exists. */
 .rong-side-chat:has(.rong-side-permission) [data-slot='conversation.input.permission'] {
   display: none !important;
 }

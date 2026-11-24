@@ -1,5 +1,3 @@
-/** 面板顶栏开关与确认：整合 Fast 速度选项、Agent Team 开关与停用确认弹窗。 */
-
 import clsx from 'clsx'
 import { IconUsersOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ConfirmModal } from '../../../client/ConfirmModal.tsx'
@@ -9,7 +7,6 @@ import { OptionControl } from './OptionControl.tsx'
 import { useSpeedSelection, type SpeedStore } from './speed-store.ts'
 import type { TeamSelection, TeamInteraction } from './selector-session.ts'
 
-/** 路由变化重建菜单，速度显示始终来自宿主确认值。 */
 export function SpeedControl({
   store,
   identityKey,
@@ -24,6 +21,7 @@ export function SpeedControl({
   busy: boolean
 }) {
   const { state, loading, saving, select } = useSpeedSelection(store, identityKey)
+
   return (
     <OptionControl
       key={identityKey}
@@ -45,7 +43,6 @@ export function SpeedControl({
   )
 }
 
-/** 开关入口位于 Fast 右侧；hover 只改变背景，开启色来自官方语义 token。 */
 export function TeamControl({
   team,
   interaction,
@@ -78,7 +75,6 @@ export function TeamControl({
   )
 }
 
-/** 位于主菜单外；取消不发送请求，失败允许重试，不受菜单退场卸载影响。 */
 export function TeamDisableDialog({
   interaction,
   disabled,

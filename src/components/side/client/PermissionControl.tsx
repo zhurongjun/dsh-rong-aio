@@ -33,9 +33,11 @@ export function PermissionControl({ store }: { store: SideClient }) {
       (s.phase.kind !== 'ready' && !(s.phase.kind === 'draft' && !s.phase.creatingSessionId)),
   )
   const loading = useStore(store.view, (s) => s.busy || s.checkingPermission)
+
   const [open, setOpen] = useState(false)
   const [confirm, setConfirm] = useState(false)
   const label = permission === 'follow' ? '跟随主会话' : '只读'
+
   return (
     <>
       <Menu

@@ -1,5 +1,3 @@
-/** 图标选项菜单：Fast 与 Agent Team 共用定位、退场、键盘导航和焦点恢复。 */
-
 import { useId, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
@@ -13,22 +11,27 @@ function focusMenuRadio(el: HTMLButtonElement | null) {
   el?.focus({ preventScroll: true })
 }
 
+function menuIndexForKey(key: string, current: number, count: number): number | null {
+  if (key === 'Home') return 0
+  if (key === 'End') return count - 1
+  if (key === 'ArrowDown') return (current + 1) % count
+  if (key === 'ArrowUp') return (current - 1 + count) % count
+  return null
+}
+
 interface Props<Value extends string> {
-  /** 已确认选项与菜单文案；组件不持有业务选择。 */
   value: Value
   items: readonly { value: Value; label: string }[]
   label: string
   menuLabel: string
   icon: ReactNode
   className: string
-  /** 主菜单生命周期及业务可用性。 */
   open: boolean
   disabled: boolean
   busy: boolean
   onSelect(value: Value): void
 }
 
-/** 业务组件按会话或模型身份重建本组件；只维护 UI 生命周期。 */
 export function OptionControl<Value extends string>({
   value,
   items,
@@ -43,6 +46,7 @@ export function OptionControl<Value extends string>({
 }: Props<Value>) {
   const [presence] = useState(() => createMenuPresence(180))
   const menuState = useStore(presence)
+
   const [popover] = useState(() =>
     createAnchoredPopover({
       placement: 'side',
@@ -62,6 +66,7 @@ export function OptionControl<Value extends string>({
       },
     }),
   )
+
   const position = useStore(popover.store, (state) => state.position)
   const id = useId()
   const enabled = open && !disabled && !busy
@@ -69,7 +74,6 @@ export function OptionControl<Value extends string>({
   const ready = visible && position !== null
   const { mounted } = menuState
 
-  /** 先收起菜单并恢复按钮焦点，再委托业务保存；不提前改写显示值。 */
   function choose(next: Value) {
     if (!visible) return
     presence.close()
@@ -100,27 +104,26 @@ export function OptionControl<Value extends string>({
           if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
             event.preventDefault()
             event.stopPropagation()
-            if (!presence.getState().expanded) presence.open()
-            else {
+            if (!presence.getState().expanded) {
+              presence.open()
+            } else {
               const buttons = popover.surface()?.querySelectorAll<HTMLButtonElement>('button')
               const index = event.key === 'ArrowDown' ? 0 : (buttons?.length ?? 1) - 1
               buttons?.[index]?.focus()
             }
-          }
-          if (presence.getState().expanded && event.key === 'Escape') {
+          } else if (presence.getState().expanded && event.key === 'Escape') {
             event.preventDefault()
             event.stopPropagation()
             presence.close()
+          } else if (event.key === 'Tab') {
+            presence.close()
           }
-          if (event.key === 'Tab') presence.close()
         }}
-        onClick={() => {
-          if (presence.getState().expanded) presence.close()
-          else presence.open()
-        }}
+        onClick={() => presence.toggle()}
       >
         {icon}
       </SelectionButton>
+
       {mounted &&
         createPortal(
           <MenuSurface
@@ -149,18 +152,12 @@ export function OptionControl<Value extends string>({
                 event.currentTarget.querySelectorAll<HTMLButtonElement>('button'),
               )
               const current = buttons.indexOf(document.activeElement as HTMLButtonElement)
-              if (['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) {
+              const targetIndex = menuIndexForKey(event.key, current, buttons.length)
+
+              if (targetIndex !== null) {
                 event.preventDefault()
-                const index =
-                  event.key === 'Home'
-                    ? 0
-                    : event.key === 'End'
-                      ? buttons.length - 1
-                      : (current + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) %
-                        buttons.length
-                buttons[index]?.focus()
-              }
-              if (event.key === 'Escape' || event.key === 'Tab') {
+                buttons[targetIndex]?.focus()
+              } else if (event.key === 'Escape' || event.key === 'Tab') {
                 event.preventDefault()
                 presence.close()
                 popover.focusAnchor()
@@ -181,7 +178,7 @@ export function OptionControl<Value extends string>({
                   role="menuitemradio"
                   aria-checked={value === item.value}
                   disabled={!visible}
-                  onClick={() => void choose(item.value)}
+                  onClick={() => choose(item.value)}
                 >
                   <span>{item.label}</span>
                   <span className="rong-option-check" aria-hidden="true">

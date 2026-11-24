@@ -1,5 +1,3 @@
-/** 会话级选择器控制器：统一托管目录订阅、速度同步、Agent Team 与退出定时器生命周期。 */
-
 import type { ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { RemoteResult } from '@deepseek-ai/dsh-typert-protocol'
 import { createStore } from 'zustand/vanilla'
@@ -9,13 +7,9 @@ import { createSelectorStore } from './selector-store.ts'
 import { createSpeedStore } from './speed-store.ts'
 
 export interface TeamSelection {
-  /** 原生 agentTeam 投影中的已保存值。 */
   enabled: boolean
-  /** modelSelection 投影尚未就绪时不可修改。 */
   ready: boolean
-  /** 原生 lastUsed 非空表示会话已使用模型，关闭前必须确认。 */
   needsConfirmation: boolean
-  /** 绑定当前会话的原生 Remote；不调用选模或 Fast 接口。 */
   selectEnabled(enabled: boolean): Promise<RemoteResult<void>>
 }
 
@@ -27,20 +21,15 @@ export interface TeamInteraction {
   cancel(): void
 }
 
-export interface TeamState {
-  pending: boolean
-  rawConfirming: boolean
-}
-
-/** 失败保留确认状态并报告 Toast；外部可通过 isMounted 门控避免卸载后回写错误。 */
-export function createTeamStore(reportError: (message: string) => void, isMounted: () => boolean) {
-  const store = createStore<TeamState>(() => ({ pending: false, rawConfirming: false }))
+function createTeamStore(reportError: (message: string) => void, isMounted: () => boolean) {
+  const store = createStore(() => ({ pending: false, rawConfirming: false }))
   let inFlight = false
 
   async function save(team: TeamSelection | undefined, locked: boolean, enabled: boolean) {
     if (!team?.ready || locked || inFlight) return
     inFlight = true
     store.setState({ pending: true })
+
     try {
       const result = await team.selectEnabled(enabled)
       if (!result.ok) throw new Error(result.error.message)
@@ -68,9 +57,11 @@ export function createTeamStore(reportError: (message: string) => void, isMounte
         void save(team, locked, enabled)
       }
     },
+
     confirm(team: TeamSelection | undefined, locked: boolean) {
       void save(team, locked, false)
     },
+
     cancel() {
       if (!inFlight) store.setState({ rawConfirming: false })
     },

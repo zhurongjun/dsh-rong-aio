@@ -1,5 +1,3 @@
-/** Fast 请求状态与视图订阅：按完整会话/模型路由隔离读取与保存，拒绝迟到响应和重复提交。 */
-
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
 import { createStore } from 'zustand/vanilla'
@@ -14,8 +12,7 @@ import {
   type SpeedState,
 } from '../shared/speed.ts'
 
-/** 未取得本路由有效数据时的保守显示值：标准档且无可交互能力。 */
-export const EMPTY_SPEED: SpeedState = { mode: 'standard', modes: [] }
+const EMPTY_SPEED: SpeedState = { mode: 'standard', modes: [] }
 
 async function requestSpeed(
   identity: SpeedIdentity,
@@ -28,6 +25,7 @@ async function requestSpeed(
     signal,
     fallbackError: '无法保存速度设置',
   })
+
   if (
     !Array.isArray(value.modes) ||
     !value.modes.every((item) => item in SPEED_LABELS) ||
@@ -38,8 +36,7 @@ async function requestSpeed(
   return value
 }
 
-/** 速度的已确认快照与请求状态；路由更换会清空之前的接收标记。 */
-export interface State {
+export interface SpeedViewState {
   key: string
   value: SpeedState
   received: boolean
@@ -47,9 +44,8 @@ export interface State {
   saving: boolean
 }
 
-/** 请求与组件生命周期分离；AbortController 留在请求作用域闭包内。 */
 export function createSpeedStore(onError: (message: string) => void) {
-  const store = createStore<State>(() => ({
+  const store = createStore<SpeedViewState>(() => ({
     key: '',
     value: EMPTY_SPEED,
     received: false,
@@ -73,12 +69,7 @@ export function createSpeedStore(onError: (message: string) => void) {
       const key = next ? speedKey(next) : ''
       if (key !== store.getState().key) {
         dispose()
-        store.setState({
-          key,
-          value: EMPTY_SPEED,
-          received: false,
-          saving: false,
-        })
+        store.setState({ key, value: EMPTY_SPEED, received: false, saving: false })
       }
       identity = next
 
@@ -88,14 +79,11 @@ export function createSpeedStore(onError: (message: string) => void) {
         scope.latest().abort()
         return () => {}
       }
+
       const req = scope.latest()
       void requestSpeed(next, req.signal)
         .then((value) => {
-          if (!req.isCurrent()) return
-          store.setState({
-            value: { ...value, modes: [...value.modes] },
-            received: true,
-          })
+          if (req.isCurrent()) store.setState({ value, received: true })
         })
         .catch((error: unknown) => {
           if (req.isCurrent() && !isAbortError(error)) report(error)
@@ -120,15 +108,15 @@ export function createSpeedStore(onError: (message: string) => void) {
       ) {
         return
       }
+
       const activeIdentity = identity
       writing = true
       store.setState({ saving: true })
+
       try {
         await scope.run(async (signal) => {
           const value = await requestSpeed(activeIdentity, signal, mode)
-          if (!signal.aborted) {
-            store.setState({ value: { ...value, modes: [...value.modes] } })
-          }
+          if (!signal.aborted) store.setState({ value })
         })
       } catch (error) {
         if (!isAbortError(error)) report(error)
@@ -137,13 +125,13 @@ export function createSpeedStore(onError: (message: string) => void) {
         store.setState({ saving: false })
       }
     },
+
     dispose,
   })
 }
 
 export type SpeedStore = ReturnType<typeof createSpeedStore>
 
-/** 在订阅时按路由屏蔽旧状态，不等待 effect 清理，避免模型切换闪现旧图标。 */
 export function useSpeedSelection(store: SpeedStore, key: string) {
   const view = useStore(
     store,

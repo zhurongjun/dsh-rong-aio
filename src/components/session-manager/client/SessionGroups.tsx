@@ -49,6 +49,7 @@ export function SessionGroups({
     if (!menu) return
     const { row } = menu
     setMenuState(null)
+
     if (action === 'open-session') {
       try {
         await openDirectory(row)
@@ -57,8 +58,10 @@ export function SessionGroups({
       }
       return
     }
+
     const value = action === 'copy-id' ? row.id : row.directory
     if (!value) return
+
     const copied = action === 'copy-id' ? '已复制会话 ID' : '已复制路径'
     try {
       if (await writeClipboard(value)) feedback(copied)
@@ -67,6 +70,7 @@ export function SessionGroups({
       feedback(errorMessage(error), true)
     }
   }
+
   return (
     <div className="rong-session-groups">
       {groups.map(([key, members]) => (

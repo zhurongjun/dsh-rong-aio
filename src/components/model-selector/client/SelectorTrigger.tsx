@@ -1,5 +1,3 @@
-/** 输入框模型入口：模型和 Fast 来自确认值，effort 共用面板预览投影；不发起请求。 */
-
 import { forwardRef } from 'react'
 import { useStore } from 'zustand'
 import {
@@ -25,7 +23,6 @@ interface Props {
   onToggle(): void
 }
 
-/** 输入框入口的窄订阅视图；Fast 图标只显示当前路由已经确认的速度。 */
 export const SelectorTrigger = forwardRef<HTMLButtonElement, Props>(function SelectorTrigger(
   { store, routeKey, speedStore, speedKey, modelName, efforts, selected, locked, id, onToggle },
   ref,
@@ -33,7 +30,6 @@ export const SelectorTrigger = forwardRef<HTMLButtonElement, Props>(function Sel
   const open = useStore(store, (state) => state.open)
   const preview = useEffortPreview(store, routeKey, selected?.id)
 
-  // 输入框只关心确认过的速度，不因 GET/POST 的 loading 状态重新渲染。
   const mode = useStore(speedStore, (state) =>
     state.key === speedKey && state.value.modes.includes(state.value.mode)
       ? state.value.mode
@@ -41,6 +37,7 @@ export const SelectorTrigger = forwardRef<HTMLButtonElement, Props>(function Sel
   )
   const fastActive = mode !== 'standard'
   const effort = efforts.find((entry) => entry.id === preview) ?? selected
+
   return (
     <button
       ref={ref}

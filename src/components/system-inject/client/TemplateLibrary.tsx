@@ -1,5 +1,3 @@
-/** 模板库视图：全局/工程分组、搜索和卡片操作；数据修改交给设置页。 */
-
 import { useId, useState } from 'react'
 import {
   Button,
@@ -10,16 +8,11 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CatalogPrompt, Scope } from '../shared/state.ts'
 
-/** 由设置页持有的库视图状态，进入编辑器再返回时保持搜索和折叠位置。 */
 export interface LibraryView {
-  /** 本地搜索文本，同时匹配索引、显示名称和简介。 */
   query: string
-
-  /** 全局和工程分组各自的展开状态。 */
   expanded: Record<Scope, boolean>
 }
 
-/** 仅组织展示，不解析注入状态。范围来自入口，搜索和折叠状态由设置页保留到编辑返回。 */
 export function TemplateLibrary({
   templates,
   workspace,
@@ -30,34 +23,20 @@ export function TemplateLibrary({
   onExport,
   onDelete,
 }: {
-  /** 宿主扫描所得文件投影，包含冲突和来源。 */
   templates: CatalogPrompt[]
-
-  /** 入口绑定工程；空字符串时只渲染全局组。 */
   workspace: string
-
-  /** 设置页持有的查询与折叠状态。 */
   view: LibraryView
-
-  /** 将视图变动写回设置页，不持久化到磁盘。 */
   onViewChange: (view: LibraryView) => void
-
-  /** 保存中或读取未确认时禁用文件操作。 */
   disabled: boolean
-
-  /** 打开选中模板的独立编辑草稿。 */
   onEdit: (template: CatalogPrompt) => void
-
-  /** 导出指定模板，不修改会话或授权。 */
   onExport: (template: CatalogPrompt) => void
-
-  /** 交给设置页确认引用影响后再删除。 */
   onDelete: (template: CatalogPrompt) => void
 }) {
   const id = useId()
   const [menu, setMenu] = useState('')
   const query = view.query.trim().toLocaleLowerCase()
   const scopes: Scope[] = workspace ? ['user', 'workspace'] : ['user']
+
   return (
     <div className="rong-inject-library">
       {scopes.map((scope) => {
@@ -70,6 +49,7 @@ export function TemplateLibrary({
         )
         const open = view.expanded[scope]
         const groupId = `${id}-${scope}`
+
         return (
           <section className="rong-inject-library-group" key={scope} aria-labelledby={groupId}>
             <h3 className="rong-inject-library-heading">
@@ -88,6 +68,7 @@ export function TemplateLibrary({
                 <small>{query ? `${matches.length} / ${all.length}` : all.length}</small>
               </Button>
             </h3>
+
             <div id={`${groupId}-body`} hidden={!open}>
               {matches.length ? (
                 <ul className="rong-inject-template-grid" aria-label={`${label}破甲词`}>
@@ -120,6 +101,7 @@ export function TemplateLibrary({
                           {template.conflict && <Tag tone="danger">名称冲突</Tag>}
                         </span>
                       </Button>
+
                       <Menu
                         open={menu === template.file && open}
                         onClose={() => setMenu('')}

@@ -1,5 +1,3 @@
-/** 模板编辑表单：独立持有未保存草稿、脏检查与改名/放弃确认。 */
-
 import { useState } from 'react'
 import { Button, Input, IconChevronLeftOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ConfirmModal } from '../../../client/ConfirmModal.tsx'

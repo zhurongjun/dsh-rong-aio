@@ -15,6 +15,7 @@ export function DraftComposer({ store }: { store: SideClient }) {
     (s) => s.phase.kind === 'draft' && !!s.phase.creatingSessionId,
   )
   const sending = !!draft && busy
+
   return (
     <div className="rong-side-draft">
       <div className="rong-side-draft-card">

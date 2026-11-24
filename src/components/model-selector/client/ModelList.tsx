@@ -1,5 +1,3 @@
-/** 模型列表视图：按提供商分组，通过通用分组搜索列表呈现实体目录。 */
-
 import { forwardRef } from 'react'
 import { useStore } from 'zustand'
 import type {
@@ -26,7 +24,6 @@ interface Props {
   chooseModel(provider: string, model: ModelCatalogModel): Promise<void>
 }
 
-/** 分组模型列表；ref 指向搜索框，焦点和整体键盘移动由外层选择器协调。 */
 export const ModelList = forwardRef<HTMLInputElement, Props>(function ModelList(
   {
     store,
@@ -46,6 +43,7 @@ export const ModelList = forwardRef<HTMLInputElement, Props>(function ModelList(
 ) {
   const highlight = useStore(store, (state) => state.highlight)
   const actions = store.getState().actions
+
   const pickerGroups = groups.map(({ group, offset }) => ({
     key: group.id,
     label: group.name,

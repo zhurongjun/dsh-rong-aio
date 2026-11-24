@@ -26,6 +26,7 @@ export function Manager({ tabs, source }: { tabs: SideTabs; source: SessionId })
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   const [historyStore] = useState(() => createSideHistoryStore(tabs, source))
+
   async function remove(entry: Entry) {
     if (busy) return
     if ('draft' in entry) {
@@ -39,6 +40,7 @@ export function Manager({ tabs, source }: { tabs: SideTabs; source: SessionId })
       entry.draft.close()
       return
     }
+
     setBusy(true)
     setError('')
     try {
@@ -60,7 +62,9 @@ export function Manager({ tabs, source }: { tabs: SideTabs; source: SessionId })
       setOpen(true)
     }
   }
+
   const discard = confirm && 'draft' in confirm
+
   return (
     <>
       <Menu
@@ -173,11 +177,13 @@ function SideRows({
     ),
   )
   const hasError = !!(error || history.error)
+
   return (
     <>
       {drafts.map((draft) => (
         <DraftRow key={draft.key} draft={draft} {...actions} />
       ))}
+
       {history.rows?.map((row) => (
         <ListRow
           key={row.id}
@@ -186,9 +192,11 @@ function SideRows({
           {...actions}
         />
       ))}
+
       {!drafts.length && !history.rows?.length && !hasError && (
         <div className="rong-side-list-note">{history.rows ? '暂无侧聊' : '正在读取侧聊…'}</div>
       )}
+
       <SideError
         message={error || history.error}
         retry={() => {
@@ -207,10 +215,12 @@ function DraftRow({ draft, ...actions }: ListActions & { draft: SideClient }) {
       (s.phase.kind === 'draft' ? s.phase.draft.text.trim().split('\n', 1)[0] : '') || '新侧聊',
   )
   const sending = useStore(draft.view, (s) => s.busy)
+
   return (
     <ListRow entry={{ draft, title }} note="草稿" {...actions} busy={actions.busy || sending} />
   )
 }
+
 function ListRow({
   entry,
   note,

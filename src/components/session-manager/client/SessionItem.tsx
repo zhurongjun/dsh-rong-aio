@@ -1,4 +1,3 @@
-import { type ReactElement } from 'react'
 import clsx from 'clsx'
 import { useStore } from 'zustand'
 import { Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
@@ -22,45 +21,30 @@ interface Props {
   onAction: SessionActionHandler
 }
 
-function details(row: SessionRow) {
+function sessionDetails(row: SessionRow): string {
   return [
     row.title,
-    '会话 ID：' + row.id,
-    row.cwd && '工作区路径：' + row.cwd,
-    '会话存档：' + (row.directory ?? '暂无存档目录'),
-    '创建时间：' + new Date(row.createdAt).toLocaleString(),
+    `会话 ID：${row.id}`,
+    row.cwd && `工作区路径：${row.cwd}`,
+    `会话存档：${row.directory ?? '暂无存档目录'}`,
+    `创建时间：${new Date(row.createdAt).toLocaleString()}`,
   ]
     .filter(Boolean)
     .join('\n')
 }
 
-function SessionTooltip({
-  row,
-  disabled,
-  children,
-}: {
-  row: SessionRow
-  disabled: boolean
-  children: ReactElement
-}) {
+export function SessionItem({ row, selection, busy, menuOpen, onMenu, onAction }: Props) {
+  const selected = useStore(selection.store, (ids) => ids.has(row.id))
+
   return (
     <Tooltip
       portal
       side="bottom"
       maxWidth={420}
       delayMs={450}
-      disabled={disabled}
-      label={() => details(row)}
+      disabled={menuOpen}
+      label={() => sessionDetails(row)}
     >
-      {children}
-    </Tooltip>
-  )
-}
-
-export function SessionItem({ row, selection, busy, menuOpen, onMenu, onAction }: Props) {
-  const selected = useStore(selection.store, (ids) => ids.has(row.id))
-  return (
-    <SessionTooltip row={row} disabled={menuOpen}>
       <li
         className="rong-session-row"
         tabIndex={-1}
@@ -69,8 +53,9 @@ export function SessionItem({ row, selection, busy, menuOpen, onMenu, onAction }
         onContextMenu={(event) => {
           event.preventDefault()
           event.stopPropagation()
-          if (!busy)
+          if (!busy) {
             onMenu({ row, anchor: event.currentTarget, x: event.clientX, y: event.clientY })
+          }
         }}
         onKeyDown={(event) => {
           if (busy || !(event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10')))
@@ -83,7 +68,7 @@ export function SessionItem({ row, selection, busy, menuOpen, onMenu, onAction }
         <button
           type="button"
           className="rong-session-select"
-          aria-label={'选择「' + row.title + '」 ' + row.id}
+          aria-label={`选择「${row.title}」 ${row.id}`}
           aria-pressed={selected}
           disabled={busy}
           onClick={() => selection.select([row], !selected)}
@@ -100,8 +85,9 @@ export function SessionItem({ row, selection, busy, menuOpen, onMenu, onAction }
           </span>
           <small className="rong-truncate">{row.id}</small>
         </button>
+
         <SessionActions targets={row} archived={row.archived} busy={busy} onAction={onAction} />
       </li>
-    </SessionTooltip>
+    </Tooltip>
   )
 }

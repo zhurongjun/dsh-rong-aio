@@ -167,11 +167,7 @@ export function checkCss(source, file, rules = contract) {
   return [...new Set(check.errors)]
 }
 
-// 只分析静态样式语法，不执行业务代码。动态颜色应通过 CSS 类和宿主变量表达。
-/**
- * 只分析静态 JS/TS/JSX/TSX，不执行表达式。
- * 动态颜色、未知属性名和 style 字符串注入必须改为可检查的 CSS 语义类。
- */
+// 仅做静态样式 AST 分析；动态颜色与属性应改用 CSS 语义类表达。
 export function checkSource(source, file, rules = contract) {
   const check = inspector(file, rules)
   let ast

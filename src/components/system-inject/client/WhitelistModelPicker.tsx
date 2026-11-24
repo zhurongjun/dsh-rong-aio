@@ -1,5 +1,3 @@
-/** 待授权模型菜单：只返回精确路由，复用通用分组搜索列表、浮层定位及 DSH 模态焦点管理。 */
-
 import { useId, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { useStore } from 'zustand'
@@ -17,7 +15,6 @@ import {
 import type { CatalogRoute, Route } from '../shared/protocol.ts'
 import { matchingRoutes, modelLabel, providerLabel, routeKey } from './Whitelist.tsx'
 
-/** 只选择待授权路由，不调用会话选模服务。模态层级及焦点恢复交给 DSH。 */
 export function WhitelistModelPicker({
   anchor,
   routes,
@@ -41,13 +38,6 @@ export function WhitelistModelPicker({
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState<string>()
 
-  const select = (route: CatalogRoute) => {
-    if (disabled || authorized.has(routeKey(route))) return
-    onClose()
-    onSelect({ provider: route.provider, model: route.model })
-  }
-
-  // 身份、搜索和分组都由公开目录派生；显示名称绝不作为授权键。
   const authorized = new Set(whitelist.map(routeKey))
   const matches = matchingRoutes(routes, query)
   const indexed = matches.map((route, index) => {
@@ -57,6 +47,12 @@ export function WhitelistModelPicker({
   const enabled = indexed.filter((item) => !item.added)
   const active = enabled.find((item) => item.key === highlight) ?? enabled[0]
   const activeIndex = active?.index ?? -1
+
+  const select = (route: CatalogRoute) => {
+    if (disabled || authorized.has(routeKey(route))) return
+    onClose()
+    onSelect({ provider: route.provider, model: route.model })
+  }
 
   const groupMap = new Map<string, ModelPickerGroup>()
   for (const { route, index, key, added } of indexed) {
@@ -86,7 +82,6 @@ export function WhitelistModelPicker({
   const groups = [...groupMap.values()]
 
   useDismissOnOutsidePointer(anchor, true, onClose, panel)
-  // 首帧等待定位时 visibility:hidden；此时聚焦会被浏览器忽略，必须等可见后注册焦点层。
   useModalLayer(panel, position !== null, onClose)
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {

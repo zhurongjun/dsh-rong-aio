@@ -1,5 +1,3 @@
-/** 强度面板：组合 Fast、Team、模型标题、Reset 和受控滑杆，共享确认状态与运动投影。 */
-
 import { forwardRef } from 'react'
 import { IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
@@ -15,7 +13,6 @@ import { SelectionButton } from './SelectionButton.tsx'
 import { ResetIcon } from './SelectorIcons.tsx'
 import type { TeamSelection, TeamInteraction } from './selector-session.ts'
 
-/** 纯标题视图；短暂忙碌不置灰，模型名入口保持同一按钮与键盘焦点。 */
 const EffortHeading = forwardRef<
   HTMLButtonElement,
   {
@@ -29,6 +26,7 @@ const EffortHeading = forwardRef<
   }
 >(function EffortHeading({ efforts, selected, modelName, disabled, inactive, busy, onClick }, ref) {
   const title = selected?.name ?? (efforts.length ? '请选择强度' : '推理强度')
+
   return (
     <SelectionButton
       ref={ref}
@@ -68,7 +66,6 @@ interface Props {
   showModels(): void
 }
 
-/** ref 指向标题供外层恢复焦点；只有路由变化重建滑杆手势与运动实例。 */
 export const EffortPanel = forwardRef<HTMLButtonElement, Props>(function EffortPanel(
   {
     store,
@@ -104,6 +101,7 @@ export const EffortPanel = forwardRef<HTMLButtonElement, Props>(function EffortP
           disabled={locked}
           busy={selecting}
         />
+
         {team && (
           <TeamControl
             team={team}
@@ -113,6 +111,7 @@ export const EffortPanel = forwardRef<HTMLButtonElement, Props>(function EffortP
             busy={selecting}
           />
         )}
+
         <EffortHeading
           ref={ref}
           efforts={efforts}
@@ -123,6 +122,7 @@ export const EffortPanel = forwardRef<HTMLButtonElement, Props>(function EffortP
           busy={selecting}
           onClick={showModels}
         />
+
         <SelectionButton
           className="rong-icon-button rong-header-action"
           aria-label="重置当前模型的推理强度"
@@ -137,6 +137,7 @@ export const EffortPanel = forwardRef<HTMLButtonElement, Props>(function EffortP
           <ResetIcon />
         </SelectionButton>
       </div>
+
       {efforts.length ? (
         <EffortSlider
           key={routeKey}

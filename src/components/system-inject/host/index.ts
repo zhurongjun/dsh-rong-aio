@@ -1,5 +1,3 @@
-/** 宿主装配入口：连接原生会话、提示词、模型与 HTTP 服务，不在入口实现文件事务。 */
-
 import type {} from '@deepseek-ai/dsh-client-connection'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
@@ -42,14 +40,35 @@ export const inject = [
 
 const SECTION = 'rong-aio:system-inject'
 
-/** 入口仅装配依赖和公开钩子；磁盘、解析及请求事务由各职责模块维护。 */
+async function loadCatalogRoutes(ctx: Context) {
+  const catalogErrors: string[] = []
+  const routes = (
+    await Promise.all(
+      ctx.llm.listProviders().map(async (provider) => {
+        try {
+          return (await ctx.llm.listModels(provider.id)).map((model) => ({
+            provider: provider.id,
+            model: model.id,
+            providerName: provider.name || provider.id,
+            modelName: model.name || model.id,
+          }))
+        } catch {
+          catalogErrors.push(`${provider.id} 的模型目录暂时无法读取`)
+          return []
+        }
+      }),
+    )
+  ).flat()
+  return { routes, catalogErrors }
+}
+
 export async function apply(ctx: Context): Promise<void> {
   if (!ctx.dshHomePath) throw new Error('DSH 未提供用户目录解析服务')
+
   const paths = new Paths(ctx.dshHomePath('system_inject'))
   const nativeSessions = ctx.sessions
   const persistence = ctx.sessionPersistence
 
-  // 会话存储适配：目录定位、原生日志落盘与请求历史判定分别注入。
   const sessions = new SessionStore(
     (meta) => sessionDirectory(sessionRoot(ctx), meta),
     async (id) => {
@@ -69,36 +88,34 @@ export async function apply(ctx: Context): Promise<void> {
   })
   ctx.effect(() => () => controller.close())
 
-  /**
-   * 按需恢复本地会话，优先自身快照，首次继承时才递归解析父状态。
-   * seen 检测继承循环；定位或恢复失败限制在该会话，不拖垮整个插件。
-   */
   const initialize = async (id: string, seen = new Set<string>()): Promise<SessionEntry> => {
     if (sessions.entries.has(id)) return sessions.get(id)
     if (seen.has(id)) throw new Error('会话继承关系存在循环')
     seen.add(id)
+
     try {
       const agent = ctx.agents.list().find((item) => item.id === id)
       const header = agent?.session.header ?? (await persistence.stat(id as Agent['id']))?.header
       if (!header) throw new Error('无法定位原生会话')
+
       const parent = header.parentSession
       const meta: SessionMeta = { id, cwd: header.cwd, parent }
-      const entry = await sessions.initialize(
+      return await sessions.initialize(
         meta,
         parent ? () => initialize(parent, new Set(seen)) : undefined,
       )
-      return entry
     } catch (error) {
       return sessions.unavailable(id, error)
     }
   }
 
-  // 原生生命周期：创建时初始化，空闲/释放时清除请求候选和 busy。
   ctx.on('agent/created', async ({ agent }) => {
     await initialize(agent.id)
   })
   for (const agent of ctx.agents.list()) await initialize(agent.id)
+
   installSelectionGuard(ctx, controller, initialize)
+
   ctx.on('agent/status', ({ agent, status }) => {
     if (status === 'idle') sessions.idle(agent.id)
   })
@@ -107,13 +124,13 @@ export async function apply(ctx: Context): Promise<void> {
     sessions.evictIfCold(agent.id)
   })
 
-  // 系统首段：注册字面段落；真正装配时捕获候选，绝不从 UI 预览触发。
   ctx.systemPrompt.section({
     name: SECTION,
     order: ctx.systemPrompt.getSectionOrder('HARNESS_IDENTITY') - 1,
     interpolate: false,
     text: '',
   })
+
   ctx.on('system-prompt/assemble', async (_assembly, context, next) => {
     if (context.agent) {
       try {
@@ -123,6 +140,7 @@ export async function apply(ctx: Context): Promise<void> {
         throw controller.fail(context.agent.id, error)
       }
     }
+
     const result = await next()
     const section = result.sections.find((item) => item.name === SECTION)
     if (section) {
@@ -132,11 +150,11 @@ export async function apply(ctx: Context): Promise<void> {
     return result
   })
 
-  // 最终分发边界：等待其他钩子确定路由后才执行护栏，之后才能调用适配器。
   ctx.on('llm/stream', (options, next) =>
     (async function* () {
-      if (options.sessionId && ctx.agents.list().some((agent) => agent.id === options.sessionId))
+      if (options.sessionId && ctx.agents.list().some((agent) => agent.id === options.sessionId)) {
         await initialize(options.sessionId)
+      }
       await guardRequest(controller, options)
       yield* next()
     })(),
@@ -170,9 +188,11 @@ export async function apply(ctx: Context): Promise<void> {
         }
         parsedCommand = parsed
       }
+
       const url = new URL(request.url)
       const id = url.searchParams.get('sessionId') || undefined
       if (id) await initialize(id)
+
       const workspace = id
         ? (sessions.get(id).meta.cwd ?? '')
         : (url.searchParams.get('workspace') ?? '')
@@ -180,33 +200,20 @@ export async function apply(ctx: Context): Promise<void> {
         workspace &&
         !ctx.workspaceRegistry.list().some((item) => item.path === workspace) &&
         ![...sessions.entries.values()].some((entry) => entry.meta.cwd === workspace)
-      )
+      ) {
         throw new Error('工作区未在 DSH 中注册')
+      }
+
       if (parsedCommand) {
         if ('sessionId' in parsedCommand) await initialize(parsedCommand.sessionId)
         await controller.command(parsedCommand, workspace)
       }
+
       const view = await controller.view(id, workspace)
-      const catalogErrors: string[] = []
-      const routes = id
-        ? []
-        : (
-            await Promise.all(
-              ctx.llm.listProviders().map(async (provider) => {
-                try {
-                  return (await ctx.llm.listModels(provider.id)).map((model) => ({
-                    provider: provider.id,
-                    model: model.id,
-                    providerName: provider.name || provider.id,
-                    modelName: model.name || model.id,
-                  }))
-                } catch {
-                  catalogErrors.push(`${provider.id} 的模型目录暂时无法读取`)
-                  return []
-                }
-              }),
-            )
-          ).flat()
+      const { routes, catalogErrors } = id
+        ? { routes: [], catalogErrors: [] }
+        : await loadCatalogRoutes(ctx)
+
       const data: StateView = {
         ...view,
         references: id ? {} : controller.references(),

@@ -1,6 +1,3 @@
-/* 组件局部样式：颜色与材质消费 DSH token，以下分区保持既有级联顺序。 */
-
-/* 输入框入口：紧凑排版与宿主响应式折叠变量。 */
 .rong-model-trigger {
   gap: 5px;
   max-width: min(360px, 45cqw);
@@ -29,7 +26,6 @@
   color: var(--dsw-alias-label-primary);
 }
 
-/* 主弹层：高度过渡与材质淡入；基础几何和列表由共享 base.css 提供。 */
 .rong-model-popover {
   height: 98px;
   --dsw-elevation-stroke-color: var(--dsw-alias-border-l1);
@@ -96,7 +92,6 @@
   color: var(--dsw-alias-label-dimmed);
 }
 
-/* 请求等待只阻止激活；能力不可用才进入 :disabled 的中性色，避免保存时图标闪灰。 */
 .rong-model-popover button[aria-busy='true'] {
   cursor: default;
 }
@@ -108,7 +103,6 @@
   outline-offset: 2px;
 }
 
-/* 强度页头：Team 紧邻 Fast，标题保留剩余宽度，滑杆几何不变。 */
 .rong-effort-pane {
   padding: 10px 13px 14px;
   animation: rong-pane-in 150ms ease-out;
@@ -208,7 +202,6 @@
   font: var(--dsw-font-xxs-12);
 }
 
-/* 滑轨、经过圆点与滑块；--rong-position 由 RAF 独占更新。 */
 .rong-effort-slider {
   position: relative;
   height: 24px;
@@ -280,7 +273,6 @@
   opacity: 0;
 }
 
-/* 粒子层：固定高度向左横穿，与轨道填充分别绘制。 */
 .rong-effort-sparkles {
   position: absolute;
   inset: 0 auto 0 0;
@@ -291,7 +283,6 @@
   transition: opacity var(--ds-transition-duration) ease;
 }
 
-/* 每颗星保持固定高度，连续从右向左横穿；内联负相位避免起点聚集。 */
 .rong-effort-star {
   position: absolute;
   left: 0;
@@ -370,7 +361,6 @@
   }
 }
 
-/* Fast/Team 共用子菜单：官方 compact 表面与独立退场，关闭时不响应选项。 */
 .rong-option-menu {
   position: fixed;
   z-index: 1101;

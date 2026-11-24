@@ -1,5 +1,3 @@
-/** 模型选择控制器：只读订阅宿主目录，派生当前路由，并串行提交模型、档位和重置。 */
-
 import { useSyncExternalStore } from 'react'
 import { useStore } from 'zustand'
 import type { ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
@@ -22,7 +20,6 @@ interface Props extends Omit<ModelSelectInjected, 'resolveText'> {
   locked: boolean
 }
 
-/** 请求完成才释放待确认预览；关闭面板不取消宿主操作，卸载后不投递迟到结果。 */
 export function useModelSelection({ directory, select, load, available, locked, session }: Props) {
   const store = session.selectorStore
   const actions = store.getState().actions
@@ -32,6 +29,7 @@ export function useModelSelection({ directory, select, load, available, locked, 
     session.directorySource.subscribe,
     session.directorySource.getSnapshot,
   )
+
   const current = state.current
   const model = currentModelOf(state.groups, current)
   const efforts = effortsOf(model)
@@ -52,6 +50,7 @@ export function useModelSelection({ directory, select, load, available, locked, 
       effort: kind === 'model' ? undefined : selection.reasoningEffort,
     })
     if (id === null) return false
+
     try {
       const result = await select(selection)
       if (!result?.ok) throw new Error(result ? result.error.message : '当前会话无法切换模型')

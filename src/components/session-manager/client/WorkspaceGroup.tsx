@@ -16,18 +16,20 @@ interface GroupSelectionProps {
   selection: SessionSelection
   busy: boolean
 }
+
 function WorkspaceCheckbox({ members, selection, busy }: GroupSelectionProps) {
   const checked = useStore(selection.store, (ids) => {
     const first = ids.has(members[0].id)
     return members.some((row) => ids.has(row.id) !== first) ? 'mixed' : first
   })
-  const label = '全选工作区「' + members[0].workspace.title + '」'
+  const label = `全选工作区「${members[0].workspace.title}」`
   const isMixed = checked === 'mixed'
+
   const bindCheck = (el: HTMLSpanElement | null) => {
-    // DSH 的 Checkbox 提供原生 input；半选状态通过 DOM 属性在布局提交阶段同步。
     const input = el?.querySelector('input')
     if (input) input.indeterminate = isMixed
   }
+
   return (
     <span className="rong-session-group-check" ref={bindCheck}>
       <Checkbox
@@ -35,7 +37,7 @@ function WorkspaceCheckbox({ members, selection, busy }: GroupSelectionProps) {
         title={label}
         checked={checked === true}
         disabled={busy}
-        onChange={(checked) => selection.select(members, checked)}
+        onChange={(next) => selection.select(members, next)}
       />
     </span>
   )
@@ -62,6 +64,7 @@ export function WorkspaceGroup({
   const listId = useId()
   const { workspace, cwd } = members[0]
   const Folder = expanded ? IconFolderOpenRegular : IconFolderCloseRegular
+
   return (
     <div className="rong-session-group">
       <div className="rong-session-group-header">
@@ -79,6 +82,7 @@ export function WorkspaceGroup({
         </button>
         <WorkspaceCheckbox members={members} selection={selection} busy={busy} />
       </div>
+
       <ul hidden={!expanded} id={listId} aria-label={workspace.title}>
         {expanded &&
           members.map((row) => (

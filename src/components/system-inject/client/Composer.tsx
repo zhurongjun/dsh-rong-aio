@@ -1,5 +1,3 @@
-/** 输入框入口：选择菜单、只读快照、管理入口和 Toast 共用同一宿主会话视图。 */
-
 import { useState } from 'react'
 import { useStore } from 'zustand'
 import {
@@ -25,7 +23,6 @@ type Props = PropsRuntime<'conversation.input.left'> & {
   available: boolean
 }
 
-/** 独立运行时不挂载状态订阅，避免触发会话 store 的自动拉取和发送阻塞。 */
 export function Composer(props: Props) {
   if (!props.available) return null
   return (
@@ -37,10 +34,6 @@ export function Composer(props: Props) {
   )
 }
 
-/**
- * 把宿主 resolve 结果投影为按钮、光晕与菜单/只读快照。
- * 有效选择即显示开启状态；是否可编辑只看 resolved.editable，不推断发送历史。
- */
 function ActiveComposer({
   sessionId,
   store,
@@ -65,13 +58,13 @@ function ActiveComposer({
 
   const statusLabel = view ? stateLabel(view.resolved) : '未破甲'
   const choice = view?.resolved.state
+  const disabled = saving || !verified || !!view?.busy || !view
 
   const choose = (state: InjectState) => {
     setOpen(false)
     void store.execute({ type: 'select', sessionId, state })
   }
 
-  const disabled = saving || !verified || !!view?.busy || !view
   return (
     <>
       <span
@@ -79,6 +72,7 @@ function ActiveComposer({
         data-rong-inject-active={active ? 'true' : 'false'}
         aria-hidden="true"
       />
+
       <Menu
         className="rong-inject-control"
         open={menuOpen}
@@ -131,13 +125,14 @@ function ActiveComposer({
             重试读取
           </MenuItemButton>
         )}
+
         {!readOnly && (
           <>
             <MenuItemButton
               current={choice?.name === null}
               icon={choice?.name === null ? <IconCheckOutlineRegular /> : <span />}
               disabled={disabled}
-              onSelect={() => void choose({ name: null })}
+              onSelect={() => choose({ name: null })}
             >
               关闭
             </MenuItemButton>
@@ -147,7 +142,7 @@ function ActiveComposer({
                 current={choice?.name === item.name}
                 icon={choice?.name === item.name ? <IconCheckOutlineRegular /> : <span />}
                 disabled={disabled || item.conflict}
-                onSelect={() => void choose({ name: item.name })}
+                onSelect={() => choose({ name: item.name })}
               >
                 <span className="rong-inject-menu-label">
                   <span
@@ -165,6 +160,7 @@ function ActiveComposer({
             ))}
           </>
         )}
+
         <MenuItemButton
           separatorBefore
           icon={<span />}
@@ -176,6 +172,7 @@ function ActiveComposer({
           管理破甲模式…
         </MenuItemButton>
       </Menu>
+
       {snapshotOpen && (
         <SnapshotDialog
           open
@@ -184,6 +181,7 @@ function ActiveComposer({
           statusLabel={statusLabel}
         />
       )}
+
       {manage && (
         <SettingsModal
           open
@@ -196,6 +194,7 @@ function ActiveComposer({
           <Settings key={view?.workspace ?? ''} store={settingsFor(view?.workspace)} />
         </SettingsModal>
       )}
+
       {notice && (
         <Toast
           key={notice.key}

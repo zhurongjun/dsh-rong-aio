@@ -1,5 +1,3 @@
-/** 破甲组件模态弹窗集合：基于宿主原生 Modal 与共享 ConfirmModal，去除自定义窗体外壳。 */
-
 import { useState, type ReactNode } from 'react'
 import clsx from 'clsx'
 import { Button, Modal, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'

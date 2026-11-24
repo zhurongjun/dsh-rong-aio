@@ -1,5 +1,3 @@
-/** 设置编排：组织模板库、编辑器切换、导入导出与白名单；范围由传入 store 固定。 */
-
 import { useId, useRef, useState } from 'react'
 import { useStore } from 'zustand'
 import {
@@ -26,10 +24,6 @@ interface EditingSession {
   revision: string
 }
 
-/**
- * 模板库与白名单共用的管理界面。store 的范围不可变，页面只维护列表视图与删除确认。
- * 保存结果与 Markdown 导入导出均以宿主为准，客户端不嵌入 YAML/Zod 校验依赖。
- */
 export function Settings({ store }: { store: InjectStore }) {
   const data = useStore(store, (state) => state.data)
   const error = useStore(store, (state) => state.error)
@@ -54,8 +48,10 @@ export function Settings({ store }: { store: InjectStore }) {
     const current = store.getState()
     const latest = current.data?.config
     if (!latest || current.saving || !current.verified) return
+
     const exists = latest.whitelist.some((item) => routeKey(item) === routeKey(route))
     if (exists === adding) return
+
     void store.execute({
       type: 'whitelist',
       revision: latest.revision,
@@ -94,7 +90,7 @@ export function Settings({ store }: { store: InjectStore }) {
       const url = URL.createObjectURL(new Blob([markdown], { type: 'text/markdown;charset=utf-8' }))
       const anchor = document.createElement('a')
       anchor.href = url
-      anchor.download = template.name + '.md'
+      anchor.download = `${template.name}.md`
       anchor.click()
       setTimeout(() => URL.revokeObjectURL(url), 0)
     } catch (failure) {
@@ -125,6 +121,7 @@ export function Settings({ store }: { store: InjectStore }) {
   }
 
   const disabled = saving || !verified
+
   return (
     <div className="rong-inject-settings">
       {(error || localError || config.errors.length > 0) && (

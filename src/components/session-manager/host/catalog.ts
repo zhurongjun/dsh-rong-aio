@@ -19,7 +19,6 @@ export async function listSessions(
   sessions: SessionStore,
   signal: AbortSignal,
 ): Promise<SessionRow[]> {
-  // 原生存储清单同时给出标题元信息和实际日志位置，未落盘会话没有存档目录。
   const stored = await ctx.sessionPersistence.list({ signal })
   const locations = new Map(stored.map((item) => [item.header.id, item]))
   const headers = new Map(stored.map((item) => [item.header.id, item.header]))
@@ -39,10 +38,12 @@ export async function listSessions(
     if (title) titles.set(header.id, title)
     else if (title === undefined) missing.push(header.id)
   }
+
   if (missing.length) {
     for (const row of await ctx.sessionQuery.readTitleSnapshots(missing, signal)) {
-      if (row.status === 'fulfilled' && row.value.title)
+      if (row.status === 'fulfilled' && row.value.title) {
         titles.set(row.sessionId, row.value.title.title)
+      }
     }
   }
 
@@ -52,19 +53,21 @@ export async function listSessions(
   const order = new Map<string, number>(workspaces.map((w, index) => [w.id, index]))
   const archived = new Set(ctx.workspaceRegistry.archivedSessionIds)
   const desktopAvailable = ctx.get('sessionController')?.canOpenWorkspacePath?.() ?? false
+
   const rows: SessionRow[] = Array.from(headers.values(), (header) => {
     const { id, cwd, createdAt } = header
-    const w = bySession.get(id) ?? (cwd ? byPath.get(cwd) : undefined)
-    const stored = locations.get(id)
+    const workspace = bySession.get(id) ?? (cwd ? byPath.get(cwd) : undefined)
+    const entry = locations.get(id)
     const directory =
-      stored?.header.createdAt === createdAt ? directoryOf(stored.location) : undefined
+      entry?.header.createdAt === createdAt ? directoryOf(entry.location) : undefined
+
     return {
       id,
       createdAt,
       cwd,
       title: titles.get(id) ?? '未命名会话',
-      workspace: w
-        ? { key: w.id, title: w.title }
+      workspace: workspace
+        ? { key: workspace.id, title: workspace.title }
         : { key: 'cwd:' + (cwd ?? ''), title: cwd ? basename(cwd) || cwd : '未分组' },
       directory,
       canOpenDirectory: desktopAvailable && !!directory,
@@ -72,6 +75,7 @@ export async function listSessions(
       archived: archived.has(id),
     }
   })
+
   rows.sort(
     (a, b) =>
       (order.get(a.workspace.key) ?? workspaces.length) -
@@ -85,12 +89,14 @@ export async function listSessions(
 export async function openDirectory(ctx: Context, target: Target, signal: AbortSignal) {
   const controller = ctx.get('sessionController')
   if (!controller?.canOpenWorkspacePath?.()) throw new Error('此 DSH 宿主无法打开文件管理器')
-  const id = target.id as SessionId
-  const stored = await ctx.sessionPersistence.stat(id, { signal })
+
+  const stored = await ctx.sessionPersistence.stat(target.id as SessionId, { signal })
   if (stored?.header.createdAt !== target.createdAt)
     throw new Error('会话存档已变更或暂无存档，请刷新列表')
+
   const path = directoryOf(stored.location)
   if (!path || !isAbsolute(path) || !(await stat(path, { throwIfNoEntry: false }))?.isDirectory())
     throw new Error('目录不存在或尚未落盘')
+
   return controller.openWorkspacePath({ path }, signal)
 }

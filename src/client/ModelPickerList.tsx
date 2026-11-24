@@ -1,7 +1,4 @@
-/** 通用分组可搜索模型列表：统一工具栏、提供商分组、高亮度滚动定位与键盘导航。 */
-
 import { forwardRef, type KeyboardEvent } from 'react'
-import clsx from 'clsx'
 import {
   isBehindModal,
   IconCheckOutlineRegular,
@@ -52,17 +49,18 @@ function focusSearchInput(el: HTMLDivElement | null) {
   if (input && !isBehindModal(input)) input.focus({ preventScroll: true })
 }
 
-/** 面板内 Tab / Shift+Tab 首尾焦点循环，跳过禁用元素。 */
 export function trapFocusTabKey(
   event: KeyboardEvent<HTMLElement>,
   container: HTMLElement | null,
 ): void {
   if (event.key !== 'Tab' || !container) return
+
   const controls = Array.from(
     container.querySelectorAll<HTMLElement>(
       'button:not(:disabled),input:not(:disabled),[tabindex="0"]',
     ),
   ).filter((element) => element.tabIndex >= 0)
+
   const first = controls[0]
   const last = controls.at(-1)
   if (event.shiftKey && document.activeElement === first) {
@@ -74,7 +72,6 @@ export function trapFocusTabKey(
   }
 }
 
-/** 列表搜索模式键盘导航：屏蔽 IME 组合与系统快捷键，统一方向键、Enter 提交与 Tab 循环。 */
 export function handlePickerKeyDown(
   event: KeyboardEvent<HTMLElement>,
   options: {
@@ -85,21 +82,23 @@ export function handlePickerKeyDown(
   },
 ): void {
   if (event.nativeEvent.isComposing || event.ctrlKey || event.metaKey || event.altKey) return
+
   if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
     event.preventDefault()
     options.onStepHighlight(event.key === 'ArrowDown' ? 1 : -1)
     options.searchInput?.focus({ preventScroll: true })
     return
   }
+
   if (event.key === 'Enter' && event.target === options.searchInput) {
     event.preventDefault()
     options.onConfirm()
     return
   }
+
   trapFocusTabKey(event, options.container)
 }
 
-/** 可搜索分组选择器面板；ref 指向搜索输入框，键盘导航由外层浮层协调。 */
 export const ModelPickerList = forwardRef<HTMLInputElement, ModelPickerListProps>(
   function ModelPickerList(
     {
@@ -120,6 +119,7 @@ export const ModelPickerList = forwardRef<HTMLInputElement, ModelPickerListProps
     ref,
   ) {
     const listboxId = `${listId}-list`
+
     return (
       <div className="rong-picker-pane">
         <div className="rong-picker-toolbar" ref={focusReady ? focusSearchInput : undefined}>
@@ -132,6 +132,7 @@ export const ModelPickerList = forwardRef<HTMLInputElement, ModelPickerListProps
           >
             <IconChevronLeftOutlineRegular size={18} />
           </button>
+
           <div className="rong-picker-search">
             <IconSearchOutlineRegular size={16} />
             <input
@@ -151,12 +152,14 @@ export const ModelPickerList = forwardRef<HTMLInputElement, ModelPickerListProps
             />
           </div>
         </div>
+
         <div className="rong-picker-list" role="listbox" id={listboxId} aria-label="模型">
           {groups.map((group) => (
             <div key={group.key} role="group" aria-label={group.label}>
               <div className="rong-picker-provider" title={group.title ?? group.label}>
                 {group.label}
               </div>
+
               {group.items.map((item) => (
                 <button
                   ref={item.highlighted ? scrollNearest : undefined}
@@ -172,7 +175,7 @@ export const ModelPickerList = forwardRef<HTMLInputElement, ModelPickerListProps
                   aria-busy={item.busy || undefined}
                   disabled={item.disabled}
                   title={item.title ?? item.label}
-                  className={clsx('rong-picker-option')}
+                  className="rong-picker-option"
                   onPointerMove={() => {
                     if (!item.disabled) item.onHighlight()
                   }}
@@ -190,6 +193,7 @@ export const ModelPickerList = forwardRef<HTMLInputElement, ModelPickerListProps
               ))}
             </div>
           ))}
+
           {!hasItems && <p className="rong-picker-empty">{emptyText}</p>}
         </div>
       </div>

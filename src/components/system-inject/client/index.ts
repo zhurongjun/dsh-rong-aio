@@ -1,5 +1,3 @@
-/** 客户端装配入口：按会话和固定设置范围持有有限缓存 store，注册输入框及原生设置插槽。 */
-
 import { createElement } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
@@ -27,15 +25,14 @@ function createBoundedStorePool(
   const pool = new Map<string, InjectStore>()
 
   function trimIdle() {
-    const idleKeys: string[] = []
-    for (const [key, store] of pool) {
-      if (!store.isRetained()) idleKeys.push(key)
+    const idle: [string, InjectStore][] = []
+    for (const entry of pool) {
+      if (!entry[1].isRetained()) idle.push(entry)
     }
-    const overflow = idleKeys.length - maxIdle
+
+    const overflow = idle.length - maxIdle
     for (let i = 0; i < overflow; i++) {
-      const key = idleKeys[i]
-      const store = pool.get(key)
-      if (!store) continue
+      const [key, store] = idle[i]
       store.dispose()
       pool.delete(key)
     }
@@ -49,11 +46,13 @@ function createBoundedStorePool(
         pool.set(key, existing)
         return existing
       }
+
       const created = factory(key, trimIdle)
       pool.set(key, created)
       trimIdle()
       return created
     },
+
     disposeAll() {
       for (const store of pool.values()) store.dispose()
       pool.clear()
@@ -61,7 +60,6 @@ function createBoundedStorePool(
   }
 }
 
-/** 注册两个客户端入口并按各自身份缓存 store；样式和全部 store 随插件一起释放。 */
 export function apply(ctx: Context): void {
   const settingsPool = createBoundedStorePool(MAX_IDLE_SETTINGS_STORES, (workspace, onRelease) =>
     createInjectStore(undefined, workspace, onRelease),
@@ -86,8 +84,6 @@ export function apply(ctx: Context): void {
         name: 'conversation.input.left',
         id: 'rong-aio-system-inject',
         order: -100,
-
-        /** 将当前会话绑定到独立 store；外部运行时入口保持不可用，不接管其提示词。 */
         inject(sessionId) {
           return {
             store: sessionPool.get(sessionId),
@@ -99,6 +95,7 @@ export function apply(ctx: Context): void {
       Composer,
     ),
   )
+
   ctx.slots.inject('settings.section', () =>
     ctx.slots.register(
       { name: 'settings.section', id: SETTINGS_ID, order: 60, label: '破甲模式' },
@@ -106,7 +103,6 @@ export function apply(ctx: Context): void {
     ),
   )
 
-  // 原生设置外壳按分类 ID 渲染图标，尺寸与生命周期均由宿主管理。
   ctx.slots.inject('settings.section.icon', () =>
     ctx.slots.register({ name: 'settings.section.icon', id: SETTINGS_ID }, ({ size }) =>
       createElement(ArmorIcon, { active: true, size }),

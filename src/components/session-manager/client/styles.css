@@ -148,7 +148,6 @@
   cursor: pointer;
 }
 
-/* Extend the native button across the row padding; sibling actions stay above it. */
 .rong-session-select::after {
   content: '';
   position: absolute;

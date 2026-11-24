@@ -1,5 +1,3 @@
-/** HTTP 状态容器：读取宿主权威结果、协调保存与条件轮询、确认通知并清理请求。 */
-
 import { createStore } from 'zustand/vanilla'
 import { requestConditionalJson, requestJson } from '../../../client/http.ts'
 import { createAbortScope, isAbortError, withLifecycle } from '../../../client/store.ts'
@@ -8,7 +6,6 @@ import { API, isInjectSelectionError, type Command, type StateView } from '../sh
 import type { Prompt } from '../shared/state.ts'
 import { sessionState } from './session-state.ts'
 
-/** 传输与展示状态，不保存第二份模板库、模型授权或会话解析结果。 */
 interface State {
   data?: StateView
   error?: string
@@ -18,12 +15,6 @@ interface State {
   dismissedNotice?: string
 }
 
-/**
- * 创建固定范围的破甲客户端 store。
- *
- * sessionId 存在时绑定会话；否则 workspace 为空表示全局设置，非空表示当前工程设置。
- * 范围在创建后不变。ETag 和请求生命周期留在闭包作用域内。
- */
 export function createInjectStore(
   sessionId?: string,
   workspace = '',
@@ -100,7 +91,6 @@ export function createInjectStore(
     )
   }
 
-  /** 已冻结且无待确认错误/通知的会话放缓轮询频率至 2500ms（配合 ETag 304 零渲染），既降开销又不漏发后拒绝通知。 */
   function syncPolling() {
     if (!sessionId || disposed || retainCount === 0) return
     const current = store.getState()
@@ -131,6 +121,7 @@ export function createInjectStore(
   async function acknowledgeNotice() {
     const noticeId = pendingAcknowledgement
     if (!sessionId || noticeId === undefined || disposed || acknowledging) return
+
     acknowledging = true
     try {
       await postRpc({ type: 'acknowledge-error', sessionId, noticeId }, '无法读取破甲模式状态')
@@ -139,16 +130,12 @@ export function createInjectStore(
         const current = store.getState().data
         if (current?.session?.error?.id === noticeId) {
           store.setState({
-            data: {
-              ...current,
-              session: { ...current.session, error: undefined },
-            },
+            data: { ...current, session: { ...current.session, error: undefined } },
           })
         }
       }
       syncPolling()
     } catch {
-      // 网络失败仅推迟宿主清理，下一次刷新重试。
     } finally {
       acknowledging = false
     }
@@ -157,6 +144,7 @@ export function createInjectStore(
   async function refresh(invalidate = false) {
     if (disposed || store.getState().saving) return
     if (invalidate) store.setState({ verified: false })
+
     const req = scope.latest()
     try {
       const etag = store.getState().data ? lastEtag : undefined
@@ -166,6 +154,7 @@ export function createInjectStore(
         fallbackError: '无法读取破甲模式状态',
       })
       if (disposed || !req.isCurrent()) return
+
       if (!result.modified) {
         const s = store.getState()
         if (!s.verified || s.error !== undefined) {
@@ -207,6 +196,7 @@ export function createInjectStore(
       void refresh(true)
       startTimer(sessionId ? 1200 : 5000)
     }
+
     let released = false
     return () => {
       if (released) return
@@ -252,6 +242,7 @@ export function createInjectStore(
       if (disposed || store.getState().saving) return false
       scope.latest().abort()
       store.setState({ saving: true, error: undefined })
+
       try {
         const result = validateView(await postRpc<StateView>(command, '无法读取破甲模式状态'))
         accept(result)

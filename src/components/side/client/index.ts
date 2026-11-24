@@ -18,24 +18,27 @@ import css from './styles.css'
 import zh from '../locale/zh.json'
 import en from '../locale/en.json'
 
-/** Keep the native identity map intact for the embedded Conversation while omitting side rows from navigation. */
 function filterNavigation(ctx: Context) {
   const list = ctx.sessions.list
   const original = list.getSnapshot
   const cache = new WeakMap<SessionListState, SessionListState>()
+
   const visible = () => {
     const all = original.call(list)
     const previous = cache.get(all)
     if (previous) return previous
+
     const ids = all.ids.filter((id) => !isSideSession(id))
     const view = ids.length === all.ids.length ? all : { ...all, ids }
     cache.set(all, view)
     return view
   }
+
   list.getSnapshot = visible
   ctx.effect(() => () => {
     if (list.getSnapshot === visible) list.getSnapshot = original
   })
+
   const sessions = ctx.sessions
   const descriptor = Object.getOwnPropertyDescriptor(sessions, 'search')
   const search = sessions.search
@@ -50,6 +53,7 @@ function filterNavigation(ctx: Context) {
       },
     }
   }
+
   Object.defineProperty(sessions, 'search', {
     configurable: true,
     writable: true,
@@ -73,16 +77,21 @@ export const inject = [
   'commandUi',
   'locale',
 ]
+
 const id = 'dsh-rong-aio-side'
+
 declare module '@deepseek-ai/dsh-client-ui-sidebar-right/client' {
   interface SidebarRightTabParamsMap {
     'rong-side': { quote: string }
   }
 }
+
 export function apply(ctx: Context) {
   filterNavigation(ctx)
+
   const tabs = new SideTabs(ctx)
   const current = ctx.uiSession.adapter.current
+
   function tabProps({ tab, panel }: SidebarRightTabInfo, sessionId: SessionId) {
     const source = isSideSession(sessionId)
       ? (ctx.sidebarRight.mounted.getSnapshot() ?? sessionId)
@@ -95,13 +104,16 @@ export function apply(ctx: Context) {
       quote: params && 'quote' in params ? params.quote : undefined,
     }
   }
+
   mountStyle(ctx, id, css)
   ctx.effect(() => () => tabs.dispose())
   ctx.effect(() => ctx.locale.register(id, 'zh', zh.command))
   ctx.effect(() => ctx.locale.register(id, 'en', en.command))
+
   const t = ctx.locale.bind(id)
   const title = () => t('label')
   const description = () => t('description')
+
   ctx.sidebarRightTabs.register({
     id,
     kind,
@@ -120,6 +132,7 @@ export function apply(ctx: Context) {
       },
     ],
   })
+
   ctx.commandUi.register({
     name: 'side',
     label: title,
@@ -128,6 +141,7 @@ export function apply(ctx: Context) {
     available: ({ sessionId }) => sessionId === current.getSnapshot().key,
     ui: { kind: 'action', run: () => tabs.show() },
   })
+
   ctx.slots.inject('sidebar.right.pane.tab', () =>
     ctx.slots.register(
       {
@@ -142,11 +156,13 @@ export function apply(ctx: Context) {
       },
     ),
   )
+
   ctx.slots.inject('sidebar.right.pane.tab.title', () =>
     ctx.slots.register({ name: 'sidebar.right.pane.tab.title', key: id }, (props) =>
       createElement(TabTitle, tabProps(props.useTabInfo(), props.sessionId)),
     ),
   )
+
   ctx.slots.inject('conversation.session.header.utilities', () =>
     ctx.slots.register(
       { name: 'conversation.session.header.utilities', id, order: -1 },
@@ -157,12 +173,15 @@ export function apply(ctx: Context) {
       },
     ),
   )
+
   ctx.slots.inject('rong.side.conversation', () =>
     ctx.slots.register({ name: 'rong.side.conversation' }, Conversation),
   )
+
   ctx.slots.inject('conversation.input.left', () =>
     ctx.slots.register({ name: 'conversation.input.left', id, order: -110 }, EmbeddedPermission),
   )
+
   ctx.uiConversation.interactions.register({
     id,
     onInteraction(req) {
@@ -170,13 +189,15 @@ export function apply(ctx: Context) {
         !req.hasSelection ||
         isSideSession(req.sessionId) ||
         req.sessionId !== current.getSnapshot().key
-      )
+      ) {
         return
+      }
       if (req.trigger === 'contextmenu') req.preventDefault()
       else if (ctx.uiConversation.interactions.getSnapshot().includes('quote')) return
       req.open()
     },
   })
+
   ctx.slots.inject('conversation.chat.text-interaction', () =>
     ctx.slots.register(
       { name: 'conversation.chat.text-interaction', key: id },
