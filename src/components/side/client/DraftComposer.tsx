@@ -8,9 +8,12 @@ import { PermissionControl } from './PermissionControl.tsx'
 import type { SideClient } from './store.ts'
 
 export function DraftComposer({ store }: { store: SideClient }) {
-  const draft = useStore(store.view, (s) => s.draft)
+  const draft = useStore(store.view, (s) => (s.phase.kind === 'draft' ? s.phase.draft : undefined))
   const busy = useStore(store.view, (s) => s.busy)
-  const selected = useStore(store.view, (s) => s.selected)
+  const creating = useStore(
+    store.view,
+    (s) => s.phase.kind === 'draft' && !!s.phase.creatingSessionId,
+  )
   const sending = !!draft && busy
   return (
     <div className="rong-side-draft">
@@ -41,7 +44,7 @@ export function DraftComposer({ store }: { store: SideClient }) {
             aria-busy={sending}
             aria-label="发送侧聊消息"
             title={sending ? '正在发送' : '发送'}
-            disabled={busy || !!selected || !draft?.text.trim()}
+            disabled={busy || creating || !draft?.text.trim()}
             onMouseDown={(e) => e.preventDefault()}
             onClick={() => void store.send()}
             icon={

@@ -1,6 +1,8 @@
 /** 统一构建入口：发现组件清单，生成独立 host/client 产物、子路径入口及声明文件。 */
 
-import { build } from 'esbuild'
+import { build, transform } from 'esbuild'
+import { transformAsync } from '@babel/core'
+import ReactCompilerPlugin from 'babel-plugin-react-compiler'
 import { access, cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -96,6 +98,33 @@ for (const entry of components.sort((a, b) => a.name.localeCompare(b.name))) {
     if (component.exports['./client'] !== './client.js')
       throw new Error(`${id} 的 ./client 必须指向 ./client.js`)
 
+    const sourceRoot = path.join(root, 'src') + path.sep
+    const reactCompilerPlugin = {
+      name: 'react-compiler',
+      setup(pluginBuild) {
+        pluginBuild.onLoad({ filter: /\.[jt]sx$/ }, async (args) => {
+          if (!args.path.startsWith(sourceRoot)) return undefined
+          const raw = await readFile(args.path, 'utf8')
+          const stripped = await transform(raw, {
+            loader: args.path.endsWith('.tsx') ? 'tsx' : 'jsx',
+            jsx: 'preserve',
+            target: 'es2022',
+            sourcefile: args.path,
+          })
+          const compiled = await transformAsync(stripped.code, {
+            filename: args.path,
+            plugins: [[ReactCompilerPlugin, { target: '18', panicThreshold: 'all_errors' }]],
+            parserOpts: { plugins: ['jsx'] },
+            sourceMaps: false,
+            configFile: false,
+            babelrc: false,
+          })
+          if (!compiled?.code) throw new Error(`React Compiler 未产出代码：${args.path}`)
+          return { contents: compiled.code, loader: 'jsx' }
+        })
+      },
+    }
+
     // 0.2.2-rc.3 使用模块工厂；每个组件的 factory ID 与内部清单完全一致。
     await build({
       absWorkingDir: root,
@@ -109,6 +138,7 @@ for (const entry of components.sort((a, b) => a.name.localeCompare(b.name))) {
       define: { 'process.env.NODE_ENV': '"production"' },
       external: ['react', 'react-dom', 'react/jsx-runtime', '@deepseek-ai/*'],
       loader: { '.css': 'text' },
+      plugins: [reactCompilerPlugin],
       banner: {
         js: `window.__ModuleLoader__.load({id:${JSON.stringify(component.name)},factory:(require)=>{var module={exports:{}};var exports=module.exports;`,
       },

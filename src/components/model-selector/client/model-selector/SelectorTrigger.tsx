@@ -1,6 +1,6 @@
 /** 输入框模型入口：模型和 Fast 来自确认值，effort 共用面板预览投影；不发起请求。 */
 
-import { forwardRef, memo } from 'react'
+import { forwardRef } from 'react'
 import { useStore } from 'zustand'
 import {
   IconDataOutlineRegular,
@@ -15,84 +15,59 @@ import { useEffortPreview } from './useEffortPreview.ts'
 
 /** 本视图所需的输入契约；数据保存与宿主副作用由外层负责。 */
 interface Props {
-  /** 读取主弹层开关与拖动预览。 */
   store: SelectorStore
-
-  /** 档位预览所属模型与目录，不与 Fast 的速度身份混用。 */
   routeKey: string
-
-  /** 读取宿主已确认速度，避免加载状态引起无关渲染。 */
   speedStore: SpeedStore
-
-  /** 当前模型的完整速度身份，用于屏蔽前一路由快照。 */
   speedKey: string
-
-  /** 输入框中展示的当前模型名称。 */
   modelName: string
-
-  /** 预览 ID 对应的明确档位目录。 */
   efforts: readonly ModelReasoningEffort[]
-
-  /** 宿主确认的强度，未明确设置时允许缺省。 */
   selected: ModelReasoningEffort | undefined
-
-  /** 原生会话锁，锁定时禁止打开选择器。 */
   locked: boolean
-
-  /** 主弹层 ID，用于 aria-controls 关联。 */
   id: string
-
-  /** 切换主弹层，由外层处理加载和焦点恢复。 */
   onToggle(): void
 }
 
 /** 输入框入口的窄订阅视图；Fast 图标只显示当前路由已经确认的速度。 */
-export const SelectorTrigger = memo(
-  forwardRef<HTMLButtonElement, Props>(function SelectorTrigger(
-    { store, routeKey, speedStore, speedKey, modelName, efforts, selected, locked, id, onToggle },
-    ref,
-  ) {
-    const open = useStore(store, (state) => state.open)
-    const preview = useEffortPreview(store, routeKey, selected?.id)
+export const SelectorTrigger = forwardRef<HTMLButtonElement, Props>(function SelectorTrigger(
+  { store, routeKey, speedStore, speedKey, modelName, efforts, selected, locked, id, onToggle },
+  ref,
+) {
+  const open = useStore(store, (state) => state.open)
+  const preview = useEffortPreview(store, routeKey, selected?.id)
 
-    // 输入框只关心确认过的速度，不因 GET/POST 的 loading 状态重新渲染。
-    const mode = useStore(speedStore, (state) =>
-      state.key === speedKey && state.value.modes.includes(state.value.mode)
-        ? state.value.mode
-        : 'standard',
-    )
-    const fastActive = mode !== 'standard'
-    const effort = efforts.find((entry) => entry.id === preview) ?? selected
-    return (
-      <button
-        ref={ref}
-        type="button"
-        className="rong-model-trigger"
-        disabled={locked}
-        aria-label={`选择模型与推理强度：${modelName}${effort ? `，${effort.name}` : ''}${fastActive ? `，${SPEED_LABELS[mode]}模式` : ''}`}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        aria-controls={open ? id : undefined}
-        onClick={onToggle}
-      >
-        {fastActive ? (
-          <span
-            className="rong-trigger-fast"
-            aria-hidden="true"
-            title={`${SPEED_LABELS[mode]}模式`}
-          >
-            <FastIcon active />
-          </span>
-        ) : (
-          <IconDataOutlineRegular size={16} className="rong-trigger-icon" />
-        )}
-        <span className="rong-trigger-name">{modelName}</span>
-        <span className="rong-trigger-effort">{effort?.name}</span>
-        <IconChevronDownOutlineRegular
-          size={12}
-          className={open ? 'rong-chevron rong-open' : 'rong-chevron'}
-        />
-      </button>
-    )
-  }),
-)
+  // 输入框只关心确认过的速度，不因 GET/POST 的 loading 状态重新渲染。
+  const mode = useStore(speedStore, (state) =>
+    state.key === speedKey && state.value.modes.includes(state.value.mode)
+      ? state.value.mode
+      : 'standard',
+  )
+  const fastActive = mode !== 'standard'
+  const effort = efforts.find((entry) => entry.id === preview) ?? selected
+  return (
+    <button
+      ref={ref}
+      type="button"
+      className="rong-model-trigger"
+      disabled={locked}
+      aria-label={`选择模型与推理强度：${modelName}${effort ? `，${effort.name}` : ''}${fastActive ? `，${SPEED_LABELS[mode]}模式` : ''}`}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      aria-controls={open ? id : undefined}
+      onClick={onToggle}
+    >
+      {fastActive ? (
+        <span className="rong-trigger-fast" aria-hidden="true" title={`${SPEED_LABELS[mode]}模式`}>
+          <FastIcon active />
+        </span>
+      ) : (
+        <IconDataOutlineRegular size={16} className="rong-trigger-icon" />
+      )}
+      <span className="rong-trigger-name">{modelName}</span>
+      <span className="rong-trigger-effort">{effort?.name}</span>
+      <IconChevronDownOutlineRegular
+        size={12}
+        className={open ? 'rong-chevron rong-open' : 'rong-chevron'}
+      />
+    </button>
+  )
+})

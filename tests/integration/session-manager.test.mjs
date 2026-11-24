@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import { access, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -74,4 +75,39 @@ test('缺少删除确认时拒绝请求；批量删除隔离占用和过期目�
   assert.deepEqual(await remove(), { outcomes: [{ id: one.target.id }] })
   await assert.rejects(access(one.directory), { code: 'ENOENT' })
   assert.deepEqual(removed, [eligible.target.id, one.target.id])
+})
+
+test('侧聊会话不出现在会话管理目录，且批量删除请求会被侧聊宿主认领拦截', async (t) => {
+  const f = await runtime(t, { side: true })
+  const draftResponse = await f.request('rong-aio.side', { parent: f.agent.id, action: 'draft' })
+  assert.equal(draftResponse.status, 200)
+  const { fork } = await draftResponse.json()
+  const createResponse = await f.request('rong-aio.side', {
+    ...fork,
+    action: 'create',
+    key: randomUUID(),
+    text: '侧聊隔离测试',
+    permission: 'read',
+  })
+  assert.equal(createResponse.status, 200)
+  const { id: sideId } = await createResponse.json()
+  await f.ctx.agents.get(sideId).whenIdle()
+
+  const listResponse = await f.request('rong-aio.session-manager')
+  assert.equal(listResponse.status, 200)
+  const rows = await listResponse.json()
+  assert.equal(
+    rows.some((row) => row.id === sideId),
+    false,
+  )
+
+  const deleteResponse = await f.request('rong-aio.session-manager', {
+    action: 'delete',
+    confirmed: true,
+    targets: [{ id: sideId, createdAt: f.ctx.agents.get(sideId).session.header.createdAt }],
+  })
+  assert.equal(deleteResponse.status, 200)
+  const { outcomes } = await deleteResponse.json()
+  assert.equal(outcomes.length, 1)
+  assert.match(outcomes[0].error, /侧聊历史/)
 })

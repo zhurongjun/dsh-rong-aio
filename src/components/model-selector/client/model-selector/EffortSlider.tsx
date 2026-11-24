@@ -1,9 +1,9 @@
 /** 滑杆手势层：指针拖动只预览，释放才提交；键盘直接选择，取消手势不提交。 */
 
-import { memo, useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useRef, useState, type KeyboardEvent } from 'react'
 import type { ModelReasoningEffort } from '@deepseek-ai/dsh-api-session-controller/types'
 import { clamp, detentAt } from '../../shared/slider-motion.ts'
-import { useSliderMotion } from './useSliderMotion.ts'
+import { createSliderMotion } from './slider-motion-controller.ts'
 
 /** 本视图所需的输入契约；数据保存与宿主副作用由外层负责。 */
 interface Props {
@@ -27,48 +27,30 @@ interface Props {
 }
 
 /** 可访问的离散档位滑杆；视觉位置由连续动画驱动，但提交值始终是目录 ID。 */
-export const EffortSlider = memo(function EffortSlider({
-  efforts,
-  selected,
-  disabled,
-  busy,
-  onPreview,
-  onCommit,
-}: Props) {
+export function EffortSlider({ efforts, selected, disabled, busy, onPreview, onCommit }: Props) {
   const index = efforts.findIndex((effort) => effort.id === selected)
   const [dragging, setDragging] = useState(false)
-  const root = useRef<HTMLDivElement>(null)
   const drag = useRef<{ pointer: number; index: number } | null>(null)
+  const dragAbort = useRef<AbortController | null>(null)
   const blocked = disabled || busy
+  const activeDragging = dragging && !blocked
   const target = Math.max(0, index) / Math.max(1, efforts.length - 1)
+  const [motion] = useState(createSliderMotion)
 
-  const { sparkles, ticks } = useSliderMotion({
-    root,
-    target,
-    hasSelection: index >= 0,
-    count: efforts.length,
-  })
-
-  /** 取消正在进行的拖动并清理预览；不提交未完成选择。 */
-  const cancel = useCallback(() => {
+  /** 取消正在进行的拖动并清理预览与失焦监听；不提交未完成选择。 */
+  const cancel = () => {
     // 松手后的 blur / lostpointercapture 不得取消正在等待宿主确认的预览。
     if (!drag.current) return
     drag.current = null
+    dragAbort.current?.abort()
+    dragAbort.current = null
     setDragging(false)
     onPreview(undefined)
-  }, [onPreview])
-  useEffect(() => {
-    if (blocked) cancel()
-  }, [blocked, cancel])
-  useEffect(() => {
-    // 弹窗失焦不提交未完成手势；pointercancel / Escape 同样回退。
-    window.addEventListener('blur', cancel)
-    return () => window.removeEventListener('blur', cancel)
-  }, [cancel])
+  }
 
   /** 把屏幕横坐标换算为滑块圆心在有效轨道中的 0–1 位置。 */
-  const point = (clientX: number) => {
-    const rect = root.current!.getBoundingClientRect()
+  const point = (el: HTMLElement, clientX: number) => {
+    const rect = el.getBoundingClientRect()
     return clamp((clientX - rect.left - 14) / Math.max(1, rect.width - 28), 0, 1)
   }
 
@@ -110,9 +92,28 @@ export const EffortSlider = memo(function EffortSlider({
     void commit(clamp(next, 0, efforts.length - 1))
   }
 
+  const hasSelection = index >= 0
+  const effortCount = efforts.length
+  const bindRoot = (el: HTMLDivElement | null) => {
+    motion.bindRoot(el)
+    if (!el) {
+      dragAbort.current?.abort()
+      dragAbort.current = null
+      drag.current = null
+    }
+  }
+  const bindFill = (el: HTMLDivElement | null) => {
+    if (el) motion.update(target, hasSelection, effortCount)
+  }
+  const bindSparkles = (el: HTMLDivElement | null) => motion.bindSparkles(el)
+  const bindTicks = (el: HTMLDivElement | null) => motion.bindTicks(el)
+  const cancelWhenBlocked = (el: HTMLDivElement | null) => {
+    if (el && drag.current) cancel()
+  }
+
   return (
     <div
-      ref={root}
+      ref={bindRoot}
       className="rong-effort-slider"
       role="slider"
       tabIndex={disabled ? -1 : 0}
@@ -123,7 +124,7 @@ export const EffortSlider = memo(function EffortSlider({
       aria-valuetext={efforts[index]?.name ?? '尚未选择强度'}
       aria-disabled={blocked || efforts.length < 2}
       data-unset={index < 0 || undefined}
-      data-dragging={dragging || undefined}
+      data-dragging={activeDragging || undefined}
       aria-busy={busy || undefined}
       onKeyDown={keyDown}
       onPointerDown={(event) => {
@@ -131,14 +132,22 @@ export const EffortSlider = memo(function EffortSlider({
         event.preventDefault()
         event.currentTarget.focus()
         event.currentTarget.setPointerCapture(event.pointerId)
-        const next = Math.round(point(event.clientX) * (efforts.length - 1))
+        dragAbort.current?.abort()
+        const abort = new AbortController()
+        dragAbort.current = abort
+        window.addEventListener('blur', cancel, { signal: abort.signal })
+        const next = Math.round(point(event.currentTarget, event.clientX) * (efforts.length - 1))
         drag.current = { pointer: event.pointerId, index: next }
         setDragging(true)
         show(next)
       }}
       onPointerMove={(event) => {
         if (drag.current?.pointer !== event.pointerId) return
-        const next = detentAt(point(event.clientX), drag.current.index, efforts.length)
+        const next = detentAt(
+          point(event.currentTarget, event.clientX),
+          drag.current.index,
+          efforts.length,
+        )
         if (next !== drag.current.index) {
           drag.current.index = next
           show(next)
@@ -147,6 +156,8 @@ export const EffortSlider = memo(function EffortSlider({
       onPointerUp={(event) => {
         if (drag.current?.pointer !== event.pointerId) return
         const next = drag.current.index
+        dragAbort.current?.abort()
+        dragAbort.current = null
         if (blocked) cancel()
         else {
           drag.current = null
@@ -160,14 +171,18 @@ export const EffortSlider = memo(function EffortSlider({
         if (drag.current) cancel()
       }}
     >
-      <div className="rong-effort-fill" />
-      <div ref={sparkles} className="rong-effort-sparkles" aria-hidden="true" />
-      <div ref={ticks} className="rong-effort-ticks" aria-hidden="true">
+      <div className="rong-effort-fill" ref={bindFill} />
+      <div ref={bindSparkles} className="rong-effort-sparkles" aria-hidden="true" />
+      <div ref={bindTicks} className="rong-effort-ticks" aria-hidden="true">
         {efforts.map((effort) => (
           <i key={effort.id} title={effort.name} />
         ))}
       </div>
-      <div className="rong-effort-thumb" aria-hidden="true" />
+      <div
+        className="rong-effort-thumb"
+        aria-hidden="true"
+        ref={blocked ? cancelWhenBlocked : undefined}
+      />
     </div>
   )
-})
+}

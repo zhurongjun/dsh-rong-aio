@@ -1,9 +1,9 @@
 /** 宿主装配入口：连接原生会话、提示词、模型与 HTTP 服务，不在入口实现文件事务。 */
 
-import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection'
+import type {} from '@deepseek-ai/dsh-client-connection'
 import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import type { SessionStore as NativeSessionStore } from '@deepseek-ai/dsh-session'
+import type {} from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-agent-loop'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import type {} from '@deepseek-ai/dsh-app-boot'
@@ -11,9 +11,12 @@ import type {} from '@deepseek-ai/dsh-system-prompt'
 import type {} from '@deepseek-ai/dsh-workspace'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-session-persistence'
-import { API, commandSchema, type StateView } from '../shared/protocol.ts'
+import { API, type StateView } from '../shared/protocol.ts'
 import { Controller } from './controller.ts'
+import { fingerprint } from './files.ts'
+import { exportMarkdown, importMarkdown } from './markdown.ts'
 import { Paths } from './paths.ts'
+import { rpcSchema } from './schemas.ts'
 import { SessionStore, type SessionMeta, type SessionEntry } from './session-store.ts'
 import { sessionDirectory, sessionRoot } from '../../../host/session-location.ts'
 import { guardRequest } from './request-guard.ts'
@@ -41,7 +44,7 @@ const SECTION = 'rong-aio:system-inject'
 export async function apply(ctx: Context): Promise<void> {
   if (!ctx.dshHomePath) throw new Error('DSH 未提供用户目录解析服务')
   const paths = new Paths(ctx.dshHomePath('system_inject'))
-  const nativeSessions = Reflect.get(ctx, 'sessions') as unknown as NativeSessionStore
+  const nativeSessions = ctx.sessions
   const persistence = ctx.sessionPersistence
 
   // 会话存储适配：目录定位、原生日志落盘与请求历史判定分别注入。
@@ -99,6 +102,7 @@ export async function apply(ctx: Context): Promise<void> {
   })
   ctx.on('agent/disposed', ({ agent }) => {
     sessions.idle(agent.id)
+    sessions.evictIfCold(agent.id)
   })
 
   // 系统首段：注册字面段落；真正装配时捕获候选，绝不从 UI 预览触发。
@@ -137,7 +141,7 @@ export async function apply(ctx: Context): Promise<void> {
   )
 
   // HTTP 入口：校验范围与命令，返回文件或会话投影；通知错误保留可识别协议。
-  const connection = Reflect.get(ctx, 'connection') as unknown as HostConnectionHandle
+  const connection = ctx.connection
   connection.fetch.register({
     path: API,
     methods: ['GET', 'POST'],
@@ -146,6 +150,28 @@ export async function apply(ctx: Context): Promise<void> {
     /** 校验会话/工程范围，执行可选命令，再返回同一范围的权威视图；异常返回 409。 */
     async fetch(request) {
       try {
+        let parsedCommand
+        if (request.method === 'POST') {
+          const parsed = rpcSchema.safeParse(await request.json().catch(() => null))
+          if (!parsed.success)
+            return Response.json(
+              { error: '设置格式无效，请检查名称、正文和精确模型标识' },
+              { status: 400 },
+            )
+          if (parsed.data.type === 'parse-markdown') {
+            return Response.json(
+              { prompt: importMarkdown(parsed.data.markdown) },
+              { headers: { 'cache-control': 'no-store' } },
+            )
+          }
+          if (parsed.data.type === 'format-markdown') {
+            return Response.json(
+              { markdown: exportMarkdown(parsed.data.template) },
+              { headers: { 'cache-control': 'no-store' } },
+            )
+          }
+          parsedCommand = parsed.data
+        }
         const url = new URL(request.url)
         const id = url.searchParams.get('sessionId') || undefined
         if (id) await initialize(id)
@@ -158,15 +184,9 @@ export async function apply(ctx: Context): Promise<void> {
           ![...sessions.entries.values()].some((entry) => entry.meta.cwd === workspace)
         )
           throw new Error('工作区未在 DSH 中注册')
-        if (request.method === 'POST') {
-          const parsed = commandSchema.safeParse(await request.json())
-          if (!parsed.success)
-            return Response.json(
-              { error: '设置格式无效，请检查名称、正文和精确模型标识' },
-              { status: 400 },
-            )
-          if ('sessionId' in parsed.data) await initialize(parsed.data.sessionId)
-          await controller.command(parsed.data, workspace)
+        if (parsedCommand) {
+          if ('sessionId' in parsedCommand) await initialize(parsedCommand.sessionId)
+          await controller.command(parsedCommand, workspace)
         }
         const view = await controller.view(id, workspace)
         const catalogErrors: string[] = []
@@ -195,7 +215,18 @@ export async function apply(ctx: Context): Promise<void> {
           routes,
           catalogErrors,
         }
-        return Response.json(data, { headers: { 'cache-control': 'no-store' } })
+        const payload = JSON.stringify(data)
+        const etag = `"${fingerprint(payload)}"`
+        if (request.method === 'GET' && request.headers.get('if-none-match') === etag) {
+          return new Response(null, {
+            status: 304,
+            headers: { etag, 'cache-control': 'no-store' },
+          })
+        }
+        return new Response(payload, {
+          status: 200,
+          headers: { 'content-type': 'application/json', 'cache-control': 'no-store', etag },
+        })
       } catch (error) {
         return Response.json(
           {

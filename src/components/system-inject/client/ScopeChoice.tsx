@@ -1,6 +1,6 @@
 /** 模板保存位置控件：全局始终可选，只有入口绑定工程时才提供工程选项。 */
 
-import { useEffect, useId, useState } from 'react'
+import { useId, useState } from 'react'
 import {
   Button,
   IconChevronDownOutlineRegular,
@@ -32,20 +32,20 @@ export function ScopeChoice({
   /** 将合法范围写回草稿，实际落盘由设置页保存。 */
   onChange: (value: Scope) => void
 }) {
-  const [open, setOpen] = useState(false)
+  const [openFor, setOpenFor] = useState<Scope | null>(null)
   const id = useId()
   const options = [
     { value: 'user' as const, label: '全局' },
     ...(workspace ? [{ value: 'workspace' as const, label: '当前项目' }] : []),
   ]
   const selected = value === 'user' ? '全局' : '当前项目'
-  useEffect(() => setOpen(false), [disabled, value])
+  const isOpen = !disabled && openFor === value
   return (
     <div className="rong-inject-field">
       <span id={id}>保存位置</span>
       <Menu
-        open={open && !disabled}
-        onClose={() => setOpen(false)}
+        open={isOpen}
+        onClose={() => setOpenFor(null)}
         portal
         className="rong-inject-choice"
         listClassName="rong-inject-choice-menu"
@@ -61,7 +61,7 @@ export function ScopeChoice({
           ),
         }))}
         onSelect={(next) => {
-          setOpen(false)
+          setOpenFor(null)
           const option = options.find((item) => item.value === next)
           if (option && next !== value) onChange(option.value)
         }}
@@ -73,13 +73,13 @@ export function ScopeChoice({
             disabled={disabled}
             aria-labelledby={`${id} ${id}-value`}
             aria-haspopup="menu"
-            aria-expanded={open && !disabled}
+            aria-expanded={isOpen}
             title={selected}
-            onClick={() => setOpen(!open)}
+            onClick={() => setOpenFor(isOpen ? null : value)}
             onKeyDown={(event) => {
-              if (!open && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+              if (!isOpen && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
                 event.preventDefault()
-                setOpen(true)
+                setOpenFor(value)
               }
             }}
           >

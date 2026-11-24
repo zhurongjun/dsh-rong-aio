@@ -1,23 +1,15 @@
-/** 破甲组件的 HTTP 命令与视图契约；文件投影、会话状态和操作通知分别传输。 */
+/** 破甲组件的 HTTP 命令与视图契约；仅导出纯类型与端点常量，不含运行时校验库。 */
 
-import { z } from 'zod'
-import {
-  promptSchema,
-  selectionSchema,
-  type CatalogPrompt,
-  type ResolvedState,
-  type Scope,
-} from './state.ts'
+import type { CatalogPrompt, InjectState, Prompt, ResolvedState, Scope } from './state.ts'
 
 /** HTTP 契约只传输文件投影和统一状态，不构造第二套持久化配置。 */
 export const API = '/api/rong-aio.system-inject'
 
-const id = z.string().min(1).max(4096)
-
 /** 授权键由 provider 与 model 精确组成，两个标识均不按名称或家族推断。 */
-export const routeSchema = z.object({ provider: id, model: id }).strict()
-
-export type Route = z.infer<typeof routeSchema>
+export interface Route {
+  provider: string
+  model: string
+}
 
 /** 目录名称只供界面展示，授权持久化和护栏仍只使用 Route 中的精确标识。 */
 export interface CatalogRoute extends Route {
@@ -28,45 +20,26 @@ export interface CatalogRoute extends Route {
   modelName?: string
 }
 
-const revision = z.string().min(1)
+/** 改变宿主会话或文件状态的写命令。 */
+export type Command =
+  | { type: 'select'; sessionId: string; state: InjectState }
+  | { type: 'acknowledge-error'; sessionId: string; noticeId: number }
+  | {
+      type: 'save-template'
+      revision: string
+      scope: Scope
+      file?: string
+      template: Prompt
+      confirmed?: boolean
+    }
+  | { type: 'delete-template'; revision: string; file: string; confirmed?: boolean }
+  | { type: 'whitelist'; revision: string; routes: Route[] }
 
-/** HTTP 写命令的严格校验入口。选词、通知确认、文件编辑与白名单修改各有独立字段。 */
-export const commandSchema = z.discriminatedUnion('type', [
-  // 会话选择与通知确认：以 session ID 定位，禁止夹带正文快照。
-  z.object({ type: z.literal('select'), sessionId: id, state: selectionSchema }).strict(),
-  z
-    .object({
-      type: z.literal('acknowledge-error'),
-      sessionId: id,
-      noticeId: z.number().int().positive(),
-    })
-    .strict(),
+/** 仅负责 Markdown 导入/导出格式转换的无状态宿主 RPC 命令。 */
+export type MarkdownCommand =
+  { type: 'parse-markdown'; markdown: string } | { type: 'format-markdown'; template: Prompt }
 
-  // 文件编辑：携带读取时版本；危险的引用变更需显式 confirmed。
-  z
-    .object({
-      type: z.literal('save-template'),
-      revision,
-      scope: z.enum(['user', 'workspace']),
-      file: id.optional(),
-      template: promptSchema,
-      confirmed: z.boolean().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      type: z.literal('delete-template'),
-      revision,
-      file: id,
-      confirmed: z.boolean().optional(),
-    })
-    .strict(),
-
-  // 授权修改只接受精确路由；重复项由宿主保存逻辑去重。
-  z.object({ type: z.literal('whitelist'), revision, routes: z.array(routeSchema) }).strict(),
-])
-
-export type Command = z.infer<typeof commandSchema>
+export type RpcRequest = Command | MarkdownCommand
 
 /** 一次可确认的操作结果；不能用该对象推断当前破甲是否开启。 */
 export interface RequestFailure {

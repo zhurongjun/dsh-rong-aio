@@ -1,7 +1,9 @@
 import type { Context } from '@deepseek-ai/cordis'
-import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection'
-import type { SessionStore } from '@deepseek-ai/dsh-session'
-import { z } from 'zod'
+import type {} from '@deepseek-ai/dsh-client-connection'
+import type {} from '@deepseek-ai/dsh-session'
+import * as z from 'zod'
+import { errorMessage } from '../../../shared/error.ts'
+import { createSerialQueue } from '../../../shared/serial-queue.ts'
 import { API } from '../shared/protocol.ts'
 import { listSessions, openDirectory } from './catalog.ts'
 import { applyBatch } from './batch.ts'
@@ -25,10 +27,10 @@ const command = z.discriminatedUnion('action', [
 ])
 
 export function apply(ctx: Context) {
-  const connection = Reflect.get(ctx, 'connection') as HostConnectionHandle
-  const sessions = Reflect.get(ctx, 'sessions') as unknown as SessionStore
-  let tail = Promise.resolve()
-  ctx.effect(() => () => tail)
+  const connection = ctx.connection
+  const sessions = ctx.sessions
+  const queue = createSerialQueue('会话管理组件已停用')
+  ctx.effect(() => () => queue.close())
   connection.fetch.register({
     path: API,
     methods: ['GET', 'POST'],
@@ -47,17 +49,9 @@ export function apply(ctx: Context) {
         if (parsed.data.action === 'open-directory')
           return Response.json(await openDirectory(ctx, parsed.data.target, request.signal))
         const { action, targets } = parsed.data
-        const task = tail.then(() => applyBatch(ctx, sessions, action, targets))
-        tail = task.then(
-          () => {},
-          () => {},
-        )
-        return Response.json(await task)
+        return Response.json(await queue.run(() => applyBatch(ctx, sessions, action, targets)))
       } catch (error) {
-        return Response.json(
-          { error: error instanceof Error ? error.message : String(error) },
-          { status: 500 },
-        )
+        return Response.json({ error: errorMessage(error) }, { status: 500 })
       }
     },
   })

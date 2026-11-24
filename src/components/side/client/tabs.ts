@@ -3,9 +3,9 @@ import type { SidebarRightTabInfo, TabId } from '@deepseek-ai/dsh-client-ui-side
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import { createStore } from 'zustand/vanilla'
 import type { SideRow } from '../shared/protocol.ts'
-import { isSideSession } from '../../../shared/side-session.ts'
+import { isSideSession } from '../shared/side-session.ts'
 import { command } from './api.ts'
-import { SideClient } from './store.ts'
+import { isUnsentDraft, selectedSessionOf, SideClient } from './store.ts'
 
 export const kind = 'rong-side'
 export const resource = 'dsh-resource://rong-side/'
@@ -44,21 +44,23 @@ export class SideTabs {
     )
     this.clients.set(tab.signal, client)
     const stop = client.view.subscribe((next, previous) => {
-      const wasDraft = !!previous.draft && !previous.selected
-      const isDraft = !!next.draft && !next.selected
+      const wasDraft = isUnsentDraft(previous.phase)
+      const isDraft = isUnsentDraft(next.phase)
       if (isDraft === wasDraft) return
       this.drafts.setState(
         (drafts) => (isDraft ? [...drafts, client] : drafts.filter((c) => c !== client)),
         true,
       )
-      if (previous.draft && next.selected)
-        this.historyChanges.dispatchEvent(new Event(previous.draft.fork.parent))
+      if (wasDraft && selectedSessionOf(next.phase)) {
+        const parent = previous.phase.kind === 'draft' ? previous.phase.draft.fork.parent : ''
+        if (parent) this.historyChanges.dispatchEvent(new Event(parent))
+      }
     })
     tab.signal.addEventListener(
       'abort',
       () => {
         stop()
-        if (client.view.getState().draft && !client.view.getState().selected)
+        if (isUnsentDraft(client.view.getState().phase))
           this.drafts.setState((drafts) => drafts.filter((c) => c !== client), true)
         client.dispose()
         this.clients.delete(tab.signal)
@@ -76,19 +78,43 @@ export class SideTabs {
   async focus(source: SessionId, tab: TabId) {
     const sidebar = this.ctx.sidebarRight
     if (sidebar.mounted.getSnapshot() !== source) {
-      // Workspace navigation selects the reference synchronously; the sidebar adopts its
-      // React store in the following commit. Keep focus scoped if the user switches again.
       const navigation = this.ctx.get('uiWorkspace') as { openSession(id: SessionId): void }
       navigation.openSession(source)
-      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
-      if (sidebar.mounted.getSnapshot() !== source) return
+      const mounted = sidebar.mounted as {
+        getSnapshot(): SessionId | undefined
+        subscribe?: (listener: () => void) => () => void
+      }
+      await new Promise<void>((resolve) => {
+        let frames = 0
+        let raf = 0
+        let unsubscribe: (() => void) | undefined
+        const finish = () => {
+          cancelAnimationFrame(raf)
+          unsubscribe?.()
+          resolve()
+        }
+        if (typeof mounted.subscribe === 'function') {
+          unsubscribe = mounted.subscribe(() => {
+            if (mounted.getSnapshot() === source) finish()
+          })
+        }
+        const tick = () => {
+          if (this.lifetime.signal.aborted || mounted.getSnapshot() === source || ++frames >= 15)
+            finish()
+          else raf = requestAnimationFrame(tick)
+        }
+        raf = requestAnimationFrame(tick)
+      })
+      if (this.lifetime.signal.aborted || sidebar.mounted.getSnapshot() !== source) return
     }
     const client = this.findClient(source, tab)
     if (!sidebar.isExpanded() && !client?.isFloating) sidebar.toggleExpanded()
     sidebar.focus(tab)
   }
   private instances(row: SideRow) {
-    const live = [...this.clients.values()].filter((c) => c.view.getState().selected === row.id)
+    const live = [...this.clients.values()].filter(
+      (c) => selectedSessionOf(c.view.getState().phase) === row.id,
+    )
     return this.ctx.sidebarRight.openTabs
       .getSnapshot()
       .filter(

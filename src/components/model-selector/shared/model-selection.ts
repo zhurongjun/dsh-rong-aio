@@ -70,3 +70,21 @@ export function filterModels(groups: readonly ModelProviderGroup[], query: strin
     }))
     .filter((group) => group.models.length > 0)
 }
+
+/** 构造带扁平起始偏移的过滤目录与行列表，避免在渲染循环中累积可变计数。 */
+export function buildModelCatalog(groups: readonly ModelProviderGroup[], query: string) {
+  const filtered = filterModels(groups, query)
+  const rows = filtered.flatMap((group) => group.models.map((model) => ({ group, model })))
+  const indexed = filtered.reduce<{
+    groups: { group: ModelProviderGroup; offset: number }[]
+    offset: number
+  }>(
+    (acc, group) => {
+      acc.groups.push({ group, offset: acc.offset })
+      acc.offset += group.models.length
+      return acc
+    },
+    { groups: [], offset: 0 },
+  ).groups
+  return { groups: indexed, rows }
+}

@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ES2022"],
+    "types": [],
+    "tsBuildInfoFile": "./agent_temp/tsbuildinfo/shared.tsbuildinfo"
+  },
+  "include": ["src/shared/**/*", "src/components/*/shared/**/*"]
+}

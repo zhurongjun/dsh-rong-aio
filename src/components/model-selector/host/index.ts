@@ -1,11 +1,11 @@
 /** 模型选择器宿主入口：注册速度设置接口、profile 存储及实际请求的速度适配。 */
 
-import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection'
+import type {} from '@deepseek-ai/dsh-client-connection'
 import type { Context } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/dsh-llm'
 import type {} from '@deepseek-ai/dsh-storage-domain'
 import type {} from '@deepseek-ai/dsh-settings'
-import { z } from 'zod'
+import * as z from 'zod'
 import { speedKey, speedRuleFor, type SpeedMode, type SpeedRule } from '../shared/speed.ts'
 import { createSpeedTransport } from './speed-transport.ts'
 import type {} from '../../../shared/session-events.ts'
@@ -69,7 +69,7 @@ export async function apply(ctx: Context): Promise<void> {
   })
   const transport = createSpeedTransport()
   ctx.effect(() => () => transport.dispose())
-  const connection = Reflect.get(ctx, 'connection') as unknown as HostConnectionHandle
+  const connection = ctx.connection
   connection.fetch.register({
     path: '/api/rong-aio.speed',
     methods: ['GET', 'POST'],

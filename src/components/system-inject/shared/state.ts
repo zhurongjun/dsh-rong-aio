@@ -1,85 +1,51 @@
-/** 破甲状态的唯一纯解析器及磁盘快照契约；不执行文件访问或模型授权。 */
-
-import { z } from 'zod'
-
-/** 破甲词索引规则：大小写敏感，允许字母、数字、点、连字符和下划线。 */
-export const nameSchema = z
-  .string()
-  .min(1)
-  .max(120)
-  .regex(/^[A-Za-z0-9._-]+$/)
-  .refine((value) => value !== '.' && value !== '..', 'name 不能为 . 或 ..')
-
-/** 显式选词的输入契约；null 表示关闭，不提供继承默认规则的空状态。 */
-export const selectionSchema = z.object({ name: nameSchema.nullable() }).strict()
-
-/** 冻结或解析后的正文副本：完整保留显示元信息和字面正文，不再通过名称反查。 */
-const snapshotSchema = z
-  .object({
-    /** 已解析显示名；冻结后不随模板改名变化。 */
-    display_name: z.string().min(1).max(120),
-
-    /** 冻结时的简介，允许空字符串。 */
-    description: z.string().max(500),
-
-    /** 字面正文，空白正文无效；不展开变量。 */
-    body: z
-      .string()
-      .min(1)
-      .max(200_000)
-      .refine((value) => !!value.trim(), '正文不能为空'),
-  })
-  .strict()
-
-/** 显式选择与可选正文快照的统一结构；只有冻结文件会持久化 snapshot。 */
-const injectStateSchema = selectionSchema.extend({ snapshot: snapshotSchema.optional() })
-
-/** name=null 明确关闭；字符串表示引用，snapshot 为解析或冻结产生的正文副本。 */
-export type InjectState = z.infer<typeof injectStateSchema>
-
-/** 模板的有效正文与元信息；显示名省略或为空时使用索引 name。 */
-export const promptSchema = snapshotSchema
-  .extend({
-    name: nameSchema,
-    display_name: z.string().max(120).default(''),
-    description: z.string().max(500).default(''),
-  })
-  .transform((value) => ({ ...value, display_name: value.display_name || value.name }))
-
-export type Prompt = z.infer<typeof promptSchema>
+/** 破甲状态的唯一纯解析器及快照契约；不依赖 Zod、文件系统或宿主授权服务。 */
 
 /** 模板文件来源范围，仅决定扫描/保存目录，不代表自动选词层级。 */
 export type Scope = 'user' | 'workspace'
 
 /** 状态来源：本会话显式选择、父会话继承或未开启。 */
-const sourceSchema = z.enum(['session', 'parent', 'none'])
+export type Source = 'session' | 'parent' | 'none'
 
-type Source = z.infer<typeof sourceSchema>
+/** 冻结或解析后的正文副本：完整保留显示元信息和字面正文，不再通过名称反查。 */
+export interface PromptSnapshot {
+  /** 已解析显示名；冻结后不随模板改名变化。 */
+  display_name: string
 
-/** 会话伴随文件 v1。开启必须有正文，关闭禁止附带正文，未知字段明确拒绝。 */
-export const frozenSchema = z
-  .object({
-    /** 冻结文件格式版本；不进行隐式迁移。 */
-    version: z.literal(1),
+  /** 冻结时的简介，允许空字符串。 */
+  description: string
 
-    /** 明确开启或关闭的冻结结果；开启必须保存独立正文。 */
-    state: injectStateSchema.refine(
-      (state) => (state.name === null ? state.snapshot === undefined : !!state.snapshot),
-      '冻结状态缺少正文或明确选择',
-    ),
+  /** 字面正文，空白正文无效；不展开变量。 */
+  body: string
+}
 
-    /** 首次持久化冻结结果的时间；继承时保留原冻结时间。 */
-    frozen_at: z.string().datetime(),
+/** 显式选择与可选正文快照的统一结构；name=null 明确关闭，只有冻结文件会持久化 snapshot。 */
+export interface InjectState {
+  name: string | null
+  snapshot?: PromptSnapshot
+}
 
-    /** 结果来源；独立子会话写入 parent。 */
-    source: sourceSchema,
+/** 模板的有效正文与元信息；显示名省略或为空时使用索引 name。 */
+export interface Prompt extends PromptSnapshot {
+  name: string
+}
 
-    /** 首次继承的父会话标识，仅作元信息，不是恢复依赖。 */
-    inherited_from: z.string().optional(),
-  })
-  .strict()
+/** 会话伴随文件 v1。开启必须有正文，关闭禁止附带正文，未知字段在宿主 schema 拒绝。 */
+export interface FrozenSession {
+  /** 冻结文件格式版本；不进行隐式迁移。 */
+  version: 1
 
-export type FrozenSession = z.infer<typeof frozenSchema>
+  /** 明确开启或关闭的冻结结果；开启必须保存独立正文。 */
+  state: InjectState
+
+  /** 首次持久化冻结结果的时间；继承时保留原冻结时间。 */
+  frozen_at: string
+
+  /** 结果来源；独立子会话写入 parent。 */
+  source: Source
+
+  /** 首次继承的父会话标识，仅作元信息，不是恢复依赖。 */
+  inherited_from?: string
+}
 
 /** 扫描出的模板文件投影；索引来自 frontmatter，file/revision 用于编辑冲突检查。 */
 export interface CatalogPrompt extends Prompt {
@@ -119,6 +85,37 @@ export const SOURCE_LABELS: Record<Source, string> = {
   session: '本会话选择',
   parent: '继承父会话',
   none: '未开启',
+}
+
+/** 破甲词索引规则：大小写敏感，允许字母、数字、点、连字符和下划线，且不能为 . 或 ..。 */
+export function isValidPromptName(name: string): boolean {
+  return (
+    name.length >= 1 &&
+    name.length <= 120 &&
+    /^[A-Za-z0-9._-]+$/.test(name) &&
+    name !== '.' &&
+    name !== '..'
+  )
+}
+
+/** 客户端与共享层复用的轻量表单校验；保存时仍由宿主 Zod schema 做权威复核。 */
+export function validatePromptInput(input: Prompt): Prompt | null {
+  if (
+    !isValidPromptName(input.name) ||
+    input.display_name.length > 120 ||
+    input.description.length > 500 ||
+    input.body.length < 1 ||
+    input.body.length > 200_000 ||
+    !input.body.trim()
+  ) {
+    return null
+  }
+  return {
+    name: input.name,
+    display_name: input.display_name || input.name,
+    description: input.description,
+    body: input.body,
+  }
 }
 
 /** 唯一解析链路。冻结状态的正文独立于文件索引，绝不重新查找或替换。 */

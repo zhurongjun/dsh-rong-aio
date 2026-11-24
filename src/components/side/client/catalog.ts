@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionListState } from '@deepseek-ai/dsh-api-session-controller/client'
-import { isSideSession } from '../../../shared/side-session.ts'
+import { isSideSession } from '../shared/side-session.ts'
 
 /** Keep the native identity map intact for the embedded Conversation while omitting side rows from navigation. */
 export function filterNavigation(ctx: Context) {

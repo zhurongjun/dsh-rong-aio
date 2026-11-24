@@ -2,7 +2,7 @@
 
 import { join, resolve } from 'node:path'
 import type { Context } from '@deepseek-ai/cordis'
-import type {} from '@deepseek-ai/cordis-plugin-loader'
+import { findActiveEntries } from './dsh-adapter.ts'
 
 /** 与支持版本的 JSONL 磁盘编码一致；不访问后端私有 root/locate。 */
 function encodeSessionSegment(value: string): string {
@@ -52,12 +52,7 @@ export function sessionRoot(ctx: Context): string {
   const backend = Reflect.get(ctx, 'sessionPersistence') as { name?: string } | undefined
   if (backend?.name !== 'session-persistence-jsonl')
     throw new Error('此操作需要原生 JSONL 会话存储')
-  const entries = [...ctx.loader.entries()].filter(
-    (entry) =>
-      entry.options.name === '@deepseek-ai/dsh-session-persistence-jsonl' &&
-      entry.fiber?.state === 2 &&
-      !entry.disabled,
-  )
+  const entries = findActiveEntries(ctx, '@deepseek-ai/dsh-session-persistence-jsonl')
   if (entries.length !== 1) throw new Error('无法唯一定位活动会话存储，请检查 JSONL 后端配置')
   const fiber = entries[0].fiber
   // config 保留原始表达式，只有 effectiveConfig 是活动实例使用的值。

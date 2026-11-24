@@ -6,7 +6,7 @@ import {
   IconTrashOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { Action, SessionRow } from '../shared/protocol.ts'
-import { actionLabels } from './useSessionOperations.ts'
+import { actionLabels } from './operations-store.ts'
 
 export type SessionActionHandler = (action: Action, items: SessionRow[]) => void
 
@@ -57,29 +57,32 @@ export function SessionActions({
 
 export function DeleteConfirmation({
   items,
+  busy,
   cancel,
   confirm,
 }: {
   items: SessionRow[]
+  busy: boolean
   cancel: () => void
   confirm: () => void
 }) {
   return (
     <Modal
       open={items.length > 0}
-      onClose={cancel}
+      onClose={busy ? () => {} : cancel}
       title={'永久删除 ' + items.length + ' 个会话？'}
       closeLabel="关闭"
       description="将从磁盘删除所列会话的日志和专属文件。此操作无法撤销。"
       footer={
         <>
-          <Button data-modal-autofocus onClick={cancel}>
+          <Button data-modal-autofocus disabled={busy} onClick={cancel}>
             取消
           </Button>
           <Button
             variant="outline"
             className="rong-session-danger rong-session-confirm"
             icon={<IconTrashOutlineRegular size={16} />}
+            disabled={busy}
             onClick={confirm}
           >
             永久删除

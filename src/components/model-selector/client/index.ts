@@ -5,6 +5,7 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { createStore } from 'zustand/vanilla'
+import { mountStyle } from '../../../client/style.ts'
 import {
   ModelSelectorSlot,
   type SelectorInjected,
@@ -33,13 +34,7 @@ export function apply(ctx: Context): void {
       }
     })
   })
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.dataset.plugin = 'dsh-rong-aio'
-    style.textContent = css
-    document.head.append(style)
-    return () => style.remove()
-  }, 'rong-aio: selector styles')
+  mountStyle(ctx, 'dsh-rong-aio', css)
 
   ctx.slots.inject('conversation.input.model', () =>
     ctx.slots.register(

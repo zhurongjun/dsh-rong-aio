@@ -1,11 +1,14 @@
-import { useEffect, useState } from 'react'
+/** 侧聊历史订阅 store：列表展开订阅时启动加载与状态监听，收起卸载时自动中止。 */
+
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
-import { isSideSession } from '../../../shared/side-session.ts'
+import { createStore } from 'zustand/vanilla'
+import { withLifecycle } from '../../../client/store.ts'
+import { errorMessage } from '../../../shared/error.ts'
 import type { SideRow } from '../shared/protocol.ts'
+import { isSideSession } from '../shared/side-session.ts'
 import { loadHistory } from './api.ts'
 import type { SideTabs } from './tabs.ts'
 
-// The popup renders order, title and pending status. tabKey identifies which tab to focus.
 function sameRows(left: SideRow[] | undefined, right: SideRow[]) {
   return (
     left?.length === right.length &&
@@ -21,16 +24,21 @@ function sameRows(left: SideRow[] | undefined, right: SideRow[]) {
   )
 }
 
-export function useSideHistory(tabs: SideTabs, parent: SessionId, open: boolean) {
-  const [rows, setRows] = useState<SideRow[]>()
-  const [error, setError] = useState('')
-  useEffect(() => {
-    if (!open) return
+interface HistoryState {
+  rows?: SideRow[]
+  error: string
+}
+
+export function createSideHistoryStore(tabs: SideTabs, parent: SessionId) {
+  const store = createStore<HistoryState>(() => ({ error: '' }))
+
+  return withLifecycle(store, () => {
     const lifetime = new AbortController()
     const { signal } = lifetime
     let loading = false
     let dirty = false
     let known: Set<SessionId> | undefined
+
     async function refresh() {
       if (loading) {
         dirty = true
@@ -44,15 +52,18 @@ export function useSideHistory(tabs: SideTabs, parent: SessionId, open: boolean)
           if (signal.aborted) return
           known = new Set(rows.map((r) => r.id as SessionId))
           if (!dirty) {
-            setRows((previous) => (sameRows(previous, rows) ? previous : rows))
-            setError('')
+            store.setState((previous) => ({
+              rows: sameRows(previous.rows, rows) ? previous.rows : rows,
+              error: '',
+            }))
           }
         } catch (err) {
-          if (!signal.aborted && !dirty) setError(String(err))
+          if (!signal.aborted && !dirty) store.setState({ error: errorMessage(err) })
         }
       } while (dirty && !signal.aborted)
       loading = false
     }
+
     const status = tabs.sessionStatus
     let previous = status.getSnapshot()
     const stop = status.subscribe(() => {
@@ -71,13 +82,16 @@ export function useSideHistory(tabs: SideTabs, parent: SessionId, open: boolean)
       previous = current
       if (changed) void refresh()
     })
+
     tabs.historyChanges.addEventListener(parent, refresh, { signal })
     window.addEventListener('focus', refresh, { signal })
     void refresh()
+
     return () => {
       lifetime.abort()
       stop()
     }
-  }, [tabs, parent, open])
-  return { rows, error }
+  })
 }
+
+export type SideHistoryStore = ReturnType<typeof createSideHistoryStore>

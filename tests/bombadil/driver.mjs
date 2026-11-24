@@ -36,11 +36,11 @@ export async function runBombadil(origin, directory, fixtureRoot, signal) {
     (win ? 'linux' : process.platform) +
     '-' +
     process.arch
-  async function testBrowser(program, args) {
+  async function testBrowser(program, args, options = {}) {
     const file = join(directory, 'bombadil.log')
     const log = await open(file, 'w')
     try {
-      await launch(program, args, { stdio: ['ignore', log.fd, log.fd], signal }).done
+      await launch(program, args, { stdio: ['ignore', log.fd, log.fd], signal, ...options }).done
     } catch (error) {
       const output = await readFile(file, 'utf8')
       throw new Error(output.trim().split(/\r?\n/).slice(-20).join('\n'), { cause: error })
@@ -49,7 +49,30 @@ export async function runBombadil(origin, directory, fixtureRoot, signal) {
     }
   }
   if (!win) {
-    await testBrowser(binary, ['browser', 'test', '--headless', ...flags])
+    let env
+    if (!process.env.CHROME && process.platform === 'darwin') {
+      const macCandidates = [
+        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+        '/Applications/Chromium.app/Contents/MacOS/Chromium',
+        '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      ]
+      for (const candidate of macCandidates) {
+        if (
+          await access(candidate).then(
+            () => true,
+            () => false,
+          )
+        ) {
+          env = { ...process.env, CHROME: candidate }
+          break
+        }
+      }
+    }
+    await testBrowser(
+      binary,
+      ['browser', 'test', '--headless', ...flags],
+      env ? { env } : undefined,
+    )
     return
   }
   const candidates = [

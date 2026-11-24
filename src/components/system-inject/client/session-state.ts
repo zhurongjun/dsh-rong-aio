@@ -4,7 +4,7 @@ import type { StateView } from '../shared/protocol.ts'
 
 /** Toast 的展示投影；本地关闭不意味着修改会话破甲状态。 */
 interface Notice {
-  /** 当前 Toast 身份；读取错误按文本、宿主拒绝按递增通知 ID 区分。 */
+  /** 当前 Toast 身份；读取错误按递增 errorId、宿主拒绝按递增通知 ID 区分。 */
   key: string
 
   /** 向用户展示的原因，保持宿主返回的语义。 */
@@ -20,11 +20,12 @@ export function sessionState(
   verified: boolean,
   saving: boolean,
   error?: string,
+  errorId = 0,
   dismissedNotice?: string,
 ) {
   const view = data?.session
   const notice: Notice | undefined = error
-    ? { key: `read:${error}`, message: error }
+    ? { key: `read:${errorId}`, message: error }
     : view?.error
       ? {
           key: `request:${view.error.id}`,

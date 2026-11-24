@@ -1,6 +1,6 @@
 /** 强度面板：组合 Fast、Team、模型标题、Reset 和受控滑杆，共享确认状态与运动投影。 */
 
-import { forwardRef, memo } from 'react'
+import { forwardRef } from 'react'
 import type {
   ModelCatalogModel,
   ModelReasoningEffort,
@@ -15,7 +15,7 @@ import { SpeedControl } from './SpeedControl.tsx'
 import { SelectionButton } from './SelectionButton.tsx'
 import { ResetIcon } from './SelectorIcons.tsx'
 import { TeamControl } from './TeamControl.tsx'
-import type { TeamSelection, TeamInteraction } from './useTeamSelection.ts'
+import type { TeamSelection, TeamInteraction } from './team-store.ts'
 
 interface Props {
   /** 会话交互和速度 store；仅订阅本面板使用的投影。 */
@@ -41,91 +41,89 @@ interface Props {
 }
 
 /** ref 指向标题供外层恢复焦点；只有路由变化重建滑杆手势与运动实例。 */
-export const EffortPanel = memo(
-  forwardRef<HTMLButtonElement, Props>(function EffortPanel(
-    {
-      store,
-      speedStore,
-      team,
-      teamInteraction,
-      routeKey,
-      speedRoute,
-      model,
-      modelName,
-      efforts,
-      selected,
-      open,
-      locked,
-      selecting,
-      onPreview,
-      chooseEffort,
-      showModels,
-    },
-    ref,
-  ) {
-    const effortId = useEffortPreview(store, routeKey, selected?.id)
-    const displayed = efforts.find((entry) => entry.id === effortId) ?? selected
-    const resetEffort = model ? defaultEffortOf(model) : undefined
+export const EffortPanel = forwardRef<HTMLButtonElement, Props>(function EffortPanel(
+  {
+    store,
+    speedStore,
+    team,
+    teamInteraction,
+    routeKey,
+    speedRoute,
+    model,
+    modelName,
+    efforts,
+    selected,
+    open,
+    locked,
+    selecting,
+    onPreview,
+    chooseEffort,
+    showModels,
+  },
+  ref,
+) {
+  const effortId = useEffortPreview(store, routeKey, selected?.id)
+  const displayed = efforts.find((entry) => entry.id === effortId) ?? selected
+  const resetEffort = model ? defaultEffortOf(model) : undefined
 
-    return (
-      <div className="rong-effort-pane">
-        <div className="rong-effort-header" data-has-team={!!team || undefined}>
-          <SpeedControl
-            store={speedStore}
-            identityKey={speedRoute}
+  return (
+    <div className="rong-effort-pane">
+      <div className="rong-effort-header" data-has-team={!!team || undefined}>
+        <SpeedControl
+          store={speedStore}
+          identityKey={speedRoute}
+          open={open}
+          disabled={locked}
+          busy={selecting}
+        />
+        {team && (
+          <TeamControl
+            team={team}
+            interaction={teamInteraction}
             open={open}
-            disabled={locked}
+            locked={locked}
             busy={selecting}
           />
-          {team && (
-            <TeamControl
-              team={team}
-              interaction={teamInteraction}
-              open={open}
-              locked={locked}
-              busy={selecting}
-            />
-          )}
-          <EffortHeading
-            ref={ref}
-            efforts={efforts}
-            selected={displayed}
-            modelName={modelName}
-            disabled={locked}
-            inactive={!open}
-            busy={selecting}
-            onClick={showModels}
-          />
-          <SelectionButton
-            className="rong-icon-button rong-header-action"
-            aria-label="重置当前模型的推理强度"
-            title="重置强度"
-            disabled={locked || !resetEffort}
-            inactive={!open}
-            busy={selecting}
-            onClick={() => {
-              if (resetEffort) void chooseEffort(resetEffort, 'reset')
-            }}
-          >
-            <ResetIcon />
-          </SelectionButton>
-        </div>
-        {efforts.length ? (
-          <EffortSlider
-            key={routeKey}
-            efforts={efforts}
-            selected={displayed?.id}
-            disabled={locked || !open}
-            busy={selecting}
-            onPreview={onPreview}
-            onCommit={chooseEffort}
-          />
-        ) : (
-          <p className="rong-empty">
-            {model ? '此模型未提供可选推理强度' : '当前模型不可用，请重新选择'}
-          </p>
         )}
+        <EffortHeading
+          ref={ref}
+          efforts={efforts}
+          selected={displayed}
+          modelName={modelName}
+          disabled={locked}
+          inactive={!open}
+          busy={selecting}
+          onClick={showModels}
+        />
+        <SelectionButton
+          className="rong-icon-button rong-header-action"
+          aria-label="重置当前模型的推理强度"
+          title="重置强度"
+          disabled={locked || !resetEffort}
+          inactive={!open}
+          busy={selecting}
+          onClick={() => {
+            if (resetEffort) void chooseEffort(resetEffort, 'reset')
+          }}
+        >
+          <ResetIcon />
+        </SelectionButton>
       </div>
-    )
-  }),
-)
+      {efforts.length ? (
+        <EffortSlider
+          key={routeKey}
+          efforts={efforts}
+          selected={displayed?.id}
+          disabled={locked || !open}
+          busy={selecting}
+          onPreview={onPreview}
+          onCommit={chooseEffort}
+        />
+      ) : (
+        <p className="rong-empty">
+          {model ? '此模型未提供可选推理强度' : '当前模型不可用，请重新选择'}
+        </p>
+      )}
+    </div>
+  )
+})

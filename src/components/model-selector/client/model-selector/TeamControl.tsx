@@ -2,7 +2,7 @@
 
 import { Button, Modal, IconUsersOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import { OptionControl } from './OptionControl.tsx'
-import type { TeamSelection, TeamInteraction } from './useTeamSelection.ts'
+import type { TeamSelection, TeamInteraction } from './team-store.ts'
 
 interface Props {
   /** 原生投影及仅属于当前会话的交互事务。 */

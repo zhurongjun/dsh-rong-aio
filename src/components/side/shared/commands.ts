@@ -1,5 +1,5 @@
-import { z } from 'zod'
-import { isSideSession } from '../../../shared/side-session.ts'
+import * as z from 'zod'
+import { isSideSession } from './side-session.ts'
 
 export const permissionSchema = z.enum(['read', 'follow'])
 const scope = { parent: z.string().min(1) }

@@ -1,4 +1,4 @@
-/** 客户端装配入口：按会话和固定设置范围持有 store，注册输入框及原生设置插槽。 */
+/** 客户端装配入口：按会话和固定设置范围持有有限缓存 store，注册输入框及原生设置插槽。 */
 
 import { createElement } from 'react'
 import type { Context } from '@deepseek-ai/cordis'
@@ -6,55 +6,80 @@ import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-slots'
+import type { SessionId } from '@deepseek-ai/dsh-session/types'
+import { mountStyle } from '../../../client/style.ts'
 import { ArmorIcon } from './ArmorIcon.tsx'
 import { Composer } from './Composer.tsx'
 import { Settings } from './Settings.tsx'
-import { createInjectStore } from './store.ts'
+import { createInjectStore, type InjectStore } from './store.ts'
 import css from './styles.css'
 
 const SETTINGS_ID = 'rong-aio-system-inject'
+const MAX_IDLE_SESSION_STORES = 32
+const MAX_IDLE_SETTINGS_STORES = 8
 
 export const inject = ['slots', 'sessions', 'conversation']
 
+function createBoundedStorePool(
+  maxIdle: number,
+  factory: (key: string, onRelease: () => void) => InjectStore,
+) {
+  const pool = new Map<string, InjectStore>()
+
+  function trimIdle() {
+    const idleKeys: string[] = []
+    for (const [key, store] of pool) {
+      if (!store.isRetained()) idleKeys.push(key)
+    }
+    const overflow = idleKeys.length - maxIdle
+    for (let i = 0; i < overflow; i++) {
+      const key = idleKeys[i]
+      const store = pool.get(key)
+      if (!store) continue
+      store.dispose()
+      pool.delete(key)
+    }
+  }
+
+  return {
+    get(key: string): InjectStore {
+      const existing = pool.get(key)
+      if (existing) {
+        pool.delete(key)
+        pool.set(key, existing)
+        return existing
+      }
+      const created = factory(key, trimIdle)
+      pool.set(key, created)
+      trimIdle()
+      return created
+    },
+    disposeAll() {
+      for (const store of pool.values()) store.dispose()
+      pool.clear()
+    },
+  }
+}
+
 /** 注册两个客户端入口并按各自身份缓存 store；样式和全部 store 随插件一起释放。 */
 export function apply(ctx: Context): void {
-  const settingsStores = new Map<string, ReturnType<typeof createInjectStore>>()
+  const settingsPool = createBoundedStorePool(MAX_IDLE_SETTINGS_STORES, (workspace, onRelease) =>
+    createInjectStore(undefined, workspace, onRelease),
+  )
+  const sessionPool = createBoundedStorePool(MAX_IDLE_SESSION_STORES, (sessionId, onRelease) =>
+    createInjectStore(sessionId, '', onRelease, (reason) =>
+      ctx.conversation.blocks.set(sessionId as SessionId, reason ? { reason } : undefined),
+    ),
+  )
 
-  /** 获取固定范围的设置 store；全局与每个工程互相隔离，防止迟到响应串范围。 */
-  const settingsFor = (workspace = '') => {
-    let store = settingsStores.get(workspace)
-    if (!store) {
-      store = createInjectStore(undefined, workspace)
-      settingsStores.set(workspace, store)
-    }
-    return store
-  }
+  const settingsFor = (workspace = '') => settingsPool.get(workspace)
 
-  const stores = new Map<string, ReturnType<typeof createInjectStore>>()
-
-  /** 按原生 session ID 复用 store；输入框重新挂载不会重复呈现已确认关闭的通知。 */
-  const storeFor = (sessionId: string) => {
-    let store = stores.get(sessionId)
-    if (!store) {
-      store = createInjectStore(sessionId)
-      stores.set(sessionId, store)
-    }
-    return store
-  }
-
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.dataset.plugin = 'dsh-rong-aio-system-inject'
-    style.textContent = css
-    document.head.append(style)
-    return () => {
-      style.remove()
-      for (const store of settingsStores.values()) store.dispose()
-      settingsStores.clear()
-      for (const store of stores.values()) store.dispose()
-      stores.clear()
-    }
+  mountStyle(ctx, 'dsh-rong-aio-system-inject', css)
+  ctx.effect(() => () => {
+    settingsPool.disposeAll()
+    sessionPool.disposeAll()
   })
+
   ctx.slots.inject('conversation.input.left', () =>
     ctx.slots.register(
       {
@@ -65,9 +90,8 @@ export function apply(ctx: Context): void {
         /** 将当前会话绑定到独立 store；外部运行时入口保持不可用，不接管其提示词。 */
         inject(sessionId) {
           return {
-            store: storeFor(sessionId),
+            store: sessionPool.get(sessionId),
             settingsFor,
-            blocks: ctx.conversation.blocks,
             available: ctx.sessions.subagentAddress(sessionId) === undefined,
           }
         },

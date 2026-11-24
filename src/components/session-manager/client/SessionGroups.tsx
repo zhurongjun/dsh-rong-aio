@@ -1,14 +1,16 @@
-import { memo, useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Menu, writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives'
+import { errorMessage } from '../../../shared/error.ts'
 import type { SessionRow } from '../shared/protocol.ts'
 import type { SessionSelection } from './selection.ts'
 import type { SessionActionHandler } from './SessionActions.tsx'
-import { SessionMenuOpen, type MenuTarget } from './SessionItem.tsx'
+import type { MenuTarget } from './SessionItem.tsx'
 import { WorkspaceGroup } from './WorkspaceGroup.tsx'
 
 interface Props {
   rows: SessionRow[]
   query: string
+  searchRevision: number
   selection: SessionSelection
   busy: boolean
   onAction: SessionActionHandler
@@ -16,58 +18,69 @@ interface Props {
   feedback: (message: string, failed?: boolean) => void
 }
 
-export const SessionGroups = memo(function SessionGroups({
+export function SessionGroups({
   rows,
   query,
+  searchRevision,
   selection,
   busy,
   onAction,
   openDirectory,
   feedback,
 }: Props) {
-  const [menu, setMenu] = useState<MenuTarget | null>(null)
-  useEffect(() => setMenu(null), [rows, query])
-  const groups = useMemo(() => {
-    const groups = new Map<string, SessionRow[]>()
-    for (const row of rows) {
-      const key = row.workspace.key
-      const members = groups.get(key)
-      if (members) members.push(row)
-      else groups.set(key, [row])
-    }
-    return [...groups]
-  }, [rows])
+  const [menuState, setMenuState] = useState<{
+    target: MenuTarget
+    rows: SessionRow[]
+    query: string
+  } | null>(null)
+  const menu =
+    menuState && menuState.rows === rows && menuState.query === query ? menuState.target : null
+
+  const groupMap = new Map<string, SessionRow[]>()
+  for (const row of rows) {
+    const key = row.workspace.key
+    const members = groupMap.get(key)
+    if (members) members.push(row)
+    else groupMap.set(key, [row])
+  }
+  const groups = [...groupMap]
+
   async function choose(action: string) {
     if (!menu) return
     const { row } = menu
-    setMenu(null)
-    try {
-      if (action === 'open-session') await openDirectory(row)
-      else {
-        const value = action === 'copy-id' ? row.id : row.directory
-        if (!value) return
-        if (!(await writeClipboard(value))) throw new Error('无法写入剪贴板')
-        feedback(action === 'copy-id' ? '已复制会话 ID' : '已复制路径')
+    setMenuState(null)
+    if (action === 'open-session') {
+      try {
+        await openDirectory(row)
+      } catch (error) {
+        feedback(errorMessage(error), true)
       }
+      return
+    }
+    const value = action === 'copy-id' ? row.id : row.directory
+    if (!value) return
+    const copied = action === 'copy-id' ? '已复制会话 ID' : '已复制路径'
+    try {
+      if (await writeClipboard(value)) feedback(copied)
+      else feedback('无法写入剪贴板', true)
     } catch (error) {
-      feedback(error instanceof Error ? error.message : String(error), true)
+      feedback(errorMessage(error), true)
     }
   }
   return (
     <div className="rong-session-groups">
-      <SessionMenuOpen.Provider value={menu !== null}>
-        {groups.map(([key, members]) => (
-          <WorkspaceGroup
-            key={key}
-            members={members}
-            selection={selection}
-            busy={busy}
-            query={query}
-            onMenu={setMenu}
-            onAction={onAction}
-          />
-        ))}
-      </SessionMenuOpen.Provider>
+      {groups.map(([key, members]) => (
+        <WorkspaceGroup
+          key={key}
+          members={members}
+          selection={selection}
+          busy={busy}
+          searchRevision={searchRevision}
+          openMenuId={menu?.row.id}
+          onMenu={(target) => setMenuState({ target, rows, query })}
+          onAction={onAction}
+        />
+      ))}
       {menu && (
         <Menu
           key={menu.row.id}
@@ -79,7 +92,7 @@ export const SessionGroups = memo(function SessionGroups({
           anchor={null}
           anchorPoint={menu}
           returnFocus={() => menu.anchor.querySelector<HTMLButtonElement>('button[aria-pressed]')}
-          onClose={() => setMenu(null)}
+          onClose={() => setMenuState(null)}
           onSelect={(id) => void choose(id)}
           items={[
             { id: 'copy-session', label: '复制存档路径', disabled: !menu.row.directory },
@@ -94,4 +107,4 @@ export const SessionGroups = memo(function SessionGroups({
       )}
     </div>
   )
-})
+}

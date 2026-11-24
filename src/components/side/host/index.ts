@@ -1,9 +1,12 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { SessionRequestId } from '@deepseek-ai/dsh-api-session-controller/types'
-import type { HostConnectionHandle } from '@deepseek-ai/dsh-client-connection'
-import type { SessionId, SessionStore } from '@deepseek-ai/dsh-session'
-import { z } from 'zod'
-import { isSideSession, sideSessionId } from '../../../shared/side-session.ts'
+import type {} from '@deepseek-ai/dsh-client-connection'
+import type { SessionId } from '@deepseek-ai/dsh-session'
+import * as z from 'zod'
+import type {} from '../../../shared/session-events.ts'
+import { errorMessage } from '../../../shared/error.ts'
+import { createSerialQueue } from '../../../shared/serial-queue.ts'
+import { isSideSession, sideSessionId } from '../shared/side-session.ts'
 import { removeSession, refreshSearchIndex } from '../../../host/remove-session.ts'
 import { commandSchema, permissionSchema, type SideCommand } from '../shared/commands.ts'
 import { sideAgents } from './agents.ts'
@@ -42,8 +45,8 @@ const rowSchema = z.object({
   prefix: prefixSchema.optional(),
 })
 export async function apply(ctx: Context) {
-  const connection = Reflect.get(ctx, 'connection') as HostConnectionHandle
-  const sessions = Reflect.get(ctx, 'sessions') as unknown as SessionStore
+  const connection = ctx.connection
+  const sessions = ctx.sessions
   const domain = await ctx.storageDomain.open({
     name: 'rong_aio_side',
     version: 1,
@@ -61,23 +64,18 @@ export async function apply(ctx: Context) {
     (id, prefix) => chats.update(id, (row) => ({ ...row, prefix })),
   )
   const approvals = new Map<string, Set<string>>()
-  let tail = Promise.resolve()
-  function run<T>(task: () => Promise<T>) {
-    const result = tail.then(task)
-    tail = result.then(
-      () => {},
-      () => {},
-    )
-    return result
-  }
+  const queue = createSerialQueue('侧聊组件已停用')
   ctx.effect(() => async () => {
     try {
-      await tail
+      await queue.close()
       await agents.dispose()
     } finally {
       await domain.close()
     }
   })
+  ctx.on('rong-aio/session-claim', (id) =>
+    isSideSession(id) ? '请在所属主会话的侧聊历史中管理这条记录' : undefined,
+  )
   async function resolveParent(id: string) {
     if (!id || isSideSession(id)) throw new Error('请从主会话进入侧聊')
     const result = await ctx.sessionController.resolveAgent(id as SessionId)
@@ -134,7 +132,7 @@ export async function apply(ctx: Context) {
       projectionMode: 'none',
     })
     if (cut.header.createdAt !== cmd.createdAt) throw new Error('主会话已更换，请重新打开侧聊')
-    return await run(async () => {
+    return await queue.run(async () => {
       const parent = await resolveParent(cmd.parent)
       const id = sideSessionId(cmd.key) as SessionId
       const row = chats.get(id)
@@ -200,7 +198,7 @@ export async function apply(ctx: Context) {
   }
   ctx.on('rong-aio/session-removing', async (parent) => {
     if (isSideSession(parent)) return
-    await run(async () => {
+    await queue.run(async () => {
       for (const [id, row] of chats.entries())
         if (row.parent === parent) await remove(parent, id as SessionId)
     })
@@ -219,11 +217,13 @@ export async function apply(ctx: Context) {
         .map((b) => b.text)
         .join(' ')
       const title = sideTitle(text) || '附件问询'
-      void run(async () => {
-        const row = chats.get(s.id)
-        if (row)
-          await chats.update(s.id, (r) => ({ ...r, title: r.title || title, updatedAt: e.time }))
-      }).catch((error) => ctx.logger.warn(String(error)))
+      void queue
+        .run(async () => {
+          const row = chats.get(s.id)
+          if (row)
+            await chats.update(s.id, (r) => ({ ...r, title: r.title || title, updatedAt: e.time }))
+        })
+        .catch((error) => ctx.logger.warn(errorMessage(error)))
     }
   })
   connection.fetch.register({
@@ -243,7 +243,7 @@ export async function apply(ctx: Context) {
         if (cmd.action === 'draft') return Response.json(await draft(cmd.parent))
         if (cmd.action === 'create') return Response.json(await sendFirst(cmd, request.signal))
         return Response.json(
-          await run(async () => {
+          await queue.run(async () => {
             const parent = await resolveParent(cmd.parent)
             const id = cmd.id as SessionId
             if (cmd.action === 'delete') await remove(parent.id, id)
@@ -259,10 +259,7 @@ export async function apply(ctx: Context) {
           }),
         )
       } catch (error) {
-        return Response.json(
-          { error: error instanceof Error ? error.message : String(error) },
-          { status: 409 },
-        )
+        return Response.json({ error: errorMessage(error) }, { status: 409 })
       }
     },
   })

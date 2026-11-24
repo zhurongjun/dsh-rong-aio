@@ -73,7 +73,9 @@ async function start() {
   const refreshSidebar = async () => {
     sidebar.textContent = (await command('sidebar')).join(' ')
   }
-  let refreshProjection
+  const infoStore = createStore(() => sessions[0])
+  const refreshProjection = async (id) =>
+    infoStore.setState(await command('snapshot', { id }), true)
   const sidebarTabTypes = new Map()
   const dock = createStore(() => ({ tabs: [], active: {}, expanded: true }))
   const sidebarRight = {
@@ -247,7 +249,7 @@ async function start() {
   }
   function Workbench() {
     const [section, setSection] = useState('conversation')
-    const [info, setInfo] = useState(sessions[0])
+    const info = React.useSyncExternalStore(infoStore.subscribe, infoStore.getState)
     const layout = React.useSyncExternalStore(dock.subscribe, dock.getState)
     const tabs = layout.tabs.filter((t) => t.sessionId === info.id)
     const side = layout.expanded && tabs.find((t) => t.tabId === layout.active[info.id])
@@ -267,7 +269,6 @@ async function start() {
     const [query, setQuery] = useState('side')
     const commandSession = { sessionId: info.id }
     const signal = () => new AbortController().signal
-    refreshProjection = async (id) => setInfo(await command('snapshot', { id }))
     return (
       <>
         <nav aria-label="测试宿主导航">

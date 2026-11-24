@@ -42,6 +42,8 @@ export function checkImports(source, file) {
     const from = owner(file)
     const to = owner(target)
     if (from && to && from !== to) report(node, '组件不得导入其他组件内部；通过公开服务契约协作')
+    if (!from && to && !file.startsWith('src/runtime/'))
+      report(node, '根基础层不得反向依赖具体业务组件')
     if (file.startsWith('src/shared/') && !target.startsWith('src/shared/'))
       report(node, '根 Shared 只能依赖跨组件共享的纯类型、协议和工具')
     if (from && target.startsWith('src/runtime/')) report(node, '组件实现不得依赖装配层')

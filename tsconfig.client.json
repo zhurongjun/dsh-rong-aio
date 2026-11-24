@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "resolveJsonModule": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["react", "react-dom"],
+    "tsBuildInfoFile": "./agent_temp/tsbuildinfo/client.tsbuildinfo"
+  },
+  "include": [
+    "src/client/**/*",
+    "src/shared/**/*",
+    "src/components/*/client/**/*",
+    "src/components/*/shared/**/*",
+    "src/components/*/locale/*.json"
+  ]
+}

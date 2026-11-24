@@ -1,6 +1,5 @@
 /** Fast 视图订阅：渲染阶段核对路由身份，避免 effect 清理前闪现上一模型的状态。 */
 
-import { useCallback } from 'react'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
 import { EMPTY_SPEED, type SpeedStore } from './speed-store.ts'
@@ -16,6 +15,5 @@ export function useSpeedSelection(store: SpeedStore, key: string) {
       saving: state.key === key && state.saving,
     })),
   )
-  const select = useCallback((mode: SpeedMode) => store.select(key, mode), [store, key])
-  return { ...view, select }
+  return { ...view, select: (mode: SpeedMode) => store.select(key, mode) }
 }

@@ -1,6 +1,6 @@
 /** 强度标题与模型入口：只展示面板传入的统一档位投影，不维护请求或预览副本。 */
 
-import { forwardRef, memo } from 'react'
+import { forwardRef } from 'react'
 import { IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelReasoningEffort } from '@deepseek-ai/dsh-api-session-controller/types'
 import { SelectionButton } from './SelectionButton.tsx'
@@ -30,29 +30,27 @@ interface Props {
 }
 
 /** 纯标题视图；短暂忙碌不置灰，模型名入口保持同一按钮与键盘焦点。 */
-export const EffortHeading = memo(
-  forwardRef<HTMLButtonElement, Props>(function EffortHeading(
-    { efforts, selected, modelName, disabled, inactive, busy, onClick },
-    ref,
-  ) {
-    const title = selected?.name ?? (efforts.length ? '请选择强度' : '推理强度')
-    return (
-      <SelectionButton
-        ref={ref}
-        className="rong-model-heading"
-        onClick={onClick}
-        disabled={disabled}
-        inactive={inactive}
-        busy={busy}
-      >
-        <span className="rong-effort-title">{title}</span>
-        <span className="rong-model-label">
-          <span className="rong-model-name" title={modelName}>
-            {modelName}
-          </span>
-          <IconChevronRightOutlineRegular size={10} />
+export const EffortHeading = forwardRef<HTMLButtonElement, Props>(function EffortHeading(
+  { efforts, selected, modelName, disabled, inactive, busy, onClick },
+  ref,
+) {
+  const title = selected?.name ?? (efforts.length ? '请选择强度' : '推理强度')
+  return (
+    <SelectionButton
+      ref={ref}
+      className="rong-model-heading"
+      onClick={onClick}
+      disabled={disabled}
+      inactive={inactive}
+      busy={busy}
+    >
+      <span className="rong-effort-title">{title}</span>
+      <span className="rong-model-label">
+        <span className="rong-model-name" title={modelName}>
+          {modelName}
         </span>
-      </SelectionButton>
-    )
-  }),
-)
+        <IconChevronRightOutlineRegular size={10} />
+      </span>
+    </SelectionButton>
+  )
+})

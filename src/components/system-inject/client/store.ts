@@ -1,9 +1,12 @@
-/** HTTP 状态容器：读取宿主权威结果、协调保存与轮询、确认通知并清理请求。 */
+/** HTTP 状态容器：读取宿主权威结果、协调保存与条件轮询、确认通知并清理请求。 */
 
 import { createStore } from 'zustand/vanilla'
-import { immer } from 'zustand/middleware/immer'
+import { requestConditionalJson, requestJson } from '../../../client/http.ts'
+import { withLifecycle } from '../../../client/store.ts'
+import { errorMessage } from '../../../shared/error.ts'
 import { API, type Command, type StateView } from '../shared/protocol.ts'
 import { isInjectSelectionError } from '../shared/selection-error.ts'
+import type { Prompt } from '../shared/state.ts'
 import { sessionState } from './session-state.ts'
 
 /** 传输与展示状态，不保存第二份模板库、模型授权或会话解析结果。 */
@@ -13,6 +16,9 @@ interface State {
 
   /** 通信、读取或未知保存失败；与宿主结构化拒绝通知分开。 */
   error?: string
+
+  /** 读取/保存未知失败的单调递增序号；避免同文案重试被旧 dismissedNotice 吞掉。 */
+  errorId: number
 
   /** 写命令进行中，阻止并发写入和轮询覆盖。 */
   saving: boolean
@@ -28,142 +34,232 @@ interface State {
  * 创建固定范围的破甲客户端 store。
  *
  * sessionId 存在时绑定会话；否则 workspace 为空表示全局设置，非空表示当前工程设置。
- * 范围在创建后不变。AbortController 和请求版本留在闭包内，不进入 Immer 数据。
- * retain/release 管理可见视图订阅，dispose 由插件生命周期负责最终释放。
+ * 范围在创建后不变。AbortController、ETag 和请求版本留在闭包内。
  */
-export function createInjectStore(sessionId?: string, workspace = '') {
-  const store = createStore<State>()(immer(() => ({ saving: false, verified: false })))
+export function createInjectStore(
+  sessionId?: string,
+  workspace = '',
+  onRelease?: () => void,
+  onBlockChange?: (reason: string | undefined) => void,
+) {
+  const store = createStore<State>(() => ({ saving: false, verified: false, errorId: 0 }))
 
-  // 生命周期与请求协调：版本用于丢弃迟到读取，AbortController 用于释放实际网络占用。
+  const endpoint =
+    API.replace(/^\//, '') +
+    (sessionId
+      ? `?sessionId=${encodeURIComponent(sessionId)}`
+      : workspace
+        ? `?workspace=${encodeURIComponent(workspace)}`
+        : '')
+
   let disposed = false
   let reading: AbortController | undefined
   let version = 0
+  let lastEtag: string | undefined
   const requests = new Set<AbortController>()
   let retainCount = 0
   let timer: ReturnType<typeof setInterval> | undefined
-
-  // 通知确认不与业务写入共用 saving；确认响应不能改写会话解析结果。
+  let pollMs = 0
   let pendingAcknowledgement: number | undefined
   let acknowledging = false
+  let lastBlock: string | undefined
+  let hasReportedBlock = false
 
-  /**
-   * 发起同范围 GET 或 POST，并核对响应所属会话/工作区。
-   * 写入失败保留宿主结构化错误；请求结束无论成功失败都会移出控制器集合。
-   */
-  async function request(command?: Command): Promise<StateView> {
+  function emitBlock(next: string | undefined) {
+    if (!onBlockChange) return
+    if (hasReportedBlock && lastBlock === next) return
+    hasReportedBlock = true
+    lastBlock = next
+    onBlockChange(next)
+  }
+
+  function currentBlock(): string | undefined {
+    if (disposed || retainCount === 0) return undefined
+    const s = store.getState()
+    return sessionState(s.data, s.verified, s.saving, s.error, s.errorId).block
+  }
+
+  if (sessionId && onBlockChange) {
+    store.subscribe(() => {
+      if (!disposed && retainCount > 0) emitBlock(currentBlock())
+    })
+  }
+
+  const pollTick = () => {
+    if (!document.hidden) void refresh()
+  }
+
+  function startTimer(ms: number) {
+    if (disposed || retainCount === 0) return
+    if (timer && pollMs === ms) return
+    clearInterval(timer)
+    pollMs = ms
+    timer = setInterval(pollTick, ms)
+  }
+
+  function validateView(data: StateView): StateView {
+    if (
+      (!sessionId &&
+        (!Array.isArray(data.config?.templates) || data.config.workspace !== workspace)) ||
+      (sessionId && data.session?.sessionId !== sessionId)
+    ) {
+      throw new Error('破甲模式接口返回无效状态')
+    }
+    return data
+  }
+
+  async function postCommand(command: Command): Promise<StateView> {
     const controller = new AbortController()
     requests.add(controller)
-    if (!command) {
-      reading?.abort()
-      reading = controller
-    }
     try {
-      const response = await fetch(
-        API.replace(/^\//, '') +
-          (sessionId
-            ? `?sessionId=${encodeURIComponent(sessionId)}`
-            : workspace
-              ? `?workspace=${encodeURIComponent(workspace)}`
-              : ''),
-        {
-          signal: controller.signal,
-          cache: 'no-store',
-          ...(command
-            ? {
-                method: 'POST',
-                headers: { 'content-type': 'application/json' },
-                body: JSON.stringify(command),
-              }
-            : {}),
-        },
-      )
-      const data = await response.json()
-      if (!response.ok)
-        throw Object.assign(new Error(data.error ?? '无法读取破甲模式状态'), {
-          code: data.code,
-          details: data.details,
-        })
-      if (
-        (!sessionId &&
-          (!Array.isArray(data.config?.templates) || data.config.workspace !== workspace)) ||
-        (sessionId && data.session?.sessionId !== sessionId)
-      )
-        throw new Error('破甲模式接口返回无效状态')
-      return data as StateView
+      const data = await requestJson<StateView>(endpoint, {
+        method: 'POST',
+        body: command,
+        signal: controller.signal,
+        fallbackError: '无法读取破甲模式状态',
+      })
+      return validateView(data)
     } finally {
       requests.delete(controller)
     }
   }
 
-  /** 接受未被卸载的宿主结果；内容相同时保留 data 引用，减少重复轮询导致的渲染。 */
-  function accept(data: StateView) {
-    if (disposed) return
-    store.setState((state) => {
-      if (JSON.stringify(state.data) !== JSON.stringify(data)) state.data = data
-      state.error = undefined
-      state.verified = true
-    })
+  /** 已冻结且无待确认错误/通知的会话放缓轮询频率至 2500ms（配合 ETag 304 零渲染），既降开销又不漏发后拒绝通知。 */
+  function syncPolling() {
+    if (!sessionId || disposed || retainCount === 0) return
+    const current = store.getState()
+    const view = current.data?.session
+    const frozenIdle =
+      current.verified &&
+      view &&
+      !view.resolved.editable &&
+      !view.error &&
+      pendingAcknowledgement === undefined
+    startTimer(frozenIdle ? 2500 : 1200)
   }
 
-  /** 串行确认当前待清理通知。忽略确认响应的业务视图，防止迟到响应覆盖并行选择。 */
+  function accept(data: StateView, etag?: string) {
+    if (disposed) return
+    lastEtag = etag
+    store.setState((state) => ({
+      data:
+        !etag && state.data && JSON.stringify(state.data) === JSON.stringify(data)
+          ? state.data
+          : data,
+      error: undefined,
+      verified: true,
+    }))
+    syncPolling()
+  }
+
   async function acknowledgeNotice() {
     const noticeId = pendingAcknowledgement
     if (!sessionId || noticeId === undefined || disposed || acknowledging) return
     acknowledging = true
     try {
-      // 确认只消费对应通知；响应中的状态可能已经过期，不能覆盖并行选词/选模的结果。
-      await request({ type: 'acknowledge-error', sessionId, noticeId })
+      await postCommand({ type: 'acknowledge-error', sessionId, noticeId })
       if (pendingAcknowledgement === noticeId) pendingAcknowledgement = undefined
-      if (!disposed)
-        store.setState((state) => {
-          if (state.data?.session?.error?.id === noticeId) state.data.session.error = undefined
-        })
+      if (!disposed) {
+        const current = store.getState().data
+        if (current?.session?.error?.id === noticeId) {
+          store.setState({
+            data: {
+              ...current,
+              session: { ...current.session, error: undefined },
+            },
+          })
+        }
+      }
+      syncPolling()
     } catch {
-      // 本地已确认结果跨视图挂载保留；网络失败仅推迟宿主清理，下一次刷新重试。
+      // 网络失败仅推迟宿主清理，下一次刷新重试。
     } finally {
       acknowledging = false
     }
   }
 
-  /**
-   * 刷新权威视图；写入期间跳过，只有最新读取版本可提交。
-   * invalidate 用于重新挂载时暂时撤销可信标记；取消与过期响应不生成错误提示。
-   */
   async function refresh(invalidate = false) {
     if (disposed || store.getState().saving) return
     const token = ++version
     if (invalidate) store.setState({ verified: false })
+    const controller = new AbortController()
+    requests.add(controller)
+    reading?.abort()
+    reading = controller
     try {
-      const data = await request()
-      if (token === version) {
-        accept(data)
-        void acknowledgeNotice()
+      const etag = store.getState().data ? lastEtag : undefined
+      const result = await requestConditionalJson<StateView>(endpoint, {
+        etag,
+        signal: controller.signal,
+        fallbackError: '无法读取破甲模式状态',
+      })
+      if (disposed || token !== version) return
+      if (!result.modified) {
+        const s = store.getState()
+        if (!s.verified || s.error !== undefined) {
+          store.setState({ error: undefined, verified: true })
+        }
+        syncPolling()
+      } else {
+        accept(validateView(result.data), result.etag)
       }
+      void acknowledgeNotice()
     } catch (error) {
       if (disposed || token !== version || (error instanceof Error && error.name === 'AbortError'))
         return
-      store.setState({
-        error: error instanceof Error ? error.message : '读取失败',
+      store.setState((state) => ({
+        error: errorMessage(error, '读取失败'),
+        errorId: state.errorId + 1,
         verified: false,
-      })
+      }))
+    } finally {
+      requests.delete(controller)
+      if (reading === controller) reading = undefined
     }
   }
 
-  /** 页面重新可见或窗口恢复焦点时刷新，补上后台期间发生的文件变动。 */
   const focused = () => {
     if (!document.hidden) void refresh()
   }
 
-  /** 只移除本 store 注册的页面监听器，可在释放最后订阅者和最终卸载时重复调用。 */
   const detach = () => {
     window.removeEventListener('focus', focused)
     document.removeEventListener('visibilitychange', focused)
   }
 
-  return Object.assign(store, {
+  const retain = () => {
+    if (++retainCount === 1) {
+      if (typeof window !== 'undefined') {
+        window.addEventListener('focus', focused)
+        document.addEventListener('visibilitychange', focused)
+      }
+      emitBlock(currentBlock())
+      void refresh(true)
+      startTimer(sessionId ? 1200 : 5000)
+    }
+    let released = false
+    return () => {
+      if (released) return
+      released = true
+      if (--retainCount === 0) {
+        clearInterval(timer)
+        timer = undefined
+        pollMs = 0
+        if (typeof window !== 'undefined') detach()
+        reading?.abort()
+        emitBlock(undefined)
+        onRelease?.()
+      }
+    }
+  }
+
+  const api = Object.assign(store, {
     refresh,
 
-    /** 仅关闭仍匹配 expectedKey 的通知；结构化拒绝还需按 ID 向宿主确认。 */
+    isRetained() {
+      return retainCount > 0
+    },
+
     dismissNotice(expectedKey?: string) {
       const current = store.getState()
       const notice = sessionState(
@@ -171,9 +267,9 @@ export function createInjectStore(sessionId?: string, workspace = '') {
         current.verified,
         current.saving,
         current.error,
+        current.errorId,
       ).notice
 
-      // 旧 toast 的退出回调不能确认并清掉后来到达的拒绝。
       if (!notice || (expectedKey !== undefined && notice.key !== expectedKey)) return
       store.setState({ dismissedNotice: notice.key })
       if (notice.failureId !== undefined) {
@@ -182,65 +278,87 @@ export function createInjectStore(sessionId?: string, workspace = '') {
       }
     },
 
-    /**
-     * 串行提交一条命令，开始时使旧读取失效。
-     * 返回是否成功接受宿主结果；明确拒绝只更新通知，未知失败撤销可信标记。
-     */
     async execute(command: Command): Promise<boolean> {
       if (disposed || store.getState().saving) return false
       version++
       reading?.abort()
       store.setState({ saving: true, error: undefined })
       try {
-        accept(await request(command))
+        const result = await postCommand(command)
+        accept(result)
         return !disposed
       } catch (error) {
-        if (!disposed && isInjectSelectionError(error) && store.getState().data?.session) {
+        const prevData = store.getState().data
+        if (!disposed && isInjectSelectionError(error) && prevData?.session) {
           const failure = error as Error & { details: { noticeId: number } }
-          store.setState((state) => {
-            state.data!.session!.error = { id: failure.details.noticeId, message: failure.message }
-          })
-        } else if (!disposed)
           store.setState({
-            error: error instanceof Error ? error.message : '保存失败',
-            verified: false,
+            data: {
+              ...prevData,
+              session: {
+                ...prevData.session,
+                error: { id: failure.details.noticeId, message: failure.message },
+              },
+            },
           })
+        } else if (!disposed) {
+          store.setState((state) => ({
+            error: errorMessage(error, '保存失败'),
+            errorId: state.errorId + 1,
+            verified: false,
+          }))
+        }
         return false
       } finally {
         if (!disposed) store.setState({ saving: false })
       }
     },
 
-    /** 增加可见视图引用；首个订阅者启动刷新与轮询，最后一个离开时停止读取。 */
-    retain() {
-      if (++retainCount === 1) {
-        window.addEventListener('focus', focused)
-        document.addEventListener('visibilitychange', focused)
-        void refresh(true)
-        timer = setInterval(
-          () => {
-            if (!document.hidden) void refresh()
-          },
-          sessionId ? 1200 : 5000,
-        )
-      }
-      return () => {
-        if (--retainCount === 0) {
-          clearInterval(timer)
-          detach()
-          reading?.abort()
-        }
+    async parseMarkdown(markdown: string): Promise<Prompt> {
+      const controller = new AbortController()
+      requests.add(controller)
+      try {
+        const result = await requestJson<{ prompt: Prompt }>(endpoint, {
+          method: 'POST',
+          body: { type: 'parse-markdown', markdown },
+          signal: controller.signal,
+          fallbackError: '导入失败',
+        })
+        return result.prompt
+      } finally {
+        requests.delete(controller)
       }
     },
 
-    /** 最终卸载：中止读写与确认请求、移除监听和定时器，并屏蔽迟到响应。 */
+    async formatMarkdown(template: Prompt): Promise<string> {
+      const controller = new AbortController()
+      requests.add(controller)
+      try {
+        const result = await requestJson<{ markdown: string }>(endpoint, {
+          method: 'POST',
+          body: { type: 'format-markdown', template },
+          signal: controller.signal,
+          fallbackError: '导出失败',
+        })
+        return result.markdown
+      } finally {
+        requests.delete(controller)
+      }
+    },
+
+    retain,
+
     dispose() {
       disposed = true
+      emitBlock(undefined)
       if (typeof window !== 'undefined') detach()
       clearInterval(timer)
+      timer = undefined
+      pollMs = 0
       for (const controller of requests) controller.abort()
     },
   })
+
+  return withLifecycle(api, retain)
 }
 
 export type InjectStore = ReturnType<typeof createInjectStore>

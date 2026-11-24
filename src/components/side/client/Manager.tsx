@@ -10,11 +10,12 @@ import {
   IconPlusOutlineRegular,
   IconTrashOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { errorMessage } from '../../../shared/error.ts'
+import type { SideRow } from '../shared/protocol.ts'
 import { ConfirmDialog, SideError } from './feedback.tsx'
+import { createSideHistoryStore, type SideHistoryStore } from './history-store.ts'
 import type { SideClient } from './store.ts'
 import type { SideTabs } from './tabs.ts'
-import { useSideHistory } from './useSideHistory.ts'
-import type { SideRow } from '../shared/protocol.ts'
 
 type Entry = { title: string } & ({ draft: SideClient } | { row: SideRow })
 
@@ -23,25 +24,29 @@ export function Manager({ tabs, source }: { tabs: SideTabs; source: SessionId })
   const [confirm, setConfirm] = useState<Entry>()
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
-  const history = useSideHistory(tabs, source, open)
+  const [historyStore] = useState(() => createSideHistoryStore(tabs, source))
   async function remove(entry: Entry) {
     if (busy) return
+    if ('draft' in entry) {
+      const state = entry.draft.view.getState()
+      if (state.busy || state.phase.kind !== 'draft' || state.phase.creatingSessionId) {
+        setError('这条草稿已开始发送，请重新选择侧聊。')
+        setOpen(true)
+        return
+      }
+      setError('')
+      entry.draft.close()
+      return
+    }
     setBusy(true)
     setError('')
     try {
-      if ('draft' in entry) {
-        const { busy, selected } = entry.draft.view.getState()
-        if (busy || selected) throw new Error('这条草稿已开始发送，请重新选择侧聊。')
-        entry.draft.close()
-      } else {
-        await tabs.remove(source, entry.row)
-      }
+      await tabs.remove(source, entry.row)
     } catch (err) {
-      setError(String(err))
+      setError(errorMessage(err))
       setOpen(true)
-    } finally {
-      setBusy(false)
     }
+    setBusy(false)
   }
 
   async function pick(entry: Entry) {
@@ -50,7 +55,7 @@ export function Manager({ tabs, source }: { tabs: SideTabs; source: SessionId })
       if ('draft' in entry) await tabs.focus(entry.draft.source, entry.draft.tabId)
       else await tabs.open(source, entry.row)
     } catch (err) {
-      setError(String(err))
+      setError(errorMessage(err))
       setOpen(true)
     }
   }
@@ -90,24 +95,28 @@ export function Manager({ tabs, source }: { tabs: SideTabs; source: SessionId })
         >
           新建侧聊
         </MenuItemButton>
-        {open && (
+        {open ? (
           <SideRows
+            historyStore={historyStore}
             tabs={tabs}
             source={source}
-            rows={history.rows}
+            error={error}
+            clearError={() => setError('')}
             busy={busy}
-            hasError={!!(error || history.error)}
             pick={pick}
             confirm={setConfirm}
           />
+        ) : (
+          error && (
+            <SideError
+              message={error}
+              retry={() => {
+                setError('')
+                tabs.historyChanges.dispatchEvent(new Event(source))
+              }}
+            />
+          )
         )}
-        <SideError
-          message={error || history.error}
-          retry={() => {
-            setError('')
-            tabs.historyChanges.dispatchEvent(new Event(source))
-          }}
-        />
       </Menu>
       {confirm && (
         <ConfirmDialog
@@ -134,27 +143,36 @@ type ListActions = {
 }
 
 function SideRows({
+  historyStore,
   tabs,
   source,
-  rows,
-  hasError,
+  error,
+  clearError,
   ...actions
 }: ListActions & {
+  historyStore: SideHistoryStore
   tabs: SideTabs
   source: SessionId
-  rows?: SideRow[]
-  hasError: boolean
+  error: string
+  clearError: () => void
 }) {
+  const history = useStore(historyStore)
   const drafts = useStore(
     tabs.drafts,
-    useShallow((all) => all.filter((c) => c.view.getState().draft?.fork.parent === source)),
+    useShallow((all) =>
+      all.filter((c) => {
+        const phase = c.view.getState().phase
+        return phase.kind === 'draft' && phase.draft.fork.parent === source
+      }),
+    ),
   )
+  const hasError = !!(error || history.error)
   return (
     <>
       {drafts.map((draft) => (
         <DraftRow key={draft.key} draft={draft} {...actions} />
       ))}
-      {rows?.map((row) => (
+      {history.rows?.map((row) => (
         <ListRow
           key={row.id}
           entry={{ row, title: row.title || '新侧聊' }}
@@ -162,15 +180,26 @@ function SideRows({
           {...actions}
         />
       ))}
-      {!drafts.length && !rows?.length && !hasError && (
-        <div className="rong-side-list-note">{rows ? '暂无侧聊' : '正在读取侧聊…'}</div>
+      {!drafts.length && !history.rows?.length && !hasError && (
+        <div className="rong-side-list-note">{history.rows ? '暂无侧聊' : '正在读取侧聊…'}</div>
       )}
+      <SideError
+        message={error || history.error}
+        retry={() => {
+          clearError()
+          tabs.historyChanges.dispatchEvent(new Event(source))
+        }}
+      />
     </>
   )
 }
 
 function DraftRow({ draft, ...actions }: ListActions & { draft: SideClient }) {
-  const title = useStore(draft.view, (s) => s.draft?.text.trim().split('\n', 1)[0] || '新侧聊')
+  const title = useStore(
+    draft.view,
+    (s) =>
+      (s.phase.kind === 'draft' ? s.phase.draft.text.trim().split('\n', 1)[0] : '') || '新侧聊',
+  )
   const sending = useStore(draft.view, (s) => s.busy)
   return (
     <ListRow entry={{ draft, title }} note="草稿" {...actions} busy={actions.busy || sending} />

@@ -1,4 +1,4 @@
-import { createContext, memo, useContext, type ReactElement } from 'react'
+import { type ReactElement } from 'react'
 import { useStore } from 'zustand'
 import { Tag, Tooltip } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionRow } from '../shared/protocol.ts'
@@ -12,12 +12,11 @@ export interface MenuTarget {
   y: number
 }
 
-export const SessionMenuOpen = createContext(false)
-
 interface Props {
   row: SessionRow
   selection: SessionSelection
   busy: boolean
+  menuOpen: boolean
   onMenu: (target: MenuTarget) => void
   onAction: SessionActionHandler
 }
@@ -34,15 +33,22 @@ function details(row: SessionRow) {
     .join('\n')
 }
 
-function SessionTooltip({ row, children }: { row: SessionRow; children: ReactElement }) {
-  const menuOpen = useContext(SessionMenuOpen)
+function SessionTooltip({
+  row,
+  disabled,
+  children,
+}: {
+  row: SessionRow
+  disabled: boolean
+  children: ReactElement
+}) {
   return (
     <Tooltip
       portal
       side="bottom"
       maxWidth={420}
       delayMs={450}
-      disabled={menuOpen}
+      disabled={disabled}
       label={() => details(row)}
     >
       {children}
@@ -50,16 +56,10 @@ function SessionTooltip({ row, children }: { row: SessionRow; children: ReactEle
   )
 }
 
-export const SessionItem = memo(function SessionItem({
-  row,
-  selection,
-  busy,
-  onMenu,
-  onAction,
-}: Props) {
+export function SessionItem({ row, selection, busy, menuOpen, onMenu, onAction }: Props) {
   const selected = useStore(selection.store, (ids) => ids.has(row.id))
   return (
-    <SessionTooltip row={row}>
+    <SessionTooltip row={row} disabled={menuOpen}>
       <li
         className="rong-session-row"
         tabIndex={-1}
@@ -103,4 +103,4 @@ export const SessionItem = memo(function SessionItem({
       </li>
     </SessionTooltip>
   )
-})
+}

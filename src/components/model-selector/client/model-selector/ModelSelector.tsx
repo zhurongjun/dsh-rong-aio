@@ -1,16 +1,6 @@
 /** 选择器编排：连接宿主目录、局部状态、定位与键盘流程；宿主确认结果是选模依据。 */
 
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useId,
-  useLayoutEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-  type KeyboardEvent,
-} from 'react'
+import { useId, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import {
   isBehindModal,
@@ -20,18 +10,24 @@ import {
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
 import type { PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
-import { filterModels } from '../../shared/model-selection.ts'
+import { createAnchoredPopover } from '../../../../client/anchored-popover.ts'
+import { useComposerToastAnchor } from '../../../../client/useComposerToastAnchor.ts'
+import { buildModelCatalog } from '../../shared/model-selection.ts'
 import { speedKey } from '../../shared/speed.ts'
 import { useStore } from 'zustand'
 import { useShallow } from 'zustand/react/shallow'
-import { createSelectorStore } from './selector-store.ts'
-import { createSpeedStore } from './speed-store.ts'
 import { SelectorTrigger } from './SelectorTrigger.tsx'
 import { EffortPanel } from './EffortPanel.tsx'
 import { useModelSelection } from './useModelSelection.ts'
 import { ModelList } from './ModelList.tsx'
-import { useTeamSelection, type TeamSelection } from './useTeamSelection.ts'
+import { type TeamSelection } from './team-store.ts'
 import { TeamDisableDialog } from './TeamControl.tsx'
+import { handlePopoverKeyDown } from './popover-keyboard.ts'
+import { createSelectorSession } from './selector-session.ts'
+
+function focusWhenFront(el: HTMLElement | null) {
+  if (el && !isBehindModal(el)) el.focus({ preventScroll: true })
+}
 
 /** 复用 DSH 模型插槽契约；available 区分本地会话与独立运行时，locked 控制交互。 */
 type Props = Omit<ModelSelectInjected, 'resolveText'> &
@@ -40,8 +36,9 @@ type Props = Omit<ModelSelectInjected, 'resolveText'> &
     team?: TeamSelection
   }
 
-/** 让会话切换重新建立瞬时 UI 状态；持久化状态始终由 DSH 目录持有。 */
+/** 让会话切换重新建立瞬时 UI 状态；独立运行时提前跳过渲染，避免创建会话订阅。 */
 export function ModelSelector(props: Props) {
+  if (!props.available) return null
   return <Selector key={props.sessionId} {...props} />
 }
 
@@ -50,9 +47,10 @@ export function ModelSelector(props: Props) {
  * 子视图只订阅各自需要的投影，粒子逐帧运动与请求刷新互不驱动。
  */
 function Selector({ locked, available, directory, load, select, sessionId, team }: Props) {
-  const [store] = useState(createSelectorStore)
+  const [session] = useState(() => createSelectorSession(sessionId, directory))
+  const store = session.selectorStore
   const actions = store.getState().actions
-  const [speedStore] = useState(() => createSpeedStore(actions.reportError))
+  const speedStore = session.speedStore
   const { open, mounted, pane, query, error, errorSequence } = useStore(
     store,
     useShallow((state) => ({
@@ -78,151 +76,73 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
     refresh,
     selecting,
     visibleError,
-  } = useModelSelection({ directory, select, load, available, locked, store })
-  const [position, setPosition] = useState<CSSProperties>({ visibility: 'hidden' })
-  const trigger = useRef<HTMLButtonElement>(null)
-  const menu = useRef<HTMLDivElement>(null)
+  } = useModelSelection({ directory, select, load, available, locked, session })
+
+  const { bindTrigger, toastAnchor } = useComposerToastAnchor()
   const search = useRef<HTMLInputElement>(null)
-  const header = useRef<HTMLButtonElement>(null)
   const id = useId()
 
-  // 搜索只过滤目录；速度身份只依赖已确认的会话/provider/model，不随 effort 刷新。
-  const catalog = useMemo(() => {
-    const filtered = filterModels(state.groups, query)
-    const rows = filtered.flatMap((group) => group.models.map((model) => ({ group, model })))
-    let offset = 0
-    const groups = filtered.map((group) => {
-      const entry = { group, offset }
-      offset += group.models.length
-      return entry
-    })
-    return { groups, rows }
-  }, [state.groups, query])
-  const { groups, rows } = catalog
+  const [popover] = useState(() =>
+    createAnchoredPopover({
+      placement: 'above-end',
+      onMount(surface, signal, { getAnchor }) {
+        const outside = (event: PointerEvent) => {
+          if (
+            surface.contains(event.target as Node) ||
+            getAnchor()?.contains(event.target as Node) ||
+            (event.target instanceof Element && event.target.closest('[data-rong-option-menu]'))
+          ) {
+            return
+          }
+          actions.close()
+        }
+        const yieldToModal = () => {
+          if (!isBehindModal(surface)) return
+          actions.close()
+          actions.unmount()
+        }
+        document.addEventListener('pointerdown', outside, { signal })
+        document.addEventListener('focusin', yieldToModal, { signal })
+      },
+    }),
+  )
+  const position = useStore(popover.store, (state) => state.position)
+  const positioned = position !== null
+  const effectiveOpen = open && !locked
+
+  const { groups, rows } = buildModelCatalog(state.groups, query)
   const busy = selecting || locked
   const modelName = model?.name ?? current?.model ?? '选择模型'
-  const identity = useMemo(
-    () =>
-      available && current
-        ? { sessionId, provider: current.provider, model: current.model }
-        : undefined,
-    [available, sessionId, current?.provider, current?.model],
-  )
-  const speedRoute = identity ? speedKey(identity) : ''
-
-  // 资源生命周期：路由读取、异步结果归属、弹层退场和外部事件成对清理。
-  useEffect(() => speedStore.sync(identity, open), [speedStore, identity, open])
-  useEffect(() => () => speedStore.dispose(), [speedStore])
-
-  useEffect(() => {
-    if (open || !mounted) return
-    // 正常在 transform 退场完成后卸载；页面隐藏或过渡被取消时仍能清理。
-    const timer = window.setTimeout(actions.unmount, 180)
-    return () => window.clearTimeout(timer)
-  }, [open, mounted, actions])
+  const provider = current?.provider
+  const modelId = current?.model
+  const speedRoute = provider && modelId ? speedKey({ sessionId, provider, model: modelId }) : ''
 
   /** 关闭弹层；仅显式键盘/按钮操作需要把焦点恢复到触发按钮。 */
-  const close = useCallback(
-    (restoreFocus = false) => {
-      actions.close()
-      if (restoreFocus) trigger.current?.focus()
-    },
-    [actions],
-  )
-  const teamInteraction = useTeamSelection(
-    team,
-    locked,
-    () => {
-      close(true)
-      actions.unmount()
-    },
-    actions.reportError,
-  )
+  const close = (restoreFocus = false) => {
+    actions.close()
+    if (restoreFocus) popover.focusAnchor()
+  }
 
-  useEffect(() => {
-    if (!open) return
-
-    /** 忽略主面板、触发按钮及共享选项门户内部的指针事件，其余位置关闭。 */
-    const outside = (event: PointerEvent) => {
-      if (
-        menu.current?.contains(event.target as Node) ||
-        trigger.current?.contains(event.target as Node) ||
-        (event.target instanceof Element && event.target.closest('[data-rong-option-menu]'))
-      )
-        return
-      close()
-    }
-
-    document.addEventListener('pointerdown', outside)
-
-    /** 原生 Modal 接管焦点时立即卸载当前面板，避免残留退场材质遮住模态内容。 */
-    const yieldToModal = () => {
-      if (!isBehindModal(menu.current)) return
-      close()
-
-      // 原生模态窗拥有焦点时直接释放浮层，避免退出动画盖住模态内容。
-      actions.unmount()
-    }
-
-    document.addEventListener('focusin', yieldToModal)
-    return () => {
-      document.removeEventListener('pointerdown', outside)
-      document.removeEventListener('focusin', yieldToModal)
-    }
-  }, [open, close, actions])
-
-  useEffect(() => {
-    if (locked || !available) close()
-  }, [locked, available, close])
-
-  // 定位与焦点：在 DOM 已挂载后测量；同位置返回原对象以避免无效渲染。
-  useLayoutEffect(() => {
-    if (!mounted) return
-
-    /** 以触发按钮右边缘对齐面板，优先向上展开，并把整个面板限制在可视视口内。 */
-    const place = () => {
-      const anchor = trigger.current?.getBoundingClientRect()
-      const surface = menu.current
-      if (!anchor || !surface) return
-      const width = surface.offsetWidth
-      const height = surface.offsetHeight
-      const viewport = window.visualViewport
-      const left = viewport?.offsetLeft ?? 0
-      const top = viewport?.offsetTop ?? 0
-      const vw = viewport?.width ?? window.innerWidth
-      const vh = viewport?.height ?? window.innerHeight
-      const x = Math.max(left + 12, Math.min(anchor.right - width, left + vw - width - 12))
-      const above = anchor.top - 8 - height
-      const y = above >= top + 12 ? above : Math.min(anchor.bottom + 8, top + vh - height - 12)
-      const next = { left: x, top: Math.max(top + 12, y) }
-      setPosition((previous) =>
-        previous.left === next.left && previous.top === next.top ? previous : next,
-      )
-    }
-
-    place()
-    const observer = new ResizeObserver(place)
-    if (menu.current) observer.observe(menu.current)
-    if (trigger.current) observer.observe(trigger.current)
-    window.addEventListener('resize', place)
-    window.addEventListener('scroll', place, true)
-    window.visualViewport?.addEventListener('resize', place)
-    return () => {
-      observer.disconnect()
-      window.removeEventListener('resize', place)
-      window.removeEventListener('scroll', place, true)
-      window.visualViewport?.removeEventListener('resize', place)
-    }
-  }, [mounted, pane])
-
-  useEffect(() => {
-    if (!open || !mounted || isBehindModal(menu.current)) return
-    if (pane === 'models') search.current?.focus({ preventScroll: true })
-    else header.current?.focus({ preventScroll: true })
-  }, [open, mounted, pane, position.visibility])
+  const teamState = useStore(session.teamStore)
+  const teamInteraction = {
+    pending: teamState.pending,
+    confirming: Boolean(team) && teamState.rawConfirming,
+    select: (enabled: boolean) =>
+      session.teamStore.select(
+        team,
+        locked,
+        () => {
+          close(true)
+          actions.unmount()
+        },
+        enabled,
+      ),
+    confirm: () => session.teamStore.confirm(team, locked),
+    cancel: () => session.teamStore.cancel(),
+  }
 
   /** 进入模型列表并以当前模型在扁平结果中的位置初始化键盘高亮。 */
-  const showModels = useCallback(() => {
+  const showModels = () => {
     actions.showModels(
       Math.max(
         0,
@@ -231,64 +151,31 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
         ),
       ),
     )
-  }, [actions, rows, current])
+  }
 
   /** 关闭时恢复入口焦点；打开时初始化面板并触发宿主目录加载。 */
-  const toggle = useCallback(() => {
+  const toggle = () => {
     if (store.getState().open) close(true)
     else {
       actions.show(model ? 'effort' : 'models')
       refresh()
     }
-  }, [store, close, actions, model, refresh])
-
-  /** 处理主面板层级：Escape 返回/关闭、方向键切换高亮、Enter 提交和 Tab 焦点循环。 */
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.nativeEvent.isComposing) return
-    if (event.key === 'Escape') {
-      event.preventDefault()
-      event.stopPropagation()
-      if (pane === 'models' && model) actions.setPane('effort')
-      else close(true)
-    }
-    if (pane === 'models' && ['ArrowDown', 'ArrowUp'].includes(event.key)) {
-      event.preventDefault()
-      const value = store.getState().highlight
-      actions.highlight(
-        rows.length
-          ? (value + (event.key === 'ArrowDown' ? 1 : -1) + rows.length) % rows.length
-          : 0,
-      )
-      search.current?.focus({ preventScroll: true })
-    }
-    if (pane === 'models' && event.target === search.current && event.key === 'Enter') {
-      event.preventDefault()
-      const row = rows[store.getState().highlight]
-      if (row && !busy) void chooseModel(row.group.id, row.model)
-    }
-    if (event.key === 'Tab') {
-      const controls = Array.from(
-        menu.current?.querySelectorAll<HTMLElement>('button:not(:disabled),input,[tabindex="0"]') ??
-          [],
-      ).filter((element) => element.tabIndex >= 0)
-      const first = controls[0]
-      const last = controls.at(-1)
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault()
-        last?.focus()
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault()
-        first?.focus()
-      }
-    }
   }
 
-  // 渲染边界：独立运行时不接管模型控件；可见 UI 由下方子视图按职责组成。
-  if (!available) return null
+  const bindTriggerButton = (el: HTMLButtonElement | null) => {
+    bindTrigger(el)
+    popover.bindAnchor(el)
+  }
+  const bindSurface = (el: HTMLDivElement | null) => popover.bindSurface(el)
+  const bindContent = (el: HTMLDivElement | null) => {
+    popover.bindContent(el)
+    if (el && locked && store.getState().open) actions.close()
+  }
+
   return (
     <>
       <SelectorTrigger
-        ref={trigger}
+        ref={bindTriggerButton}
         store={store}
         routeKey={routeKey}
         speedStore={speedStore}
@@ -303,37 +190,49 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
       {mounted &&
         createPortal(
           <MenuSurface
-            ref={menu}
+            ref={bindSurface}
             id={id}
             role="dialog"
             aria-label="模型与推理强度"
-            aria-hidden={!open || undefined}
+            aria-hidden={!effectiveOpen || undefined}
             aria-busy={selecting || state.status === 'loading'}
             className="rong-model-popover"
-            data-open={open}
+            data-open={effectiveOpen}
             data-pane={pane}
             style={
               {
-                ...position,
+                ...(position ?? { visibility: 'hidden' }),
 
                 // 内距 18 + 工具栏 26 + 间距 8；无结果时也留一行显示状态。
                 '--rong-list-height': `${Math.min(344, 52 + Math.max(1, rows.length) * 33 + groups.length * 26)}px`,
               } as CSSProperties
             }
-            onKeyDown={onKeyDown}
+            onKeyDown={(event) =>
+              handlePopoverKeyDown(event, {
+                store,
+                pane,
+                hasModel: !!model,
+                busy,
+                rows,
+                menu: event.currentTarget,
+                search,
+                close,
+                chooseModel,
+              })
+            }
             onTransitionEnd={(event) => {
               if (
                 event.target === event.currentTarget &&
                 event.propertyName === 'transform' &&
-                !open
+                !effectiveOpen
               )
                 actions.unmount()
             }}
           >
-            <div className="rong-model-content">
+            <div key={pane} className="rong-model-content" ref={bindContent}>
               {pane === 'effort' ? (
                 <EffortPanel
-                  ref={header}
+                  ref={effectiveOpen && positioned ? focusWhenFront : undefined}
                   store={store}
                   speedStore={speedStore}
                   team={team}
@@ -344,7 +243,7 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
                   modelName={modelName}
                   efforts={efforts}
                   selected={selected}
-                  open={open}
+                  open={effectiveOpen}
                   locked={locked}
                   selecting={selecting}
                   onPreview={preview}
@@ -362,6 +261,7 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
                   busy={selecting}
                   locked={locked}
                   hasModel={!!model}
+                  focusReady={effectiveOpen && positioned}
                   status={state.status}
                   id={id}
                   chooseModel={chooseModel}
@@ -391,7 +291,7 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
           key={errorSequence}
           text={error}
           icon={<IconWarningOutlineRegular />}
-          anchor={trigger.current?.closest<HTMLElement>('[data-composer-card]') ?? null}
+          anchor={toastAnchor}
           holdMs={5000}
           onDone={() => actions.dismissError(errorSequence)}
         />

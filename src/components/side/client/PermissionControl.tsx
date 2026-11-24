@@ -1,5 +1,5 @@
 import { useStore } from 'zustand'
-import { createContext, memo, useContext, useState } from 'react'
+import { createContext, useContext, useState } from 'react'
 import {
   Button,
   IconChevronDownOutlineRegular,
@@ -7,22 +7,30 @@ import {
   MenuItemButton,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ConfirmDialog } from './feedback.tsx'
-import type { SideClient } from './store.ts'
+import { selectedSessionOf, type SideClient } from './store.ts'
 
 export const SideComposerContext = createContext<SideClient | null>(null)
 
-export function EmbeddedPermission({ sessionId }: { sessionId: string }) {
-  const store = useContext(SideComposerContext)
-  if (!store || store.view.getState().selected !== sessionId) return null
+function BoundEmbeddedPermission({ store, sessionId }: { store: SideClient; sessionId: string }) {
+  const matches = useStore(store.view, (s) => selectedSessionOf(s.phase) === sessionId)
+  if (!matches) return null
   return <PermissionControl store={store} />
 }
 
-export const PermissionControl = memo(function PermissionControl({ store }: { store: SideClient }) {
+export function EmbeddedPermission({ sessionId }: { sessionId: string }) {
+  const store = useContext(SideComposerContext)
+  if (!store) return null
+  return <BoundEmbeddedPermission store={store} sessionId={sessionId} />
+}
+
+export function PermissionControl({ store }: { store: SideClient }) {
   const permission = useStore(store.view, (s) => s.permission)
   const parentPermission = useStore(store.view, (s) => s.parentPermission)
   const disabled = useStore(
     store.view,
-    (s) => s.busy || (!s.reference && (!s.draft || !!s.selected)),
+    (s) =>
+      s.busy ||
+      (s.phase.kind !== 'ready' && !(s.phase.kind === 'draft' && !s.phase.creatingSessionId)),
   )
   const loading = useStore(store.view, (s) => s.busy || s.checkingPermission)
   const [open, setOpen] = useState(false)
@@ -88,4 +96,4 @@ export const PermissionControl = memo(function PermissionControl({ store }: { st
       )}
     </>
   )
-})
+}

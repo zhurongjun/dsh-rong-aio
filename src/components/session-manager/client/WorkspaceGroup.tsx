@@ -1,4 +1,4 @@
-import { memo, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useId, useState } from 'react'
 import { useStore } from 'zustand'
 import {
   Checkbox,
@@ -21,15 +21,15 @@ function WorkspaceCheckbox({ members, selection, busy }: GroupSelectionProps) {
     const first = ids.has(members[0].id)
     return members.some((row) => ids.has(row.id) !== first) ? 'mixed' : first
   })
-  const checkbox = useRef<HTMLSpanElement>(null)
-  useLayoutEffect(() => {
-    // DSH 的 Checkbox 提供原生 input；半选状态只能通过 DOM 属性设置。
-    const input = checkbox.current?.querySelector('input')
-    if (input) input.indeterminate = checked === 'mixed'
-  }, [checked])
   const label = '全选工作区「' + members[0].workspace.title + '」'
+  const isMixed = checked === 'mixed'
+  const bindCheck = (el: HTMLSpanElement | null) => {
+    // DSH 的 Checkbox 提供原生 input；半选状态通过 DOM 属性在布局提交阶段同步。
+    const input = el?.querySelector('input')
+    if (input) input.indeterminate = isMixed
+  }
   return (
-    <span ref={checkbox} className="rong-session-group-check">
+    <span className="rong-session-group-check" ref={bindCheck}>
       <Checkbox
         label={label}
         title={label}
@@ -42,22 +42,23 @@ function WorkspaceCheckbox({ members, selection, busy }: GroupSelectionProps) {
 }
 
 interface Props extends GroupSelectionProps {
-  query: string
+  searchRevision: number
+  openMenuId?: string
   onMenu: (target: MenuTarget) => void
   onAction: SessionActionHandler
 }
 
-export const WorkspaceGroup = memo(function WorkspaceGroup({
+export function WorkspaceGroup({
   members,
   selection,
   busy,
-  query,
+  searchRevision,
+  openMenuId,
   onMenu,
   onAction,
 }: Props) {
-  const [expanded, setExpanded] = useState(true)
-  // 新搜索展开匹配的工作区，同时保留仍在结果中的行实例。
-  useLayoutEffect(() => setExpanded(true), [query])
+  const [collapsedAtRevision, setCollapsedAtRevision] = useState<number | null>(null)
+  const expanded = collapsedAtRevision !== searchRevision
   const listId = useId()
   const { workspace, cwd } = members[0]
   const Folder = expanded ? IconFolderOpenRegular : IconFolderCloseRegular
@@ -70,7 +71,7 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
           title={cwd}
           aria-expanded={expanded}
           aria-controls={listId}
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => setCollapsedAtRevision(expanded ? searchRevision : null)}
         >
           <Folder size={16} className="rong-session-folder" />
           <IconTriangleRightFillRegular size={16} className="rong-session-arrow" />
@@ -86,6 +87,7 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
               row={row}
               selection={selection}
               busy={busy}
+              menuOpen={openMenuId === row.id}
               onMenu={onMenu}
               onAction={onAction}
             />
@@ -93,4 +95,4 @@ export const WorkspaceGroup = memo(function WorkspaceGroup({
       </ul>
     </div>
   )
-})
+}

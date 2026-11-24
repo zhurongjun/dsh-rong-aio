@@ -2,15 +2,11 @@
 
 import { join } from 'node:path'
 import { unlink } from 'node:fs/promises'
-import { z } from 'zod'
-import {
-  frozenSchema,
-  type FrozenSession,
-  type InjectState,
-  type ResolvedState,
-} from '../shared/state.ts'
+import * as z from 'zod'
+import { type FrozenSession, type InjectState, type ResolvedState } from '../shared/state.ts'
 import type { RequestFailure } from '../shared/protocol.ts'
 import { message, readVersion, withFileLocks, writeVersion } from './files.ts'
+import { frozenSchema } from './schemas.ts'
 
 /** 定位会话的最小原生元数据，不复制完整 DSH 会话对象。 */
 export interface SessionMeta {
@@ -232,6 +228,35 @@ export class SessionStore {
     if (!entry) return
     entry.busy = false
     entry.candidate = undefined
+  }
+
+  /** 在容量超限时清理最旧的冷冻结会话条目；绝不驱逐未冻结或存在待确认状态的会话。 */
+  evictIfCold(id: string, maxEntries = 64): void {
+    const current = this.entries.get(id)
+    if (
+      current &&
+      this.entries.size > maxEntries &&
+      Boolean(current.frozen) &&
+      !current.busy &&
+      !current.candidate &&
+      !current.error &&
+      !this.loading.has(id)
+    ) {
+      this.entries.delete(id)
+    }
+    if (this.entries.size <= maxEntries) return
+    for (const [key, entry] of this.entries) {
+      if (this.entries.size <= maxEntries) break
+      if (
+        Boolean(entry.frozen) &&
+        !entry.busy &&
+        !entry.candidate &&
+        !entry.error &&
+        !this.loading.has(key)
+      ) {
+        this.entries.delete(key)
+      }
+    }
   }
 
   /** 阻止新增初始化，等待正在恢复的会话结束，再清空内存；保留所有用户文件。 */

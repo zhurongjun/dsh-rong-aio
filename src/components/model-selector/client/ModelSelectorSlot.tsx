@@ -1,6 +1,5 @@
 /** 原生插槽适配：从会话投影派生 Team 状态，远程能力缺失时仅隐藏 Team 入口。 */
 
-import { useCallback } from 'react'
 import { useStore, type StoreApi } from 'zustand'
 import type { Context } from '@deepseek-ai/cordis'
 import type { ModelSelectInjected } from '@deepseek-ai/dsh-client-ui-model-selection/client'
@@ -21,6 +20,8 @@ export interface SelectorInjected extends Omit<ModelSelectInjected, 'resolveText
 export function ModelSelectorSlot(
   props: PropsRuntime<'conversation.input.model'> & SelectorInjected,
 ) {
+  // DSH 插槽契约通过 props 传入 hooks，不适合 React Compiler 自动记忆化；内层 ModelSelector 仍正常编译。
+  'use no memo'
   const capability = useStore(props.teamCommands, (state) => state.capability)
   const command = capability?.setEnabled
   const addressedChild = props.useSession((snapshot) => snapshot.subagent !== null)
@@ -29,13 +30,10 @@ export function ModelSelectorSlot(
   )
   const team = props.useProjection('agentTeam')
   const model = props.useProjection('modelSelection')
-  const selectEnabled = useCallback(
-    (enabled: boolean) => {
-      if (!command) return Promise.reject(new Error('Agent Team 服务不可用'))
-      return command(props.sessionId, enabled)
-    },
-    [command, props.sessionId],
-  )
+  const selectEnabled = (enabled: boolean) => {
+    if (!command) return Promise.reject(new Error('Agent Team 服务不可用'))
+    return command(props.sessionId, enabled)
+  }
   return (
     <ModelSelector
       {...props}

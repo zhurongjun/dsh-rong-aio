@@ -2,7 +2,7 @@
 
 import { readdir } from 'node:fs/promises'
 import { join } from 'node:path'
-import { importMarkdown } from '../shared/markdown.ts'
+import { importMarkdown } from './markdown.ts'
 import type { CatalogPrompt, Prompt, Scope } from '../shared/state.ts'
 import { fingerprint, message, missing, readVersion } from './files.ts'
 import type { Paths } from './paths.ts'

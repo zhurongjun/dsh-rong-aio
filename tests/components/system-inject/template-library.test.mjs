@@ -100,3 +100,34 @@ test('删除会话所选的模板需要确认；确认后该会话显示引用�
   assert.equal((await f.injectRequest({ ...command, confirmed: true })).status, 200)
   assert.equal((await f.injectView({ sessionId: f.agent.id })).session.resolved.status, 'invalid')
 })
+
+test('支持 ETag 条件读取与无状态 Markdown 导入导出 RPC', async (t) => {
+  const f = await runtime(t)
+  const initial = await fetch('http://fixture/api/rong-aio.system-inject')
+  assert.equal(initial.status, 200)
+  const etag = initial.headers.get('etag')
+  assert.ok(etag)
+
+  const cached = await fetch('http://fixture/api/rong-aio.system-inject', {
+    headers: { 'if-none-match': etag },
+  })
+  assert.equal(cached.status, 304)
+
+  await f.put({ ...f.prompt, name: 'extra', display_name: '额外' })
+  const stale = await fetch('http://fixture/api/rong-aio.system-inject', {
+    headers: { 'if-none-match': etag },
+  })
+  assert.equal(stale.status, 200)
+  assert.notEqual(stale.headers.get('etag'), etag)
+
+  const formatted = await f.injectRequest({ type: 'format-markdown', template: f.prompt })
+  assert.equal(formatted.status, 200)
+  const { markdown } = await formatted.json()
+  assert.equal(typeof markdown, 'string')
+  assert.match(markdown, /LITERAL/)
+
+  const parsed = await f.injectRequest({ type: 'parse-markdown', markdown })
+  assert.equal(parsed.status, 200)
+  const { prompt } = await parsed.json()
+  assert.deepEqual(prompt, f.prompt)
+})

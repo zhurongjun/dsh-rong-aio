@@ -1,7 +1,8 @@
-/** Markdown 与破甲词对象的转换；frontmatter 提供索引，正文保持字面语义。 */
+/** Markdown 与破甲词对象的转换；仅在宿主执行 YAML 解析与序列化。 */
 
 import { parseDocument, stringify } from 'yaml'
-import { promptSchema, type Prompt } from './state.ts'
+import type { Prompt } from '../shared/state.ts'
+import { promptSchema } from './schemas.ts'
 
 /** Markdown 是存储格式，不以文件名补全索引；额外 OMP 字段不参与执行。 */
 export function importMarkdown(text: string): Prompt {

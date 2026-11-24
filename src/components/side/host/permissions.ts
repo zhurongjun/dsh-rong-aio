@@ -1,10 +1,11 @@
 import type { Context } from '@deepseek-ai/cordis'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-tools'
 import type {} from '@deepseek-ai/dsh-permission-presets'
 import { setApprovalPolicy } from '@deepseek-ai/dsh-user-approval'
 import { setSandboxMode } from '@deepseek-ai/dsh-sandbox-policy'
-import { isSideSession } from '../../../shared/side-session.ts'
+import { isSideSession } from '../shared/side-session.ts'
 import type { Permission } from '../shared/protocol.ts'
 
 // Generic program execution also supports runtimes without filesystem confinement.
@@ -47,7 +48,7 @@ export function installPermissions(ctx: Context, lookup: (id: string) => Policy 
     if (parent && name !== 'run_code' && !ctx.tools.get(name, ctx.agents.get(parent.id)))
       return '主会话当前无法使用这个工具'
   })
-  function bind(agent: import('@deepseek-ai/dsh-agent').Agent) {
+  function bind(agent: Agent) {
     if (!isSideSession(agent.id)) return
     sync(agent.session)
   }

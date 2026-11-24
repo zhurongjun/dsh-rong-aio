@@ -28,7 +28,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Zod 4.4.3
+## Zod 4.6.6
 
 宿主产物包含 Zod 的运行时校验代码，保留其 MIT 许可。
 
@@ -84,14 +84,14 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## Immer 11.2.9
+## react-compiler-runtime 1.0.0
 
-客户端产物包含 Immer 的状态管理代码，保留其 MIT 许可。
+客户端产物包含 React Compiler 运行时辅助代码，保留其 MIT 许可。
 
 ```text
 MIT License
 
-Copyright (c) 2017 Michel Weststrate
+Copyright (c) Meta Platforms, Inc. and affiliates.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -142,7 +142,7 @@ SOFTWARE.
 
 ## YAML 2.9.1
 
-宿主与客户端使用 YAML 解析 Markdown 元信息，保留其 ISC 许可。
+宿主使用 YAML 解析 Markdown 元信息，保留其 ISC 许可。
 
 ```text
 Copyright Eemeli Aro <eemeli@gmail.com>

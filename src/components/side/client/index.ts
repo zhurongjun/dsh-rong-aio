@@ -7,7 +7,8 @@ import type {} from '@deepseek-ai/dsh-client-ui-session/client'
 import { Button, IconBranchOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { SessionId } from '@deepseek-ai/dsh-session/types'
 import type { SidebarRightTabInfo } from '@deepseek-ai/dsh-client-ui-sidebar-right/client'
-import { isSideSession } from '../../../shared/side-session.ts'
+import { mountStyle } from '../../../client/style.ts'
+import { isSideSession } from '../shared/side-session.ts'
 import { Conversation, Panel, TabTitle } from './Panel.tsx'
 import { Manager } from './Manager.tsx'
 import { EmbeddedPermission } from './PermissionControl.tsx'
@@ -43,19 +44,15 @@ export function apply(ctx: Context) {
       ? (ctx.sidebarRight.mounted.getSnapshot() ?? sessionId)
       : sessionId
     const store = tabs.client(source, tab)
-    store.isFloating = panel.isFloating
     const params = tab.navigation.params
-    return { store, quote: params && 'quote' in params ? params.quote : undefined }
-  }
-  ctx.effect(() => {
-    const style = document.createElement('style')
-    style.textContent = css
-    document.head.append(style)
-    return () => {
-      style.remove()
-      tabs.dispose()
+    return {
+      store,
+      isFloating: panel.isFloating,
+      quote: params && 'quote' in params ? params.quote : undefined,
     }
-  })
+  }
+  mountStyle(ctx, id, css)
+  ctx.effect(() => () => tabs.dispose())
   ctx.effect(() => ctx.locale.register(id, 'zh', zh.command))
   ctx.effect(() => ctx.locale.register(id, 'en', en.command))
   const t = ctx.locale.bind(id)

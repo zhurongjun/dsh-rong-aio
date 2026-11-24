@@ -6,8 +6,9 @@ import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { SessionPersistenceSnapshot } from '@deepseek-ai/dsh-session-persistence'
 import type {} from '@deepseek-ai/dsh-storage-domain'
 import type {} from '../shared/session-events.ts'
+import { findActiveEntry } from './dsh-adapter.ts'
 import { sessionDirectory, sessionRoot } from './session-location.ts'
-import { removeSpills } from './session-spill.ts'
+import { removeSpills, type SpillScanCache } from './session-spill.ts'
 
 interface Target {
   id: string
@@ -16,12 +17,7 @@ interface Target {
 
 /** 已存在的原生全文索引在公开搜索接口执行查询前，会先清理消失的会话记录。 */
 export async function refreshSearchIndex(ctx: Context, removed: SessionId) {
-  const backend = [...ctx.loader.entries()].find(
-    (entry) =>
-      entry.options.name === '@deepseek-ai/dsh-session-query-sqlite' &&
-      !entry.disabled &&
-      entry.fiber?.state === 2,
-  )
+  const backend = findActiveEntry(ctx, '@deepseek-ai/dsh-session-query-sqlite')
   const config = backend?.fiber?.effectiveConfig as { path?: string; openAt?: string } | undefined
   if (!config?.path || config.path === ':memory:') return
   const index = await stat(config.path).catch((error: NodeJS.ErrnoException) => {
@@ -54,7 +50,12 @@ async function locate(root: string, target: Target, stored?: SessionPersistenceS
   return physical
 }
 
-export async function removeSession(ctx: Context, id: SessionId, target: Target) {
+export async function removeSession(
+  ctx: Context,
+  id: SessionId,
+  target: Target,
+  spillCache?: SpillScanCache,
+) {
   const persistence = ctx.sessionPersistence
   const root = sessionRoot(ctx)
   await locate(root, target, await persistence.stat(id))
@@ -74,7 +75,7 @@ export async function removeSession(ctx: Context, id: SessionId, target: Target)
     // 打开历史版本可能触发原生迁移，重新获取当前代并核验身份。
     const log = await locate(root, target, await persistence.stat(id))
     const directory = dirname(log)
-    await removeSpills(ctx, handle)
+    await removeSpills(ctx, handle, spillCache)
     await ctx.parallel('rong-aio/session-removing', id)
     await ctx.storageDomain.get('session_projcache')?.table('sessions').delete(id)
     for (const workspace of ctx.workspaceRegistry.list()) {

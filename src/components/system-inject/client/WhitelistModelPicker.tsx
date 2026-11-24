@@ -1,15 +1,8 @@
 /** 待授权模型菜单：只返回精确路由，不调用会话选模或模型选择器组件。 */
 
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-  type RefObject,
-} from 'react'
+import { useId, useRef, useState, type KeyboardEvent, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
+import { useStore } from 'zustand'
 import {
   Button,
   IconCheckOutlineRegular,
@@ -19,9 +12,10 @@ import {
   useDismissOnOutsidePointer,
   useModalLayer,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { createAnchoredPopover } from '../../../client/anchored-popover.ts'
+import { scrollNearest } from '../../../client/store.ts'
 import type { CatalogRoute, Route } from '../shared/protocol.ts'
 import { matchingRoutes, modelLabel, providerLabel, routeKey } from './whitelist-models.ts'
-import { usePickerPosition } from './usePickerPosition.ts'
 
 /** 只选择待授权路由，不调用会话选模服务。模态层级及焦点恢复交给 DSH。 */
 export function WhitelistModelPicker({
@@ -50,40 +44,36 @@ export function WhitelistModelPicker({
   /** 只返回 provider/model，不执行会话模型切换。 */
   onSelect: (route: Route) => void
 }) {
-  const panel = useRef<HTMLDivElement>(null)
+  const panel = useRef<HTMLDivElement | null>(null)
+  const [popover] = useState(() => createAnchoredPopover({ placement: 'below-end' }))
+  const position = useStore(popover.store, (state) => state.position)
   const search = useRef<HTMLInputElement>(null)
   const id = useId()
   const [query, setQuery] = useState('')
   const [highlight, setHighlight] = useState<string>()
 
   // 身份、搜索和分组都由公开目录派生；显示名称绝不作为授权键。
-  const authorized = useMemo(() => new Set(whitelist.map(routeKey)), [whitelist])
-  const matches = useMemo(() => matchingRoutes(routes, query), [routes, query])
-  const groups = useMemo(() => {
-    const result = new Map<string, { name: string; models: CatalogRoute[] }>()
-    for (const route of matches) {
-      const group = result.get(route.provider)
-      if (group) group.models.push(route)
-      else result.set(route.provider, { name: providerLabel(route), models: [route] })
-    }
-    return [...result]
-  }, [matches])
-  const enabled = matches.filter((route) => !authorized.has(routeKey(route)))
-  const active = enabled.find((route) => routeKey(route) === highlight) ?? enabled[0]
-  const activeIndex = active ? matches.indexOf(active) : -1
+  const authorized = new Set(whitelist.map(routeKey))
+  const matches = matchingRoutes(routes, query)
+  const indexed = matches.map((route, index) => {
+    const key = routeKey(route)
+    return { route, index, key, added: authorized.has(key) }
+  })
+  const groupMap = new Map<string, { name: string; items: typeof indexed }>()
+  for (const item of indexed) {
+    const group = groupMap.get(item.route.provider)
+    if (group) group.items.push(item)
+    else groupMap.set(item.route.provider, { name: providerLabel(item.route), items: [item] })
+  }
+  const groups = [...groupMap]
+  const enabled = indexed.filter((item) => !item.added)
+  const active = enabled.find((item) => item.key === highlight) ?? enabled[0]
+  const activeIndex = active?.index ?? -1
 
-  // 首帧未定位时不抢焦点；不依赖宿主已移除的内部定位 Hook。
-  const position = usePickerPosition(anchor, panel)
   useDismissOnOutsidePointer(anchor, true, onClose, panel)
 
   // 首帧等待定位时 visibility:hidden；此时聚焦会被浏览器忽略，必须等可见后注册焦点层。
   useModalLayer(panel, position !== null, onClose)
-  useEffect(() => {
-    if (activeIndex >= 0)
-      panel.current
-        ?.querySelector(`[data-route-index="${activeIndex}"]`)
-        ?.scrollIntoView({ block: 'nearest' })
-  }, [activeIndex])
 
   /** 忽略已授权或禁用项；先收起浮层，再提交精确路由，保存结果由外层接受。 */
   const select = (route: CatalogRoute) => {
@@ -103,11 +93,11 @@ export function WhitelistModelPicker({
       const next = enabled.length
         ? enabled[(index + (event.key === 'ArrowDown' ? 1 : -1) + enabled.length) % enabled.length]
         : undefined
-      setHighlight(next ? routeKey(next) : undefined)
+      setHighlight(next ? next.key : undefined)
       search.current?.focus({ preventScroll: true })
     } else if (event.key === 'Enter' && event.target === search.current) {
       event.preventDefault()
-      if (active) select(active)
+      if (active) select(active.route)
     } else if (event.key === 'Tab') {
       // 与模型选择器一致：选项由方向键遍历，Tab 只走返回键和搜索框。
       const controls = [
@@ -122,9 +112,15 @@ export function WhitelistModelPicker({
     }
   }
 
+  const bindSurface = (node: HTMLDivElement | null) => {
+    panel.current = node
+    popover.bindAnchor(anchor.current)
+    popover.bindSurface(node)
+  }
+
   return createPortal(
     <MenuSurface
-      ref={panel}
+      ref={bindSurface}
       className="rong-inject-model-picker"
       role="dialog"
       aria-modal="true"
@@ -167,34 +163,30 @@ export function WhitelistModelPicker({
               <div className="rong-inject-picker-provider" title={provider}>
                 {group.name}
               </div>
-              {group.models.map((route) => {
-                const key = routeKey(route)
-                const index = matches.indexOf(route)
-                const added = authorized.has(key)
-                return (
-                  <button
-                    type="button"
-                    role="option"
-                    key={key}
-                    id={`${id}-option-${index}`}
-                    tabIndex={-1}
-                    data-route-index={index}
-                    data-highlighted={(index === activeIndex && !disabled) || undefined}
-                    aria-selected={added}
-                    aria-label={`${modelLabel(route)}${added ? '，已添加' : ''}`}
-                    disabled={disabled || added}
-                    className="rong-inject-picker-option"
-                    title={`${route.provider} / ${route.model}${added ? ' · 已添加' : ''}`}
-                    onPointerMove={() => {
-                      if (!added) setHighlight(key)
-                    }}
-                    onClick={() => select(route)}
-                  >
-                    <span>{modelLabel(route)}</span>
-                    {added && <IconCheckOutlineRegular size={18} />}
-                  </button>
-                )
-              })}
+              {group.items.map(({ route, index, key, added }) => (
+                <button
+                  ref={index === activeIndex ? scrollNearest : undefined}
+                  type="button"
+                  role="option"
+                  key={key}
+                  id={`${id}-option-${index}`}
+                  tabIndex={-1}
+                  data-route-index={index}
+                  data-highlighted={(index === activeIndex && !disabled) || undefined}
+                  aria-selected={added}
+                  aria-label={`${modelLabel(route)}${added ? '，已添加' : ''}`}
+                  disabled={disabled || added}
+                  className="rong-inject-picker-option"
+                  title={`${route.provider} / ${route.model}${added ? ' · 已添加' : ''}`}
+                  onPointerMove={() => {
+                    if (!added) setHighlight(key)
+                  }}
+                  onClick={() => select(route)}
+                >
+                  <span>{modelLabel(route)}</span>
+                  {added && <IconCheckOutlineRegular size={18} />}
+                </button>
+              ))}
             </div>
           ))}
           {!matches.length && (

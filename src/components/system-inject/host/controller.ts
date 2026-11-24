@@ -1,6 +1,7 @@
 /** 破甲业务协调器：统一解析、选词/选模校验、文件编辑及首次请求捕获和提交。 */
 
-import { exportMarkdown } from '../shared/markdown.ts'
+import { createSerialQueue } from '../../../shared/serial-queue.ts'
+import { exportMarkdown } from './markdown.ts'
 import { resolveState, prefixMatches, type ResolvedState } from '../shared/state.ts'
 import type { Command, ConfigView, Route, SessionView } from '../shared/protocol.ts'
 import { ConfigStore } from './config-store.ts'
@@ -24,14 +25,11 @@ export class Controller {
   /** 用户与当前工程的文件目录投影；仅未冻结的开启状态需要解析模板。 */
   readonly catalog: PromptCatalog
 
-  /** 串行队列尾部；失败会被收敛为已完成，以便后续操作继续排队。 */
-  private tail: Promise<unknown> = Promise.resolve()
+  /** 串行队列；失败会被收敛为已完成，停用后拒绝新任务并等待队尾完成。 */
+  private readonly queue = createSerialQueue('破甲模式组件已停用')
 
   /** 当前组件生命周期内单调递增的通知 ID，防止迟到确认清掉新拒绝。 */
   private failureId = 0
-
-  /** 关闭标记；在排队任务开始和请求提交边界再次检查。 */
-  private active = true
 
   /** 用户与工程路径的唯一计算入口。 */
   readonly paths: Paths
@@ -57,18 +55,12 @@ export class Controller {
 
   /** 将操作排入宿主队列并透传其结果/错误；同一时刻仅执行一个修改事务。 */
   private exclusive<T>(operation: () => Promise<T>): Promise<T> {
-    const task = this.tail.then(() => {
-      if (!this.active) throw new Error('破甲模式组件已停用')
-      return operation()
-    })
-    this.tail = task.catch(() => {})
-    return task
+    return this.queue.run(operation)
   }
 
   /** 停止接收新事务，等待队尾完成，再释放会话内存；不删除磁盘数据。 */
   async close(): Promise<void> {
-    this.active = false
-    await this.tail
+    await this.queue.close()
     await this.sessions.close()
   }
 
@@ -280,7 +272,7 @@ export class Controller {
           throw new Error(
             '实际请求未包含破甲正文首段。当前完整系统预设或其他扩展不兼容，已阻止发送。',
           )
-        if (!this.active) throw new Error('破甲模式组件已停用')
+        if (!this.queue.active) throw new Error('破甲模式组件已停用')
 
         // 原子持久化先于适配器调用，API 随后失败也不会解冻或重新取词。
         if (!request.purpose && !entry.frozen) {
@@ -293,7 +285,7 @@ export class Controller {
           })
           entry.candidate = undefined
         }
-        if (!this.active) throw new Error('破甲模式组件已停用')
+        if (!this.queue.active) throw new Error('破甲模式组件已停用')
         entry.error = undefined
       }
 

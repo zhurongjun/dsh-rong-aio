@@ -1,7 +1,8 @@
 /** 集中计算用户与工程文件路径；工作区只取 DSH 提供的精确根目录。 */
 
 import { isAbsolute, join, resolve, basename } from 'node:path'
-import { nameSchema, type Scope } from '../shared/state.ts'
+import type { Scope } from '../shared/state.ts'
+import { nameSchema } from './schemas.ts'
 
 /**
  * 统一文件布局与保存范围的路径规则。

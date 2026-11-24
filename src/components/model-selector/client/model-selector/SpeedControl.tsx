@@ -1,6 +1,5 @@
 /** Fast 业务适配：只订阅速度能力与确认值，菜单交互使用共享 OptionControl。 */
 
-import { memo } from 'react'
 import { SPEED_LABELS } from '../../shared/speed.ts'
 import { FastIcon } from './SelectorIcons.tsx'
 import { useSpeedSelection } from './useSpeedSelection.ts'
@@ -18,13 +17,7 @@ interface Props {
 }
 
 /** 路由变化重建菜单，速度显示始终来自宿主确认值。 */
-export const SpeedControl = memo(function SpeedControl({
-  store,
-  identityKey,
-  open,
-  disabled,
-  busy,
-}: Props) {
+export function SpeedControl({ store, identityKey, open, disabled, busy }: Props) {
   const { state, loading, saving, select } = useSpeedSelection(store, identityKey)
   return (
     <OptionControl
@@ -45,4 +38,4 @@ export const SpeedControl = memo(function SpeedControl({
       onSelect={(mode) => void select(mode)}
     />
   )
-})
+}

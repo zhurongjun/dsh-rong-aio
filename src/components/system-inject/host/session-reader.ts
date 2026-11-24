@@ -1,7 +1,7 @@
 /** 原生会话只读适配：使用公开查询与模型投影，不激活冷会话或重新装配提示词。 */
 
 import type { Context } from '@deepseek-ai/cordis'
-import type { Session, SessionId, SessionStore } from '@deepseek-ai/dsh-session'
+import type { Session, SessionId } from '@deepseek-ai/dsh-session'
 import type {} from '@deepseek-ai/dsh-session-query'
 import type {} from '@deepseek-ai/dsh-api-session-controller'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
@@ -16,8 +16,7 @@ export async function hasRequestHistory(ctx: Context, id: string): Promise<boole
       .some((event) =>
         ['turn/start', 'user/message', 'assistant/message', 'request/header'].includes(event.type),
       )
-  // Host/Client 同名 Context 扩展在统一类型检查中相交；此模块只接收宿主装配的 SessionStore。
-  const sessions = Reflect.get(ctx, 'sessions') as unknown as SessionStore
+  const sessions = ctx.sessions
   const session = sessions.get(id as SessionId)
   return session ? read(session) : ctx.sessionQuery.inspectSession(id as SessionId, read)
 }

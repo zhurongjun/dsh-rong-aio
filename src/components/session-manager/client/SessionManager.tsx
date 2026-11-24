@@ -1,5 +1,6 @@
-import { memo, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useStore } from 'zustand'
+import { useShallow } from 'zustand/react/shallow'
 import {
   Button,
   Checkbox,
@@ -13,7 +14,7 @@ import type { SessionRow } from '../shared/protocol.ts'
 import { SessionGroups } from './SessionGroups.tsx'
 import { SessionActions, DeleteConfirmation, type SessionActionHandler } from './SessionActions.tsx'
 import type { SessionSelection } from './selection.ts'
-import { useSessionOperations } from './useSessionOperations.ts'
+import { createSessionOperationsStore } from './operations-store.ts'
 
 const tabs = [
   {
@@ -25,7 +26,7 @@ const tabs = [
   { value: 'open', label: '未归档', id: 'rong-session-open', panelId: 'rong-session-panel' },
 ] as const
 
-const BatchToolbar = memo(function BatchToolbar({
+function BatchToolbar({
   visible,
   selection,
   archived,
@@ -39,7 +40,7 @@ const BatchToolbar = memo(function BatchToolbar({
   onAction: SessionActionHandler
 }) {
   const selected = useStore(selection.store)
-  const chosen = useMemo(() => visible.filter((row) => selected.has(row.id)), [visible, selected])
+  const chosen = visible.filter((row) => selected.has(row.id))
   return (
     <div className="rong-session-toolbar">
       <Checkbox
@@ -51,39 +52,42 @@ const BatchToolbar = memo(function BatchToolbar({
       <SessionActions targets={chosen} archived={archived} busy={busy} onAction={onAction} />
     </div>
   )
-})
+}
 
 export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promise<void> }) {
+  const [ops] = useState(() => createSessionOperationsStore(refreshSidebar))
+  const { rows, busy, notice, errors, pendingDelete } = useStore(
+    ops,
+    useShallow((state) => ({
+      rows: state.rows,
+      busy: state.busy,
+      notice: state.notice,
+      errors: state.errors,
+      pendingDelete: state.pendingDelete,
+    })),
+  )
   const {
-    rows,
     selection,
-    busy,
     refresh,
     onAction,
     openDirectory,
     feedback,
-    notice,
-    errors,
     dismissNotice,
-    pendingDelete,
     cancelDelete,
     confirmDelete,
-  } = useSessionOperations(refreshSidebar)
+  } = ops
   const [tab, setTab] = useState<'archived' | 'open'>('archived')
   const [query, setQuery] = useState('')
+  const [searchRevision, setSearchRevision] = useState(0)
   const archived = tab === 'archived'
   const filter = query.trim().toLowerCase()
-  const visible = useMemo(
-    () =>
-      rows.filter(
-        (row) =>
-          row.archived === archived &&
-          (!filter ||
-            [row.title, row.id, row.cwd, row.workspace.title].some((field) =>
-              field?.toLowerCase().includes(filter),
-            )),
-      ),
-    [rows, archived, filter],
+  const visible = rows.filter(
+    (row) =>
+      row.archived === archived &&
+      (!filter ||
+        [row.title, row.id, row.cwd, row.workspace.title].some((field) =>
+          field?.toLowerCase().includes(filter),
+        )),
   )
 
   return (
@@ -115,6 +119,7 @@ export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promi
         icon={<IconSearchOutlineRegular size={16} />}
         onChange={(event) => {
           setQuery(event.target.value)
+          setSearchRevision((revision) => revision + 1)
           selection.replace([])
         }}
       />
@@ -131,6 +136,7 @@ export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promi
             key={tab}
             rows={visible}
             query={query}
+            searchRevision={searchRevision}
             selection={selection}
             busy={busy}
             onAction={onAction}
@@ -162,7 +168,12 @@ export function SessionManager({ refreshSidebar }: { refreshSidebar: () => Promi
           ))}
         </ul>
       )}
-      <DeleteConfirmation items={pendingDelete} cancel={cancelDelete} confirm={confirmDelete} />
+      <DeleteConfirmation
+        items={pendingDelete}
+        busy={busy}
+        cancel={cancelDelete}
+        confirm={confirmDelete}
+      />
     </section>
   )
 }

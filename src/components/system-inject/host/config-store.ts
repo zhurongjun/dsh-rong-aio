@@ -1,7 +1,7 @@
 /** 用户白名单配置：严格校验格式，缓存解析结果但每次重新读取内容指纹。 */
 
-import { z } from 'zod'
-import { routeSchema } from '../shared/protocol.ts'
+import * as z from 'zod'
+import { routeSchema } from './schemas.ts'
 import { message, readVersion, writeVersion } from './files.ts'
 import type { Paths } from './paths.ts'
 
@@ -16,7 +16,7 @@ const userConfigSchema = z
 type UserConfig = z.infer<typeof userConfigSchema>
 
 /** 配置读取结果，将内容版本与诊断一起交给调用者。 */
-interface ConfigFile {
+export interface ConfigFile {
   /** 原文件内容指纹；缺失为 missing，无法读取为 unreadable。 */
   revision: string
 

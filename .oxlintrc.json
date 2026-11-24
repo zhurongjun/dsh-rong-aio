@@ -1,6 +1,6 @@
 {
   "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["typescript", "import", "unicorn", "oxc"],
+  "plugins": ["typescript", "import", "unicorn", "oxc", "react"],
   "categories": {
     "correctness": "error"
   },
@@ -14,7 +14,22 @@
     "no-debugger": "error",
     "no-undef": "error",
     "eqeqeq": "error",
-    "typescript/no-require-imports": "error"
+    "typescript/no-require-imports": "error",
+    "no-restricted-properties": [
+      "error",
+      {
+        "property": "useEffect",
+        "message": "禁止使用 useEffect；请改用 Store 订阅生命期（withLifecycle / useStore）、事件回调或受管 DOM 控制器。"
+      },
+      {
+        "property": "useLayoutEffect",
+        "message": "禁止使用 useLayoutEffect；请改用 React 18 Callback Ref 或受管 DOM 控制器。"
+      },
+      {
+        "property": "useInsertionEffect",
+        "message": "禁止使用 useInsertionEffect；样式请统一在客户端入口通过 mountStyle 挂载。"
+      }
+    ]
   },
   "ignorePatterns": [
     "agent_temp/**",
@@ -61,6 +76,13 @@
         "no-restricted-imports": [
           "error",
           {
+            "paths": [
+              {
+                "name": "react",
+                "importNames": ["useEffect", "useLayoutEffect", "useInsertionEffect"],
+                "message": "禁止导入 Effect 系列 Hook；请使用 Store 订阅生命期（withLifecycle / useStore）、事件回调或受管 DOM 控制器。"
+              }
+            ],
             "patterns": [
               {
                 "regex": "(^|/)host(/|$)",

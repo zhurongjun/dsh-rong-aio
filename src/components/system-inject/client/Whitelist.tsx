@@ -1,6 +1,6 @@
 /** 白名单视图：已授权卡片与独立新增菜单；显示名不参与授权身份比较。 */
 
-import { useMemo, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   Button,
   IconPlusOutlineRegular,
@@ -42,7 +42,7 @@ export function Whitelist({
   const [query, setQuery] = useState('')
   const [picking, setPicking] = useState(false)
   const anchor = useRef<HTMLButtonElement>(null)
-  const catalog = useMemo(() => new Map(routes.map((route) => [routeKey(route), route])), [routes])
+  const catalog = new Map(routes.map((route) => [routeKey(route), route]))
   const cards = matchingRoutes(
     whitelist.map((route) => catalog.get(routeKey(route)) ?? route),
     query,
