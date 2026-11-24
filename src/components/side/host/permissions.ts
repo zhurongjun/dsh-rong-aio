@@ -10,6 +10,19 @@ import type { Permission } from '../shared/protocol.ts'
 
 // Generic program execution also supports runtimes without filesystem confinement.
 const readTools = new Set(['read', 'read_image', 'glob', 'grep'])
+const offLimitsTools = new Set([
+  'subagent',
+  'subagent_fork',
+  'list_agents',
+  'wait_agent',
+  'send_message',
+  'interrupt_agent',
+  'list_subagent_models',
+  'team_task_create',
+  'team_task_list',
+  'team_task_get',
+  'team_task_update',
+])
 type Policy = { parent: string; permission: Permission }
 
 export function installPermissions(ctx: Context, lookup: (id: string) => Policy | undefined) {
@@ -43,6 +56,7 @@ export function installPermissions(ctx: Context, lookup: (id: string) => Policy 
   ctx.tools.guard(({ agent, name }) => {
     if (!agent || !isSideSession(agent.id)) return
     sync(agent.session)
+    if (offLimitsTools.has(name)) return '侧聊不支持调用子代理或团队协作工具：' + name
     const parent = parentOf(agent.id)
     if (!parent && !readTools.has(name)) return '侧聊处于只读模式，无法调用 ' + name
     if (parent && name !== 'run_code' && !ctx.tools.get(name, ctx.agents.get(parent.id)))

@@ -2,15 +2,57 @@ import type { Context } from '@deepseek-ai/cordis'
 import { installModelSelection, type Agent, type AgentHandle } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-default-model'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry'
+import type {} from '@deepseek-ai/dsh-agent-team'
 import type {} from '@deepseek-ai/dsh-commands'
 import {
   buildForkSeed,
   SessionLogOffset,
+  type SessionEvent,
   type SessionId,
   type SessionStore,
 } from '@deepseek-ai/dsh-session'
 import type { SessionObservation } from '@deepseek-ai/dsh-session-query'
 import type { Permission } from '../shared/protocol.ts'
+
+const TRAILING_UNCOMMITTED = new Set([
+  'model/selection',
+  'team/mode',
+  'plan/mode',
+  'command/run',
+  'command/done',
+  'agent/inbox/spliced',
+])
+
+function lastRequestHeaderSeq(events: readonly SessionEvent[]): number | undefined {
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].type === 'request/header') return events[i].seq
+  }
+  return undefined
+}
+
+function forkBoundary(events: readonly SessionEvent[], lastHeaderSeq: number | undefined) {
+  if (!events.length) return undefined
+  let index = events.length - 1
+  if (lastHeaderSeq !== undefined) {
+    while (index > lastHeaderSeq && TRAILING_UNCOMMITTED.has(events[index].type)) index--
+  }
+  return events[index]?.seq
+}
+
+function teamEnabledAtHeader(
+  events: readonly SessionEvent[],
+  inheritedEventCount: number,
+  lastHeaderSeq: number,
+): boolean {
+  let enabled: boolean | undefined
+  for (const event of events) {
+    if (event.seq < inheritedEventCount) continue
+    if (event.seq > lastHeaderSeq) break
+    if (event.type === 'team/mode') enabled = event.data.enabled
+    else if (event.type === 'team/task') enabled ??= true
+  }
+  return enabled === true
+}
 
 /** Owns only the DSH agent handles created or resumed by the side plugin. */
 export function sideAgents(ctx: Context, permissionOf: (id: string) => Permission | undefined) {
@@ -37,21 +79,27 @@ export function sideAgents(ctx: Context, permissionOf: (id: string) => Permissio
     if (parent.session.header.createdAt !== cut.header.createdAt)
       throw new Error('主会话已更换，请重新打开侧聊')
     const events = cut.events
-    const last = events.at(-1)
-    const seed = last ? buildForkSeed(events, last.seq) : []
+    const lastHeaderSeq = lastRequestHeaderSeq(events)
+    const boundary = forkBoundary(events, lastHeaderSeq)
+    const seed = boundary !== undefined ? buildForkSeed(events, boundary) : []
+    const inheritedEventCount = SessionLogOffset(boundary !== undefined ? boundary + 1 : 0)
+    const teamEnabled =
+      lastHeaderSeq !== undefined
+        ? teamEnabledAtHeader(events, cut.inheritedEventCount, lastHeaderSeq)
+        : undefined
     const fallback = parent.model.current() ?? ctx.agentDefaultModel.currentSelection()
     const presets = parent.ctx.get('agentPresets')
     const agentPreset = presets?.composedPreset(parent.ctx)
     const handle = await ctx.agents.create({
       sessionId: id,
       seed,
-      inheritedEventCount: SessionLogOffset(events.length),
+      inheritedEventCount,
       agentOptions: fallback,
       meta: {
         cwd: parent.session.header.cwd,
         agentPreset,
         isSeeded: true,
-        ...(seed.some((e) => e.type === 'request/header') && { parentSession: parent.id }),
+        ...(lastHeaderSeq !== undefined && { parentSession: parent.id }),
       },
       setup(scoped, agent) {
         // Pending input at the parent's cut belongs exclusively to its own driver.
@@ -59,6 +107,7 @@ export function sideAgents(ctx: Context, permissionOf: (id: string) => Permissio
         configure(scoped)
         presets?.composeFrom(scoped, parent.ctx)
         agent.model.select(agent.session.requestHeader()?.config ?? fallback)
+        if (teamEnabled !== undefined) agent.session.append('team/mode', { enabled: teamEnabled })
       },
     })
     handles.set(id, handle)

@@ -2,6 +2,8 @@ import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import TeamService from '@deepseek-ai/dsh-agent-team'
+import { defineTool } from '@deepseek-ai/dsh-tools'
 import { executeToolBatch, ToolExecutionPipeline } from '@deepseek-ai/dsh-tools/pipeline'
 import { runtime } from './helpers/runtime.mjs'
 
@@ -424,3 +426,97 @@ test(
     }
   },
 )
+
+test('破甲与 Agent Team 主会话分叉侧聊时保留完整前缀，重开可继续且忽略末尾未入模切换', async (t) => {
+  const f = await runtime(t, { side: true })
+  f.ctx.provide('subagents', { rootOf: (agent) => agent })
+  await f.ctx.plugin(TeamService, {})
+  const parent = f.agent.id
+  const signal = new AbortController().signal
+  let teamCreated = 0
+  f.ctx.systemPrompt.section({
+    name: 'team:policy',
+    order: f.ctx.systemPrompt.getSectionOrder('TEAM_POLICY'),
+    text: ({ agent }) =>
+      agent && f.ctx.agentTeams.isEnabled(agent) ? 'Agent Teams is available in this session.' : '',
+  })
+  f.ctx.tools.register(
+    defineTool({
+      name: 'team_task_create',
+      description: 'Create team task',
+      parameters: {},
+      output: { schema: { type: 'string' }, render: () => [{ type: 'text', text: 'ok' }] },
+      execute: async () => {
+        teamCreated++
+        return 'ok'
+      },
+    }),
+    { when: ({ agent }) => Boolean(agent && f.ctx.agentTeams.isEnabled(agent)) },
+  )
+
+  const select = await f.injectRequest({
+    type: 'select',
+    sessionId: parent,
+    state: { name: f.prompt.name },
+  })
+  assert.equal(select.status, 200)
+  await f.ctx.agentTeams.setEnabled(f.agent, true)
+  assert.deepEqual(await f.run(), { kind: 'completed' })
+
+  const parentRequest = f.wire.at(-1)
+  assert.ok(parentRequest.input[0].content[0].text.startsWith(f.prompt.body))
+  assert.match(parentRequest.input[0].content[0].text, /Agent Teams is available in this session/)
+  assert.ok(parentRequest.tools?.some((tool) => tool.name === 'team_task_create'))
+
+  const point = await draft(f)
+  const id = await sendFirst(f, point, '破甲与 Team 下的侧聊')
+  const child = f.ctx.agents.get(id)
+  await child.whenIdle()
+  assert.deepEqual(child.session.snapshotEvents().at(-1).data.reason, { kind: 'completed' })
+
+  const sideRequest = f.wire.at(-1)
+  assert.deepEqual(sideRequest.input.slice(0, parentRequest.input.length), parentRequest.input)
+  assert.deepEqual(sideRequest.tools, parentRequest.tools)
+
+  // 即使切换为跟随主会话权限，侧聊仍禁止调用团队协作工具。
+  const follow = await f.request('rong-aio.side', {
+    parent,
+    action: 'permission',
+    id,
+    permission: 'follow',
+  })
+  assert.equal(follow.status, 200)
+  await executeToolBatch(
+    {
+      agent: child,
+      signal,
+      calls: [{ type: 'tool-call', id: randomUUID(), name: 'team_task_create', arguments: '{}' }],
+    },
+    new ToolExecutionPipeline(f.ctx),
+    () => 1,
+  )
+  assert.equal(teamCreated, 0)
+
+  // 停用再启用侧聊组件后，恢复出的侧聊可继续对话并保留同一前缀。
+  await f.enable('rong-aio-side', false)
+  await f.enable('rong-aio-side', true)
+  const reopened = await f.request('rong-aio.side', { parent, action: 'open', id })
+  assert.equal(reopened.status, 200)
+  assert.deepEqual(await f.run(f.ctx.agents.get(id)), { kind: 'completed' })
+
+  // 主会话末轮之后未入模的 Team / Plan / 排队状态不污染新分叉侧聊前缀。
+  await f.ctx.agentTeams.setEnabled(f.agent, false)
+  f.agent.session.append('plan/mode', { active: true })
+  f.agent.inbox.splice('next-turn', 0, 0, [
+    createUserMessage({
+      source: { kind: 'user' },
+      content: [{ type: 'text', text: '排队未发送' }],
+    }),
+  ])
+  const second = await sendFirst(f, await draft(f), '末轮切换后新建侧聊')
+  const secondChild = f.ctx.agents.get(second)
+  await secondChild.whenIdle()
+  assert.deepEqual(secondChild.session.snapshotEvents().at(-1).data.reason, { kind: 'completed' })
+  assert.deepEqual(f.wire.at(-1).input.slice(0, parentRequest.input.length), parentRequest.input)
+  assert.deepEqual(f.wire.at(-1).tools, parentRequest.tools)
+})
