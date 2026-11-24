@@ -5,6 +5,8 @@ import {
   IconChevronLeftOutlineRegular,
   IconSearchOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
+import { resolveProviderIconId } from '../shared/provider-icon.ts'
+import { ProviderIcon } from './providers/ProviderIcon.tsx'
 import { scrollNearest } from './store.ts'
 
 export interface ModelPickerItem {
@@ -154,45 +156,51 @@ export const ModelPickerList = forwardRef<HTMLInputElement, ModelPickerListProps
         </div>
 
         <div className="rong-picker-list" role="listbox" id={listboxId} aria-label="模型">
-          {groups.map((group) => (
-            <div key={group.key} role="group" aria-label={group.label}>
-              <div className="rong-picker-provider" title={group.title ?? group.label}>
-                {group.label}
-              </div>
+          {groups.map((group) => {
+            const icon = resolveProviderIconId(group.key, group.label)
+            return (
+              <div key={group.key} role="group" aria-label={group.label}>
+                <div className="rong-picker-provider" title={group.title ?? group.label}>
+                  {icon && (
+                    <ProviderIcon icon={icon} size={13} className="rong-picker-provider-icon" />
+                  )}
+                  <span className="rong-truncate">{group.label}</span>
+                </div>
 
-              {group.items.map((item) => (
-                <button
-                  ref={item.highlighted ? scrollNearest : undefined}
-                  key={item.key}
-                  type="button"
-                  role="option"
-                  id={`${listId}-option-${item.index}`}
-                  tabIndex={-1}
-                  data-highlighted={item.highlighted || undefined}
-                  aria-selected={item.selected}
-                  aria-label={item.ariaLabel}
-                  aria-disabled={item.disabled || item.busy || undefined}
-                  aria-busy={item.busy || undefined}
-                  disabled={item.disabled}
-                  title={item.title ?? item.label}
-                  className="rong-picker-option"
-                  onPointerMove={() => {
-                    if (!item.disabled) item.onHighlight()
-                  }}
-                  onClick={(event) => {
-                    if (item.disabled || item.busy) {
-                      event.preventDefault()
-                      return
-                    }
-                    item.onSelect()
-                  }}
-                >
-                  <span className="rong-truncate">{item.label}</span>
-                  {item.selected && <IconCheckOutlineRegular size={18} />}
-                </button>
-              ))}
-            </div>
-          ))}
+                {group.items.map((item) => (
+                  <button
+                    ref={item.highlighted ? scrollNearest : undefined}
+                    key={item.key}
+                    type="button"
+                    role="option"
+                    id={`${listId}-option-${item.index}`}
+                    tabIndex={-1}
+                    data-highlighted={item.highlighted || undefined}
+                    aria-selected={item.selected}
+                    aria-label={item.ariaLabel}
+                    aria-disabled={item.disabled || item.busy || undefined}
+                    aria-busy={item.busy || undefined}
+                    disabled={item.disabled}
+                    title={item.title ?? item.label}
+                    className="rong-picker-option"
+                    onPointerMove={() => {
+                      if (!item.disabled) item.onHighlight()
+                    }}
+                    onClick={(event) => {
+                      if (item.disabled || item.busy) {
+                        event.preventDefault()
+                        return
+                      }
+                      item.onSelect()
+                    }}
+                  >
+                    <span className="rong-truncate">{item.label}</span>
+                    {item.selected && <IconCheckOutlineRegular size={18} />}
+                  </button>
+                ))}
+              </div>
+            )
+          })}
 
           {!hasItems && <p className="rong-picker-empty">{emptyText}</p>}
         </div>

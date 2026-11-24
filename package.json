@@ -1,6 +1,6 @@
 {
   "name": "dsh-rong-aio",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "自用 DSH 功能组合包：统一安装，按功能独立启停。",
   "type": "module",
   "license": "GPL-3.0-only",
@@ -20,6 +20,7 @@
   "exports": {
     "./package.json": "./package.json",
     "./cordis.patch.yml": "./cordis.patch.yml",
+    "./assets/providers/*.svg": "./lib/assets/providers/*.svg",
     "./model-selector": {
       "types": "./lib/model-selector.d.ts",
       "default": "./lib/model-selector.js"

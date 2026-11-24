@@ -4,7 +4,7 @@ import { createStore } from 'zustand/vanilla'
 type Pane = 'effort' | 'models'
 
 export interface SelectionOperation {
-  kind: 'model' | 'effort' | 'reset'
+  kind: 'model' | 'effort'
   routeKey: string
   effort?: string
 }

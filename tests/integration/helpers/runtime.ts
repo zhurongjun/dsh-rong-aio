@@ -8,7 +8,7 @@ import type {} from '@deepseek-ai/dsh-api-session-controller'
 import { HostConnectionService } from '@deepseek-ai/dsh-client-connection'
 import ClientModules from '@deepseek-ai/dsh-client-modules'
 import Commands from '@deepseek-ai/dsh-commands'
-import { LlmAdapter, LlmRuntime, createUserMessage } from '@deepseek-ai/dsh-llm'
+import { LlmAdapter, LlmRuntime, ReasoningEffortId, createUserMessage } from '@deepseek-ai/dsh-llm'
 import PermissionPresets from '@deepseek-ai/dsh-permission-presets'
 import SandboxPolicy from '@deepseek-ai/dsh-sandbox-policy'
 import { SessionStore, type SessionId } from '@deepseek-ai/dsh-session'
@@ -58,6 +58,10 @@ export async function runtime(
   }
   let failWrites = false
 
+  const reasoning = {
+    efforts: ['off', 'medium', 'high'].map((id) => ({ id: ReasoningEffortId(id), name: id })),
+  }
+
   class Adapter extends LlmAdapter {
     async listModels(provider: string) {
       return [route.model, 'denied'].map((id) => ({ provider, id, name: id }))
@@ -68,6 +72,7 @@ export async function runtime(
         provider,
         id: model,
         name: model === 'catalog-alias' ? 'GPT 6 Astra' : model,
+        ...(model === route.model ? { reasoning } : {}),
       }
     }
 
@@ -220,8 +225,17 @@ export async function runtime(
       return { selected: selection }
     },
     async resolveAgent(id: string) {
-      const agent = ctx.agents.get(id as SessionId)
-      return agent ? { agent } : { error: new Error('不存在的会话') }
+      const live = ctx.agents.get(id as SessionId)
+      if (live) return { agent: live }
+      const stored = await ctx.sessionPersistence.stat(id as SessionId)
+      if (!stored || stored.header.origin === 'subagent') {
+        return { error: new Error('不存在的会话') }
+      }
+      const resumed = await ctx.agents.resume({
+        resumeSessionId: id as SessionId,
+        agentOptions: route,
+      })
+      return { agent: resumed.agent }
     },
     async prompt({ sessionId, content }: { sessionId: string; content: never }) {
       const target = ctx.agents.get(sessionId as SessionId)

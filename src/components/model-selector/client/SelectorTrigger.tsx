@@ -5,6 +5,8 @@ import {
   IconChevronDownOutlineRegular,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { ModelReasoningEffort } from '@deepseek-ai/dsh-api-session-controller/types'
+import { ProviderIcon } from '../../../client/providers/ProviderIcon.tsx'
+import type { ProviderIconId } from '../../../shared/provider-icon.ts'
 import { FastIcon } from './SelectorIcons.tsx'
 import { SPEED_LABELS } from '../shared/speed.ts'
 import { useEffortPreview, type SelectorStore } from './selector-store.ts'
@@ -15,6 +17,7 @@ interface Props {
   routeKey: string
   speedStore: SpeedStore
   speedKey: string
+  providerIcon?: ProviderIconId
   modelName: string
   efforts: readonly ModelReasoningEffort[]
   selected: ModelReasoningEffort | undefined
@@ -24,7 +27,19 @@ interface Props {
 }
 
 export const SelectorTrigger = forwardRef<HTMLButtonElement, Props>(function SelectorTrigger(
-  { store, routeKey, speedStore, speedKey, modelName, efforts, selected, locked, id, onToggle },
+  {
+    store,
+    routeKey,
+    speedStore,
+    speedKey,
+    providerIcon,
+    modelName,
+    efforts,
+    selected,
+    locked,
+    id,
+    onToggle,
+  },
   ref,
 ) {
   const open = useStore(store, (state) => state.open)
@@ -50,12 +65,15 @@ export const SelectorTrigger = forwardRef<HTMLButtonElement, Props>(function Sel
       aria-controls={open ? id : undefined}
       onClick={onToggle}
     >
+      {providerIcon && (
+        <ProviderIcon icon={providerIcon} size={14} className="rong-trigger-provider" />
+      )}
       {fastActive ? (
         <span className="rong-trigger-fast" aria-hidden="true" title={`${SPEED_LABELS[mode]}模式`}>
           <FastIcon active />
         </span>
       ) : (
-        <IconDataOutlineRegular size={16} className="rong-trigger-icon" />
+        !providerIcon && <IconDataOutlineRegular size={16} className="rong-trigger-icon" />
       )}
       <span className="rong-trigger-name rong-truncate">{modelName}</span>
       <span className="rong-trigger-effort rong-truncate">{effort?.name}</span>

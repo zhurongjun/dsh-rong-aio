@@ -16,6 +16,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { createAnchoredPopover, useComposerToastAnchor } from '../../../client/anchored-popover.ts'
 import { handlePickerKeyDown, trapFocusTabKey } from '../../../client/ModelPickerList.tsx'
 import { buildModelCatalog } from '../shared/model-selection.ts'
+import { resolveProviderIconId } from '../../../shared/provider-icon.ts'
 import { speedKey } from '../shared/speed.ts'
 import { SelectorTrigger } from './SelectorTrigger.tsx'
 import { EffortPanel } from './EffortPanel.tsx'
@@ -149,6 +150,12 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
   const { groups, rows } = buildModelCatalog(state.groups, query)
   const busy = selecting || locked
   const modelName = model?.name ?? current?.model ?? '选择模型'
+  const providerGroup = current
+    ? state.groups.find((group) => group.id === current.provider)
+    : undefined
+  const providerIcon = current
+    ? resolveProviderIconId(current.provider, providerGroup?.name)
+    : undefined
   const speedRoute =
     current?.provider && current.model
       ? speedKey({ sessionId, provider: current.provider, model: current.model })
@@ -244,6 +251,7 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
         routeKey={routeKey}
         speedStore={speedStore}
         speedKey={speedRoute}
+        providerIcon={providerIcon}
         modelName={modelName}
         efforts={efforts}
         selected={selected}
@@ -291,6 +299,7 @@ function Selector({ locked, available, directory, load, select, sessionId, team 
                   teamInteraction={teamInteraction}
                   routeKey={routeKey}
                   speedRoute={speedRoute}
+                  providerIcon={providerIcon}
                   model={model}
                   modelName={modelName}
                   efforts={efforts}

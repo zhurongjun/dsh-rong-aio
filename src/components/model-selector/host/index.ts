@@ -11,6 +11,7 @@ import {
   registerJsonEndpoint,
 } from '../../../host/http.ts'
 import { speedKey, speedRuleFor, type SpeedMode, type SpeedRule } from '../shared/speed.ts'
+import { installDefaultTeam } from './default-team.ts'
 import { createSpeedTransport } from './speed-transport.ts'
 import type {} from '../../../shared/session-events.ts'
 
@@ -58,6 +59,8 @@ function modesForRoute(ctx: Context, provider: string, rule: SpeedRule): readonl
 }
 
 export async function apply(ctx: Context): Promise<void> {
+  const ensureSessionTeam = installDefaultTeam(ctx)
+
   const domain = await ctx.storageDomain.open(spec)
   ctx.effect(() => () => domain.close())
 
@@ -82,6 +85,7 @@ export async function apply(ctx: Context): Promise<void> {
 
       if (request.method === 'GET') {
         identity = parseQueryParams(request, identitySchema, '无效的会话或模型标识')
+        await ensureSessionTeam(identity.sessionId)
       } else {
         const raw: unknown = await request.json().catch(() => undefined)
         const idParsed = identitySchema.safeParse(raw)

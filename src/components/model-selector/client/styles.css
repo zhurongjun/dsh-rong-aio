@@ -19,7 +19,8 @@
   flex: none;
 }
 
-.rong-trigger-fast {
+.rong-trigger-fast,
+.rong-trigger-provider {
   display: inline-flex;
   align-items: center;
   flex: none;
@@ -114,15 +115,32 @@
 
 .rong-effort-header {
   display: grid;
-  grid-template-columns: 16px minmax(0, 1fr) 16px;
+  grid-template-columns:
+    minmax(var(--rong-side-reserve, 16px), 1fr)
+    minmax(0, max-content)
+    minmax(var(--rong-side-reserve, 16px), 1fr);
   align-items: start;
-  gap: 4px;
+  column-gap: 8px;
   margin-bottom: 12px;
 }
 
-.rong-effort-header[data-has-team] {
-  grid-template-columns: 16px 16px minmax(0, 1fr) 16px;
-  column-gap: 10px;
+.rong-effort-side {
+  display: flex;
+  align-items: flex-start;
+  align-self: start;
+  gap: 6px;
+}
+
+.rong-effort-side-start {
+  grid-column: 1;
+  justify-self: start;
+  align-items: flex-start;
+}
+
+.rong-effort-side-end {
+  grid-column: 3;
+  justify-self: end;
+  align-items: flex-end;
 }
 
 .rong-icon-button {
@@ -162,8 +180,14 @@
 }
 
 .rong-model-heading {
+  grid-column: 2;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   min-width: 0;
-  padding: 0;
+  max-width: 100%;
+  padding: 0 4px;
   border: 0;
   background: transparent;
   cursor: pointer;
@@ -183,16 +207,18 @@
 }
 
 .rong-model-label {
-  display: inline-block;
-  position: relative;
-  max-width: calc(100% - 24px);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
   vertical-align: top;
 }
 
-.rong-model-label > svg {
-  position: absolute;
-  left: calc(100% + 3px);
-  top: 4px;
+.rong-heading-provider,
+.rong-heading-chevron {
+  flex: none;
   color: var(--dsw-alias-label-tertiary);
 }
 

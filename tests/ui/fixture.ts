@@ -117,16 +117,9 @@ export async function serve(
 
   const commands: Record<string, (args: Record<string, any>) => unknown> = {
     async catalog() {
-      const models = await f.ctx.llm.listModels(f.route.provider)
+      const listed = await f.ctx.llm.listModels(f.route.provider)
       return {
-        models: models.map((m) =>
-          m.id === f.route.model
-            ? {
-                ...m,
-                reasoning: { efforts: ['off', 'medium', 'high'].map((id) => ({ id, name: id })) },
-              }
-            : m,
-        ),
+        models: await Promise.all(listed.map((m) => f.ctx.llm.resolveModelInfo(m.provider, m.id))),
         sessions: [f.agent.id, 'another', 'team-child'].map(snapshot),
       }
     },

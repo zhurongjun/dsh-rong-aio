@@ -20,6 +20,7 @@ import {
   detentAt,
 } from '../../src/components/model-selector/shared/slider-motion.ts'
 import { speedRuleFor } from '../../src/components/model-selector/shared/speed.ts'
+import { resolveProviderIconId } from '../../src/shared/provider-icon.ts'
 
 function makeModel(
   id: string,
@@ -175,4 +176,27 @@ test('particle-motion：低档无粒子，高档位输出确定性且范围内�
     assert.ok(particle.delay <= 0 && particle.delay > -particle.duration)
     assert.ok(particle.brightness >= 0.5 && particle.brightness <= 1)
   }
+})
+
+test('resolveProviderIconId：匹配内置及主流供应商并拒绝未知渠道误匹配', () => {
+  assert.equal(resolveProviderIconId('deepseek-official', 'DeepSeek'), 'deepseek')
+  assert.equal(resolveProviderIconId('deepseek-account', 'DeepSeek'), 'deepseek')
+  assert.equal(resolveProviderIconId('openai-codex', 'OpenAI Codex'), 'openai')
+  assert.equal(resolveProviderIconId('amazon-bedrock'), 'bedrock')
+  assert.equal(resolveProviderIconId('google-vertex'), 'vertexai')
+  assert.equal(resolveProviderIconId('qwen-token-plan-cn'), 'qwen')
+  assert.equal(resolveProviderIconId('xiaomi-token-plan-ams'), 'xiaomimimo')
+  assert.equal(resolveProviderIconId('zai-coding-cn'), 'zai')
+  assert.equal(resolveProviderIconId('siliconflow'), 'siliconcloud')
+
+  assert.equal(resolveProviderIconId('my-openai-proxy'), 'openai')
+  assert.equal(resolveProviderIconId('custom-gateway', '月之暗面 Kimi'), 'kimi')
+  assert.equal(resolveProviderIconId('custom-gateway', '月之暗面官方'), 'moonshot')
+  assert.equal(resolveProviderIconId('custom-cn', '硅基流动'), 'siliconcloud')
+  assert.equal(resolveProviderIconId('unknown', '阿里云百炼'), 'bailian')
+  assert.equal(resolveProviderIconId('unknown', '阿里云'), 'alibabacloud')
+
+  assert.equal(resolveProviderIconId('fixture', 'Fixture'), undefined)
+  assert.equal(resolveProviderIconId('subdeng', 'SubDeng'), undefined)
+  assert.equal(resolveProviderIconId('my-api', 'Internal API'), undefined)
 })

@@ -191,12 +191,17 @@ button.rong-danger-confirm {
 }
 
 .rong-picker-provider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
   padding: 5px 8px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--dsw-alias-label-tertiary);
   font: var(--dsw-font-xxs-12);
+}
+
+.rong-picker-provider-icon {
+  flex: none;
 }
 
 .rong-picker-option {

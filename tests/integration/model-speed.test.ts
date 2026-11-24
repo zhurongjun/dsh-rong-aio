@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
+import { randomUUID } from 'node:crypto'
 import { test } from 'node:test'
-import { runtime } from './helpers/runtime.ts'
+import TeamService from '@deepseek-ai/dsh-agent-team'
+import type { SessionId } from '@deepseek-ai/dsh-session'
+import { runtime, storedSession } from './helpers/runtime.ts'
 
 const openai = { sessionId: 'a', provider: 'openai', model: 'gpt-6-astra' }
 
@@ -117,4 +120,97 @@ test('并行会话各自使用已选速度；标题生成和其他模型的请�
   )
   assert.deepEqual(title.payload, { model: firstIdentity.model, messages })
   assert.deepEqual(mismatch.payload, { model: 'other', messages })
+})
+
+test('Agent Team 默认对新建、复用与未开轮空白顶层主会话启用，不覆盖已关闭状态、历史对话、子会话与侧聊', async (t) => {
+  const f = await runtime(t, { side: true })
+  const persistedBlank = await storedSession(f, 'persisted-blank')
+  const persistedBlankResume = await storedSession(f, 'persisted-blank-resume')
+  const persistedHistory = await storedSession(f, 'persisted-history', undefined, '历史首轮消息')
+
+  f.ctx.provide(
+    'subagents' as never,
+    {
+      rootOf: (agent: { session: { header: { parentSession?: string } } }) =>
+        agent.session.header.parentSession ? f.getAgent(agent.session.header.parentSession) : agent,
+    } as never,
+  )
+  await f.ctx.plugin(TeamService as Parameters<typeof f.ctx.plugin>[0])
+
+  assert.equal(f.ctx.agentTeams.isEnabled(f.agent), true)
+
+  const fresh = await f.ctx.agents.create({
+    sessionId: 'fresh-main' as SessionId,
+    meta: { cwd: f.workspace },
+    agentOptions: f.route,
+  })
+  assert.equal(f.ctx.agentTeams.isEnabled(fresh.agent), true)
+
+  const child = await f.ctx.agents.create({
+    sessionId: 'fresh-sub' as SessionId,
+    meta: { cwd: f.workspace, parentSession: fresh.agent.id, origin: 'subagent' },
+    agentOptions: f.route,
+  })
+  assert.equal(
+    child.agent.session.ownEvents().some((event) => event.type === 'team/mode'),
+    false,
+  )
+
+  const blankResumed = await f.ctx.agents.resume({
+    resumeSessionId: persistedBlankResume.target.id as SessionId,
+    agentOptions: f.route,
+  })
+  assert.equal(f.ctx.agentTeams.isEnabled(blankResumed.agent), true)
+
+  const coldWake = await f.request(
+    'rong-aio.speed?' +
+      new URLSearchParams({
+        sessionId: persistedBlank.target.id,
+        provider: f.route.provider,
+        model: f.route.model,
+      }),
+  )
+  assert.equal(coldWake.status, 200)
+  assert.equal(f.ctx.agentTeams.isEnabled(f.getAgent(persistedBlank.target.id)), true)
+
+  const historyResumed = await f.ctx.agents.resume({
+    resumeSessionId: persistedHistory.target.id as SessionId,
+    agentOptions: f.route,
+  })
+  assert.equal(f.ctx.agentTeams.isEnabled(historyResumed.agent), false)
+
+  await f.ctx.agentTeams.setEnabled(fresh.agent, false)
+  assert.equal(f.ctx.agentTeams.isEnabled(fresh.agent), false)
+  await f.enable('rong-aio-model-selector', false)
+  await f.enable('rong-aio-model-selector', true)
+  assert.equal(f.ctx.agentTeams.isEnabled(fresh.agent), false)
+
+  await fresh.dispose()
+  const reopenedOff = await f.ctx.agents.resume({
+    resumeSessionId: 'fresh-main' as SessionId,
+    agentOptions: f.route,
+  })
+  assert.equal(f.ctx.agentTeams.isEnabled(reopenedOff.agent), false)
+
+  const draftRes = await f.request('rong-aio.side', {
+    parent: f.agent.id,
+    action: 'draft',
+  })
+  const { fork } = (await draftRes.json()) as { fork: Record<string, unknown> }
+  const sideRes = await f.request('rong-aio.side', {
+    ...fork,
+    action: 'create',
+    key: randomUUID(),
+    text: '侧聊团队隔离验证',
+    permission: 'read',
+  })
+  const { id: sideId } = (await sideRes.json()) as { id: string }
+  await f.getAgent(sideId).whenIdle()
+  assert.equal(
+    f
+      .getAgent(sideId)
+      .session.ownEvents()
+      .some((event) => event.type === 'team/mode'),
+    false,
+  )
 })

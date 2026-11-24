@@ -66,8 +66,14 @@ export async function models(u) {
     '右键前进到 high',
   )
 
-  await u.action('重置当前模型的推理强度')
-  await u.until(() => trigger(u)?.textContent.includes('medium'), '重置后为 medium')
+  u.press(slider(u), 'Home')
+  await u.until(
+    () =>
+      slider(u)?.getAttribute('aria-valuetext') === 'off' &&
+      slider(u)?.getAttribute('aria-busy') !== 'true' &&
+      trigger(u)?.textContent.includes('off'),
+    'Home 键回退到 off',
+  )
   await closePanel(u)
 
   await selectTemplate(u, '破甲词')
@@ -120,9 +126,103 @@ export async function models(u) {
 }
 
 export async function speedAndTeam(u) {
+  const assertCenteredHeading = async (reason) => {
+    await u.until(() => {
+      const header = u.one('.rong-effort-header')
+      const heading = u.one('.rong-model-heading')
+      if (!header || !heading) return false
+      const headerRect = header.getBoundingClientRect()
+      const headingRect = heading.getBoundingClientRect()
+      return (
+        Math.abs(
+          (headerRect.left + headerRect.right) / 2 - (headingRect.left + headingRect.right) / 2,
+        ) <= 1
+      )
+    }, reason)
+  }
+
   await u.button('another')
   await u.until(() => u.label('another'), '切换新会话')
   await panel(u)
+  await u.until(() => team(u)?.getAttribute('aria-label').includes('开启'), '新会话默认启用团队')
+  u.check(!u.label('重置当前模型的推理强度'), '已移除右侧重置按钮')
+  await u.until(() => {
+    const header = u.one('.rong-effort-header')?.getBoundingClientRect()
+    const heading = u.one('.rong-model-heading')?.getBoundingClientRect()
+    const s = speed(u)?.getBoundingClientRect()
+    const t = team(u)?.getBoundingClientRect()
+    return (
+      header &&
+      heading &&
+      s &&
+      t &&
+      s.right <= heading.left + 1 &&
+      t.left >= heading.right - 1 &&
+      Math.abs(s.top - t.top) <= 1 &&
+      (s.top + s.bottom) / 2 < (header.top + header.bottom) / 2 - 3
+    )
+  }, '速度居左、团队居右且两侧按钮顶部对齐不居中')
+  await assertCenteredHeading('默认团队与速度按钮下中心模型按钮保持绝对居中')
+  u.check(
+    !trigger(u).querySelector('[data-provider-icon]') &&
+      !u.one('.rong-model-heading').querySelector('[data-provider-icon]'),
+    '无匹配图标的供应商不渲染供应商图标',
+  )
+
+  await modelList(u, 'gpt-6-astra')
+  const providers = await u.until(() => {
+    const list = u.all('.rong-picker-provider')
+    return list.length >= 2 && list
+  }, '模型列表展示双供应商分组')
+  u.check(
+    !providers[0].querySelector('[data-provider-icon]') &&
+      providers[1].querySelector('[data-provider-icon="openai"]') &&
+      providers[1].querySelector('[data-provider-icon]').getBoundingClientRect().right <=
+        providers[1].querySelector('.rong-truncate').getBoundingClientRect().left + 1,
+    '模型列表中匹配的供应商在名称左侧渲染对应图标',
+  )
+
+  await u.click(() => u.one('[role=group][aria-label="OpenAI"] [role=option]'), '选择 OpenAI 模型')
+  await u.until(
+    () =>
+      u.one('.rong-model-heading')?.querySelector('[data-provider-icon="openai"]') &&
+      trigger(u)?.querySelector('[data-provider-icon="openai"]'),
+    '切换供应商后中心模型按钮与触发器显示对应供应商图标',
+  )
+  await assertCenteredHeading('含供应商图标时中心模型按钮仍绝对居中')
+
+  await u.click(() => speed(u)?.getAttribute('aria-busy') !== 'true' && speed(u), '速度菜单')
+  await u.until(() => u.one('[role=menuitemradio]'), '速度选项')
+  u.press(u.document.activeElement, 'End')
+  await u.until(() => u.document.activeElement.textContent === '超快', 'End 聚焦超快')
+  u.document.activeElement.click()
+  await u.until(
+    () => trigger(u)?.getAttribute('aria-label').includes('超快模式'),
+    'OpenAI 超快模式',
+  )
+  u.check(
+    trigger(u).querySelector('[data-provider-icon="openai"]').getBoundingClientRect().right <=
+      trigger(u).querySelector('.rong-trigger-fast').getBoundingClientRect().left + 1 &&
+      u
+        .one('.rong-model-heading')
+        .querySelector('[data-provider-icon="openai"]')
+        .getBoundingClientRect().right <=
+        u.one('.rong-model-name').getBoundingClientRect().left + 1,
+    '供应商图标位于对话框最左侧（Fast 更左）及中心模型名左侧',
+  )
+
+  await modelList(u, 'gpt-6-astra')
+  await u.click(
+    () => u.one('[role=group][aria-label="Fixture"] [role=option]'),
+    '切回 Fixture 模型',
+  )
+  await u.until(
+    () =>
+      u.one('.rong-model-heading') &&
+      !u.one('.rong-model-heading').querySelector('[data-provider-icon]') &&
+      !trigger(u)?.querySelector('[data-provider-icon]'),
+    '切回无图标供应商后隐藏图标',
+  )
   await u.click(() => speed(u)?.getAttribute('aria-busy') !== 'true' && speed(u), '速度菜单')
   await u.until(() => u.one('[role=menuitemradio]'), '速度选项')
   u.press(u.document.activeElement, 'End')
@@ -136,8 +236,6 @@ export async function speedAndTeam(u) {
     await u.click(() => u.text('[role=menuitemradio]', label), label)
   }
 
-  await choose('开启')
-  await u.until(() => team(u)?.getAttribute('aria-label').includes('开启'), '团队已开启')
   await closePanel(u)
 
   await selectTemplate(u, '破甲词')
@@ -165,6 +263,7 @@ export async function speedAndTeam(u) {
   await u.until(() => u.label('team-child'), '子会话加载')
   await panel(u)
   await u.until(() => speed(u) && speed(u).getAttribute('aria-busy') !== 'true', '子会话速度可用')
+  await assertCenteredHeading('无团队入口时中心模型按钮仍保持绝对居中')
   u.check(
     !team(u) && !trigger(u).getAttribute('aria-label').includes('超快模式'),
     '子会话无团队入口且使用独立速度',

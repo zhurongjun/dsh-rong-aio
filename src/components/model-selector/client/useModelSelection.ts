@@ -63,16 +63,13 @@ export function useModelSelection({ directory, select, load, available, locked, 
     }
   }
 
-  const chooseEffort = async (
-    value: string,
-    kind: 'effort' | 'reset' = 'effort',
-  ): Promise<boolean> => {
+  const chooseEffort = async (value: string): Promise<boolean> => {
     try {
       if (!current || !efforts.some((entry) => entry.id === value)) return false
       if (current.reasoningEffort === value) return true
       return await submit(
         { provider: current.provider, model: current.model, reasoningEffort: value },
-        kind,
+        'effort',
       )
     } finally {
       if (session.isMounted()) actions.preview(routeKey, undefined)

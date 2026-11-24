@@ -38,7 +38,10 @@ async function start() {
   for (const session of sessions) {
     const store = createStore(() => ({
       current: session.current,
-      groups: [{ id: 'fixture', name: 'Fixture', models }],
+      groups: [
+        { id: 'fixture', name: 'Fixture', models },
+        { id: 'openai', name: 'OpenAI', models: models.map((m) => ({ ...m, provider: 'openai' })) },
+      ],
       pending: null,
       failures: [],
       error: null,
