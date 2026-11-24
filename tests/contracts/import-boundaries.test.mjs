@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { checkImports } from '../../scripts/check-boundaries.mjs'
+import { checkCssImports, checkImports } from '../../tools/lint/boundaries.ts'
 
 test('组件边界：允许组件内和根 Shared，阻止跨组件、跨侧及规范化路径绕过', () => {
   const file = 'src/components/first/client/index.ts'
@@ -45,4 +45,25 @@ test('组件边界：允许组件内和根 Shared，阻止跨组件、跨侧及�
       .length,
   )
   assert.ok(checkImports("import '../client/view.ts'", 'src/runtime/host/index.ts').length)
+})
+
+test('CSS 导入边界：允许组件内及根客户端相对导入，阻止跨组件、跨侧及包名绕过', () => {
+  const file = 'src/components/first/client/styles.css'
+  for (const source of [
+    "@import './tokens.css';",
+    "@import '../shared/theme.css';",
+    "@import '../../../client/base.css';",
+    '@import url("./tokens.css");',
+  ]) {
+    assert.deepEqual(checkCssImports(source, file), [], source)
+  }
+
+  for (const source of [
+    "@import '../../second/client/styles.css';",
+    '@import url("../../second/client/styles.css");',
+    "@import '../host/styles.css';",
+    "@import 'dsh-rong-aio/second';",
+  ]) {
+    assert.ok(checkCssImports(source, file).length, source)
+  }
 })

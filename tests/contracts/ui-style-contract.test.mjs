@@ -2,7 +2,7 @@
 
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { checkCss, checkSource } from '../../scripts/check-ui-contract.mjs'
+import { checkCss, checkSource } from '../../tools/lint/ui-contract.ts'
 
 const file = 'src/components/fixture/client/example.css'
 

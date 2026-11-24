@@ -44,26 +44,13 @@
   ],
   "overrides": [
     {
-      "files": ["tests/bombadil/workbench.jsx"],
+      "files": ["tests/bombadil/**/*.{jsx,tsx}", "tests/bombadil/primitives.mjs"],
       "env": { "browser": true }
     },
     {
       "files": ["src/**/host/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
       "env": {
         "node": true
-      },
-      "rules": {
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "regex": "(^|/)client(/|$)",
-                "message": "Host 不得导入 Client；共享类型和协议应放入所属组件的 shared。"
-              }
-            ]
-          }
-        ]
       }
     },
     {
@@ -82,12 +69,6 @@
                 "importNames": ["useEffect", "useLayoutEffect", "useInsertionEffect"],
                 "message": "禁止导入 Effect 系列 Hook；请使用 Store 订阅生命期（withLifecycle / useStore）、事件回调或受管 DOM 控制器。"
               }
-            ],
-            "patterns": [
-              {
-                "regex": "(^|/)host(/|$)",
-                "message": "Client 不得导入 Host；共享类型和协议应放入所属组件的 shared。"
-              }
             ]
           }
         ]
@@ -96,22 +77,19 @@
     {
       "files": ["src/**/shared/**/*.{js,mjs,cjs,jsx,ts,mts,cts,tsx}"],
       "rules": {
-        "import/no-nodejs-modules": "error",
-        "no-restricted-imports": [
-          "error",
-          {
-            "patterns": [
-              {
-                "regex": "(^|/)(host|client)(/|$)",
-                "message": "Shared 必须与运行侧无关，不得导入 Host 或 Client。"
-              }
-            ]
-          }
-        ]
+        "import/no-nodejs-modules": "error"
       }
     },
     {
-      "files": ["scripts/**/*.{js,mjs,ts}", "tests/**/*.{js,mjs,ts,tsx}"],
+      "files": [
+        "tools/**/*.{js,mjs,ts}",
+        "tests/components/**/*.{js,mjs,ts,tsx}",
+        "tests/contracts/**/*.{js,mjs,ts,tsx}",
+        "tests/integration/**/*.{js,mjs,ts,tsx}",
+        "tests/bombadil/run.mjs",
+        "tests/bombadil/driver.mjs",
+        "tests/bombadil/fixture.mjs"
+      ],
       "env": {
         "node": true
       }

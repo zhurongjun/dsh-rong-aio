@@ -2,7 +2,7 @@
 
 自用、一个安装入口包含多个功能组件的 DeepSeek Harness 插件，支持 **DSH `0.2.2-rc.5` 和 `0.2.2-rc.3`** 的 Desktop 与 Web。
 
-包含两个独立组件：**模型选择器**提供紧凑的模型、effort、Fast 与 Agent Team 控制；**破甲模式**提供文件破甲词库、新会话显式授权、冻结快照和精确模型白名单。界面使用 DSH 主题与公开控件，各组件独立启停。
+包含四个可独立启停的功能组件：**模型选择器**提供紧凑的模型、effort、Fast 与 Agent Team 控制；**破甲模式**提供文件破甲词库、新会话显式授权、冻结快照和精确模型白名单；**会话管理**提供归档、复原与永久删除；**侧聊**支持从主会话分叉问答、单独审批与恢复历史。界面使用 DSH 主题与公开控件。
 
 ## 安装
 
@@ -41,33 +41,42 @@ dsh plugin --profile web add dsh-rong-aio
 
 ```text
 src/
-├── components/
-│   ├── model-selector/           # 模型、effort、Fast 与 Agent Team
-│   └── system-inject/            # 破甲词、会话冻结与模型护栏
-└── runtime/host/                 # 组件装配与生命周期
-scripts/build.mjs                 # 统一生成组件入口与 DSH 模块工厂
-tests/                            # 规则、装配生命周期、运动及交互测试
+├── client/                       # 根客户端公共 HTTP、Store 与弹窗组件
+├── host/                         # 根宿主适配、会话定位与 HTTP 公共工具
+├── shared/                       # 跨组件共用错误、队列与纯模型检索工具
+├── runtime/host/                 # 组件装配与生命周期
+└── components/
+    ├── model-selector/           # 模型、effort、Fast 与 Agent Team
+    ├── session-manager/          # 会话归档、复原与磁盘清理
+    ├── side/                     # 侧聊分叉、审批与历史恢复
+    └── system-inject/            # 破甲词、会话冻结与模型护栏
+tools/
+├── build.ts                      # 统一校验清单并生成组件入口与 DSH 模块工厂
+├── manifest.ts                   # 根包、子组件清单与 cordis.patch.yml 校验
+├── verify-package.ts             # 发布包白名单、导出及隔离安装验收
+└── lint/                         # 边界检查（含 CSS @import）与 UI 契约检查
+tests/                            # 契约、集成与 Bombadil 浏览器 UI 测试
 ```
 
 用户只安装 `dsh-rong-aio`，在 DSH 原生“包含的组件”中分别启停完整功能；总开关控制全部组件。新功能默认开启，已关闭组件沿用当前 profile 的覆盖状态。内部清单随根包分发，不单独安装。
 
 Host 不导入 Client；Client 不导入 Host 或 Node；Shared 不依赖任一侧实现或 DOM。组件不相互导入内部实现，确有跨组件契约时才建立根 `src/shared/`，当前组件之间没有业务依赖。项目内部使用相对 ESM 导入。
 
-界面直接消费 DSH 的语义 token 与公开控件；中性色、菜单材质和字体跟随宿主，保留选择器的布局与特色交互。新增界面遵守 `scripts/ui-contract.json`，使用 `pnpm check:ui` 检查颜色、token 与局部例外。
+界面直接消费 DSH 的语义 token 与公开控件；中性色、菜单材质和字体跟随宿主，保留选择器的布局与特色交互。新增界面遵守 `tools/lint/ui-contract.json`，通过 `pnpm lint` 统一检查目录文档、依赖边界、清单一致性及 UI token 契约。
 
 开发环境：Node.js `^22.19.0 || >=24.0.0`、pnpm `11.25.0`。依赖固定版本，锁文件随源码提交。`pnpm-workspace.yaml` 配置 esbuild 及原生 JSONL 集成测试所需 koffi 的开发安装脚本许可与本地依赖缓存位置，只有根包参与依赖安装。
 
-| 命令                                               | 用途                                                |
-| -------------------------------------------------- | --------------------------------------------------- |
-| `pnpm format`                                      | 格式化源码、配置与中文文档                          |
-| `pnpm format:check`                                | 只检查格式                                          |
-| `pnpm lint` / `pnpm lint:fix`                      | 检查源码目录、代码与导入边界 / 安全修复             |
-| `pnpm typecheck`                                   | 检查 DSH 契约与组件类型                             |
-| `pnpm check:ui`                                    | 检查 UI token、颜色与主题所有权                     |
-| `pnpm test`                                        | 规则、动画计算与 DOM 交互测试                       |
-| `pnpm check`                                       | 依次检查格式、lint、UI 契约、类型和测试，不改写源码 |
-| `pnpm build`                                       | 生成可安装的 `lib/`                                 |
-| `pnpm pack --pack-destination agent_temp/packages` | 自动构建并打成安装包                                |
+| 命令                                               | 用途                                               |
+| -------------------------------------------------- | -------------------------------------------------- |
+| `pnpm format`                                      | 格式化源码、配置、工具脚本与中文文档               |
+| `pnpm format:check`                                | 只检查格式                                         |
+| `pnpm lint` / `pnpm lint:fix`                      | 运行 Oxlint 与工程契约检查（边界、UI token、清单） |
+| `pnpm typecheck`                                   | 检查源码、工具脚本与 TS 测试类型                   |
+| `pnpm test`                                        | 运行 Node 契约/集成测试与 Bombadil 浏览器 UI 测试  |
+| `pnpm check`                                       | 依次检查格式、lint、类型和测试，不改写源码         |
+| `pnpm build`                                       | 生成可安装的 `lib/`                                |
+| `pnpm pack --pack-destination agent_temp/packages` | 自动构建并打成安装包                               |
+| `pnpm verify:package`                              | 验证 `.tgz` 内容、导出闭合及 pnpm/npm 离线隔离安装 |
 
 每次向任意分支推送提交或更新 PR，`ci.yml` 都会执行完整检查、构建、打包与隔离安装验证。
 

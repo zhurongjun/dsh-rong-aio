@@ -93,10 +93,18 @@ jobs:
           version="${RELEASE_TAG#v}"
           asset="dsh-rong-aio-${version}.tgz"
           dsh_range="$(tar -xOzf "agent_temp/packages/${asset}" package/package.json | jq -er '.engines.dsh')"
+          component_locales="$(tar -tzf "agent_temp/packages/${asset}" | grep -E '^package/lib/components/[^/]+/locale/zh\.json$' | sort)"
+          components_md=""
+          while IFS= read -r locale_file; do
+            [[ -z "$locale_file" ]] && continue
+            line="$(tar -xOzf "agent_temp/packages/${asset}" "$locale_file" | jq -er '"- **\(.meta.title)**：\(.meta.description)"')"
+            components_md+="${line}"$'\n'
+          done <<< "$component_locales"
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${RELEASE_TAG}/${asset}"
           cat > agent_temp/release/notes.md <<EOF
-          支持的 DSH 版本范围为 \`${dsh_range}\`，包含模型选择器和破甲模式两个独立组件。
+          支持的 DSH 版本范围为 \`${dsh_range}\`，包含以下独立组件：
 
+          ${components_md}
           在 DSH Desktop → 插件 → 添加插件中填写 npm 包名和版本，安装后点击“立即启用”。
 
           \`\`\`text

@@ -1,7 +1,7 @@
 # 工作约束
 
 - Commit、Push 等行为需要用户批准，不许静默进行
-- 保持组件及 Host、Client、Shared 的依赖边界。使用宿主公开接口，界面遵守 `scripts/ui-contract.json`。
+- 保持组件及 Host、Client、Shared 的依赖边界。使用宿主公开接口，界面遵守 `tools/lint/ui-contract.json`。
 
 # 目录约束
 

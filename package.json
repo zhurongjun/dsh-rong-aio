@@ -1,6 +1,6 @@
 {
   "name": "dsh-rong-aio",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "description": "自用 DSH 功能组合包：统一安装，按功能独立启停。",
   "type": "module",
   "license": "GPL-3.0-only",
@@ -44,7 +44,6 @@
   "files": [
     "lib/",
     "cordis.patch.yml",
-    "scripts/ui-contract.json",
     "THIRD_PARTY_NOTICES.md"
   ],
   "dsh": {
@@ -55,17 +54,16 @@
   "scripts": {
     "format": "prettier . --write",
     "format:check": "prettier . --check",
-    "lint": "oxlint --no-error-on-unmatched-pattern --max-warnings 0 . && pnpm check:boundaries",
-    "lint:fix": "oxlint --fix --no-error-on-unmatched-pattern --max-warnings 0 . && pnpm check:boundaries",
-    "check": "pnpm format:check && pnpm lint && pnpm check:ui && pnpm typecheck && pnpm test",
-    "build": "node scripts/build.mjs",
-    "prepare": "node scripts/build.mjs",
-    "typecheck": "tsc -b tsconfig.json",
+    "lint": "oxlint --no-error-on-unmatched-pattern --max-warnings 0 . && node tools/lint/index.ts",
+    "lint:fix": "oxlint --fix --no-error-on-unmatched-pattern --max-warnings 0 . && node tools/lint/index.ts",
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test",
+    "build": "node tools/build.ts",
+    "prepare": "node tools/build.ts",
+    "typecheck": "tsc -b tsconfig.json && tsc -p tsconfig.tools.json",
     "test": "pnpm test:node && pnpm test:ui",
-    "test:node": "node --experimental-strip-types --test \"tests/**/*.test.ts\" \"tests/**/*.test.mjs\"",
+    "test:node": "node --test \"tests/**/*.test.ts\" \"tests/**/*.test.mjs\"",
     "test:ui": "node --test tests/bombadil/run.mjs",
-    "check:ui": "node scripts/check-ui-contract.mjs",
-    "check:boundaries": "node scripts/check-boundaries.mjs"
+    "verify:package": "node tools/verify-package.ts"
   },
   "devDependencies": {
     "@antithesishq/bombadil": "0.8.0",

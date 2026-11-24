@@ -50,13 +50,21 @@ export async function runBombadil(origin, directory, fixtureRoot, signal) {
   }
   if (!win) {
     let env
-    if (!process.env.CHROME && process.platform === 'darwin') {
-      const macCandidates = [
-        '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-        '/Applications/Chromium.app/Contents/MacOS/Chromium',
-        '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-      ]
-      for (const candidate of macCandidates) {
+    if (!process.env.CHROME) {
+      const candidates =
+        process.platform === 'darwin'
+          ? [
+              '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+              '/Applications/Chromium.app/Contents/MacOS/Chromium',
+              '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+            ]
+          : [
+              '/usr/bin/google-chrome',
+              '/usr/bin/google-chrome-stable',
+              '/usr/bin/chromium',
+              '/usr/bin/chromium-browser',
+            ]
+      for (const candidate of candidates) {
         if (
           await access(candidate).then(
             () => true,
